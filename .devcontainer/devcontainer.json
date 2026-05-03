@@ -1,33 +1,37 @@
 {
-    "name": "PowerShell",
-    "build": {
-        "dockerfile": "Dockerfile"
-    },
-    "features": {
-        "ghcr.io/devcontainers/features/common-utils:2": {
-            "installZsh": "true",
-            "username": "vscode",
-            "upgradePackages": "false",
-            "nonFreePackages": "true"
-        }
-    },
-    "postCreateCommand": "sudo chsh vscode -s \"$(which pwsh)\"",
-    "customizations": {
-        "vscode": {
-            "settings": {
-                "terminal.integrated.defaultProfile.linux": "pwsh",
-                "terminal.integrated.fontFamily": "MesloLGM Nerd Font"
-            },
-            "extensions": [
-                "ms-vscode.powershell",
-                "anthropic.claude-code"
-            ]
-        }
-    },
-    "initializeCommand": "cp \"$(wslpath \"$(wslvar USERPROFILE)\")/.git-credentials\" ~/.git-credentials 2>/dev/null || touch ~/.git-credentials",
-    "mounts": [
-        "source=${localEnv:HOME}/.claude,target=/root/.claude,type=bind,consistency=cached",
-        "source=${localEnv:HOME}/.gitconfig,target=/root/.gitconfig,type=bind,consistency=cached",
-        "source=${localEnv:HOME}/.git-credentials,target=/root/.git-credentials,type=bind,consistency=cached"
-    ]
+  "name": "PowerShell",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "remoteUser": "vscode",
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": "true",
+      "username": "vscode",
+      "upgradePackages": "false",
+      "nonFreePackages": "true"
+    }
+  },
+  "mounts": [
+    "source=${localEnv:HOME}/.gitconfig,target=/tmp/host-gitconfig,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.git-credentials,target=/tmp/host-git-credentials,type=bind,consistency=cached"
+  ],
+  "postCreateCommand": "cp /tmp/host-gitconfig ~/.gitconfig 2>/dev/null || true; cp /tmp/host-git-credentials ~/.git-credentials 2>/dev/null || true; chmod 600 ~/.git-credentials 2>/dev/null || true; curl -fsSL https://raw.githubusercontent.com/wesleycamargo/terminal-bootstrap/v1.0.0/terminal-setup.ps1 -o /tmp/terminal-setup.ps1 && pwsh -NoProfile -File /tmp/terminal-setup.ps1 -DevContainer && sudo chsh vscode -s \"$(which pwsh)\"",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "pwsh",
+        "terminal.integrated.profiles.linux": {
+          "pwsh": {
+            "path": "pwsh"
+          }
+        },
+        "terminal.integrated.fontFamily": "MesloLGM Nerd Font"
+      },
+      "extensions": [
+        "ms-vscode.powershell",
+        "anthropic.claude-code"
+      ]
+    }
+  }
 }
