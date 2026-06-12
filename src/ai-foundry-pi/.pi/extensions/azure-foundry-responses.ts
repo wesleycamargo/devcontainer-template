@@ -1,16 +1,22 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 export default function (pi: ExtensionAPI) {
+  const projectName = process.env.AZURE_FOUNDRY_PROJECT_NAME;
+
+  if (!projectName) {
+    throw new Error("Missing AZURE_FOUNDRY_PROJECT_NAME environment variable.");
+  }
+
   pi.registerProvider("azure-foundry-user", {
-    baseUrl: "https://<YOUR_FOUNDRY_PROJECT_NAME>.services.ai.azure.com/openai/v1",
+    baseUrl: `https://${projectName}.services.ai.azure.com/openai/v1`,
     api: "openai-responses",
     apiKey:
       "!az account get-access-token --resource https://cognitiveservices.azure.com --query accessToken -o tsv",
     authHeader: true,
     models: [
       {
-        id: "<YOUR-MODEL-ID-EXAMPLE:gpt-5.3-codex>",
-        name: "<YOUR-MODEL-NAME-EXAMPLE:gpt-5.3-codex>",
+        id: "gpt-5.3-codex",
+        name: "gpt-5.3-codex",
         reasoning: true,
         input: ["text", "image"],
         contextWindow: 128000,

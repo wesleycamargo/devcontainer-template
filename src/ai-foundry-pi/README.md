@@ -17,12 +17,18 @@ This folder contains a project-local Pi setup that authenticates to Azure AI Fou
 
 ## Configure
 
-Update placeholders in `.pi/agent/models.json`:
+Set environment variables (instead of editing tokens/placeholders in files):
 
-- `baseUrl` → `https://<your-foundry-project>.services.ai.azure.com/openai/v1`
-- model `id` and `name` → your deployed model (example: `gpt-5.3-codex`)
+```bash
+export AZURE_FOUNDRY_PROJECT_NAME=<your-foundry-project>
+```
 
-If needed, update `.pi/extensions/azure-foundry-responses.ts` to match the same `baseUrl` and model.
+The template now reads `AZURE_FOUNDRY_PROJECT_NAME` from environment variables in both:
+
+- `.pi/agent/models.json`
+- `.pi/extensions/azure-foundry-responses.ts`
+
+If you're using the included dev container, these variables are also passed through from your host via `.devcontainer/devcontainer.json` (`localEnv`).
 
 ## Authenticate
 
@@ -42,7 +48,7 @@ az account get-access-token --resource https://cognitiveservices.azure.com --que
 ## Run Pi with Azure Foundry
 
 ```bash
-pi --provider azure-foundry-user --model <your-model-id>
+pi --provider azure-foundry-user --model gpt-5.3-codex
 ```
 
 Example:
@@ -55,7 +61,7 @@ pi --provider azure-foundry-user --model gpt-5.3-codex
 
 ```bash
 PI_DISABLE_UPDATE_CHECK=1 \
-pi --provider azure-foundry-user --model <your-model-id> \
+pi --provider azure-foundry-user --model gpt-5.3-codex \
   -p "Reply with pong only."
 ```
 
@@ -71,5 +77,5 @@ Expected response: `pong`
 ```bash
 pi -e ./.pi/extensions/azure-foundry-responses.ts \
   --provider azure-foundry-user \
-  --model <your-model-id>
+  --model gpt-5.3-codex
 ```
