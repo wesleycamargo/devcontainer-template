@@ -9,13 +9,13 @@ A PowerShell-based dev container for Azure and Infrastructure-as-Code engineerin
 1. Copy the image URL:
 
 ```
-ghcr.io/thecloudexplorers/devcontainer-template/engineering-tools:latest
+ghcr.io/wesleycamargo/devcontainer-template/engineering-tools:latest
 ```
 
 2. Open the command palette (`Ctrl+Shift+P` / `Cmd+Shift+P` / `F1`)
 3. Run **Dev Containers: Add Dev Container Configuration Files**
    ![alt text](docs/images/add-devcontainer.png)
-4. In the search box, type the URL of the dev container image: `ghcr.io/thecloudexplorers/devcontainer-template/engineering-tools:latest`
+4. In the search box, type the URL of the dev container image: `ghcr.io/wesleycamargo/devcontainer-template/engineering-tools:latest`
    ![alt text](docs/images/devcontainer-url.png)
 5. Select the image and follow the prompts to create the dev container configuration files.
 6. Reopen the folder in the dev container when prompted.
@@ -24,7 +24,7 @@ ghcr.io/thecloudexplorers/devcontainer-template/engineering-tools:latest
 
 ```json
 {
-  "image": "ghcr.io/thecloudexplorers/devcontainer-template/engineering-tools:latest"
+  "image": "ghcr.io/wesleycamargo/devcontainer-template/engineering-tools:latest"
 }
 ```
 
@@ -43,9 +43,25 @@ Optimised for Azure-hosted development environments (GitHub Codespaces, Azure Co
 | Bicep                 | IaC authoring and deployment               |
 | GitHub CLI            | Repository and PR workflows                |
 | Claude Code CLI       | AI-assisted development                    |
+| Pi Coding Agent CLI   | AI-assisted development with Azure Foundry |
 | draw.io               | Architecture diagramming                   |
 | Az PowerShell modules | Azure automation and scripting             |
 | PSRule.Rules.Azure    | Azure governance and compliance validation |
+
+## Pi Azure Foundry authentication
+
+This dev container includes a project-local Pi configuration for Azure Foundry:
+
+- `.pi/agent/models.json` defines the `azure-foundry-user` provider and gets bearer tokens from the already-authenticated Azure CLI.
+- `.pi/extensions/azure-foundry-responses.ts` routes that provider through Pi's `openai-responses` API because the `gpt-5.3-codex` deployment uses `/openai/v1/responses`.
+
+After signing in with `az login`, run:
+
+```bash
+pi --provider azure-foundry-user --model gpt-5.3-codex
+```
+
+See [docs/pi-azure-foundry-auth.md](docs/pi-azure-foundry-auth.md) for verification and troubleshooting details.
 
 ## VS Code extensions
 
@@ -57,4 +73,4 @@ Optimised for Azure-hosted development environments (GitHub Codespaces, Azure Co
 | Live Share            | Collaborative editing    |
 | Claude Dev            | AI code assistant        |
 
-[github.com/thecloudexplorers/devcontainer-template](https://github.com/thecloudexplorers/devcontainer-template)
+[github.com/wesleycamargo/devcontainer-template](https://github.com/wesleycamargo/devcontainer-template)
