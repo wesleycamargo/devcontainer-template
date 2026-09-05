@@ -1,0 +1,7 @@
+{
+  "id": "ai-hermes-devbox",
+  "version": "1.0.0",
+  "name": "AI Hermes Devbox (PowerShell)",
+  "description": "AI Devbox plus the Hermes Agent (Nous Research) with the full browser and computer-use install.",
+  "options": {}
+}

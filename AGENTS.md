@@ -10,17 +10,24 @@ template/image built from the same config.
   credentials and git config — see `.devcontainer/README.md`).
 - `src/ai-devbox/.devcontainer/` — the same config, kept as an intentional
   duplicate of the root, but published via CI. Mirror any change across both.
+- `src/ai-hermes-devbox/` — a second published template: the `ai-devbox`
+  config plus the Hermes Agent (Nous Research), full browser + computer-use
+  install. Its `Dockerfile.base` is `FROM ai-devbox-image` + the Hermes
+  step, so it doesn't duplicate the base recipe. Published as
+  `ai-hermes-devbox` / `ai-hermes-devbox-image`.
 - `.github/workflows/publish.yml` — on push to `main`: bumps a `vX.Y.Z` git
-  tag, updates `src/ai-devbox/devcontainer-template.json`'s version, publishes
-  the `ai-devbox` OCI devcontainer template, then builds/pushes
-  `ai-devbox-image` from `Dockerfile.base`.
+  tag, stamps the version into both `devcontainer-template.json`s, publishes
+  the `ai-devbox` and `ai-hermes-devbox` OCI devcontainer templates, then
+  builds/pushes `ai-devbox-image` from its `Dockerfile.base` and
+  `ai-hermes-devbox-image` (`FROM ai-devbox-image` + Hermes) after it.
 - `scripts/setup_github_publishing.py` — one-time GitHub-side setup helper
   (workflow token permissions, package visibility check). Requires `gh`
   authenticated with `packages` scope.
 
-All published packages
-(`ghcr.io/wesleycamargo/devcontainer-template/ai-devbox` template and
-`ai-devbox-image` image) are **private**.
+All published packages under
+`ghcr.io/wesleycamargo/devcontainer-template/` — the `ai-devbox` and
+`ai-hermes-devbox` templates, the `ai-devbox-image` and
+`ai-hermes-devbox-image` images — are **private**.
 
 ## Dockerfile / Dockerfile.base split
 
@@ -41,6 +48,13 @@ Add personal/project customizations to `Dockerfile` (fast, local-only,
 layers on top of the published base). Changes meant to be baked into the
 shared base for everyone go in `Dockerfile.base` instead, and only take
 effect after a push to `main` publishes a new `ai-devbox-image`.
+
+`src/ai-hermes-devbox/.devcontainer/Dockerfile.base` is the exception to
+the "full recipe" rule: it's `FROM` the published `ai-devbox-image` plus
+the Hermes install, so it carries none of the recipe above and isn't
+mirrored against the others. A change to the shared recipe still only
+needs to be made in the `ai-devbox` `Dockerfile.base` (root + `src`);
+`ai-hermes-devbox` picks it up automatically through its `FROM`.
 
 ## Related repos
 

@@ -64,10 +64,11 @@ jobs:
           git push origin "$NEW_TAG"
           echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Set version in template
+      - name: Set version in templates
         run: |
-          FILE="src/ai-devbox/devcontainer-template.json"
-          jq --arg v "${{ steps.version.outputs.version }}" '.version = $v' "$FILE" > tmp.json && mv tmp.json "$FILE"
+          for FILE in src/ai-devbox/devcontainer-template.json src/ai-hermes-devbox/devcontainer-template.json; do
+            jq --arg v "${{ steps.version.outputs.version }}" '.version = $v' "$FILE" > tmp.json && mv tmp.json "$FILE"
+          done
 
       - name: Publish Templates
         uses: devcontainers/action@v1
@@ -98,3 +99,15 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}/ai-devbox-image:latest
             ghcr.io/${{ github.repository }}/ai-devbox-image:${{ steps.version.outputs.version }}
+
+      # FROM ai-devbox-image:latest -- the step above just pushed it -- plus
+      # the Hermes install. Not a full rebuild of the base recipe.
+      - name: Build and push ai-hermes-devbox image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./src/ai-hermes-devbox/.devcontainer
+          file: ./src/ai-hermes-devbox/.devcontainer/Dockerfile.base
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/ai-hermes-devbox-image:latest
+            ghcr.io/${{ github.repository }}/ai-hermes-devbox-image:${{ steps.version.outputs.version }}

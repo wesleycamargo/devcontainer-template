@@ -64,4 +64,11 @@ layer on top of it.
 See [`src/ai-devbox/README.md`](src/ai-devbox/README.md) for full setup
 details, prerequisites, and configuration notes.
 
+## Hermes variant
+
+[`ai-hermes-devbox`](src/ai-hermes-devbox/README.md) is a second published
+template: everything above plus the [Hermes Agent](https://hermes-agent.nousresearch.com/)
+from Nous Research (full browser + computer-use install). Apply it with
+`-t ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox`.
+
 [github.com/wesleycamargo/devcontainer-template](https://github.com/wesleycamargo/devcontainer-template)
