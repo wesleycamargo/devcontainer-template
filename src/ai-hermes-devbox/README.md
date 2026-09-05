@@ -67,29 +67,49 @@ Hermes is installed but not configured — the image build passes
 inside the container to set up API keys and connectors; it writes
 `~/.hermes/.env` and `~/.hermes/config.yaml`.
 
+## Reaching Hermes from the host
+
+`docker-compose.yml` publishes the Hermes dashboard (`9119`) and gateway
+API (`8642`) to the host. Publishing the port isn't enough on its own —
+Hermes binds to `127.0.0.1` *inside the container* by default, which the
+published port can't reach, so it also has to listen on `0.0.0.0`:
+
+- **Dashboard** (`http://localhost:9119` on the host):
+  ```bash
+  hermes dashboard --host 0.0.0.0
+  ```
+  Binding to a non-loopback address makes Hermes refuse to start until an
+  auth provider (OAuth or basic auth) is configured under the `dashboard`
+  key in `~/.hermes/config.yaml`.
+- **Gateway / OpenAI-compatible API** (`http://localhost:8642` on the host):
+  set `gateway.api_server.host: 0.0.0.0` in `~/.hermes/config.yaml` (or run
+  `API_SERVER_HOST=0.0.0.0 hermes gateway`), and set `API_SERVER_KEY` in
+  `~/.hermes/.env` — it's required for every deployment, since the gateway
+  exposes the full Hermes toolset including terminal commands.
+
+Change or drop the `ports:` entries in `docker-compose.yml` if you don't
+want these reachable from the host.
+
 ## Configuration
 
-### Dockerfile / Dockerfile.base
+### The image
 
-This template builds in two layers:
+`docker-compose.yml` sets `image:` to
+`ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox-image` — the
+prebuilt image. Its `Dockerfile` (which
+`.github/workflows/publish-ai-hermes-devbox.yml` builds and pushes) is
+`FROM ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image` (the
+prebuilt base with PowerShell, Oh My Posh, Terminal-Icons, Node, and the
+Claude Code/Codex CLIs) plus the Hermes install step. `docker-compose.yml`
+doesn't build that `Dockerfile` — it's kept as the reference recipe.
+Applying the template and rebuilding just re-pulls the image.
 
-- **`Dockerfile.base`** — `FROM
-  ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image` (the prebuilt
-  base with PowerShell, Oh My Posh, Terminal-Icons, Node, and the Claude
-  Code/Codex CLIs already installed) plus the Hermes install step.
-  `.github/workflows/publish-ai-hermes-devbox.yml` builds this and pushes it
-  as `ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox-image`.
-- **`Dockerfile`** — thin, just `FROM` that published
-  `ai-hermes-devbox-image`. This is what `docker-compose.yml` actually
-  builds, so applying the template and rebuilding pulls the prebuilt image
-  instead of reinstalling everything from scratch.
-
-Add your own customizations as `RUN`/`COPY` lines in `Dockerfile` — they
-layer on top of the prebuilt image, so rebuilds stay fast. Editing
-`Dockerfile.base` has **no effect** on a local rebuild (compose builds
-`Dockerfile`); a change there only takes effect once a new
-`ai-hermes-devbox-image` is published, or if you repoint `Dockerfile` /
-`docker-compose.yml` to build `Dockerfile.base` directly.
+For your own customizations, add a second file (e.g. `Dockerfile.local`)
+that does `FROM
+ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox-image`
+followed by your `RUN`/`COPY` lines, and point `docker-compose.yml` at it
+with a `build:` block instead of `image:` — your layers sit on top of the
+prebuilt image, so rebuilds stay fast.
 
 ### Agent CLI credentials
 
@@ -121,8 +141,8 @@ folder name after applying the template.
 - **The image build is slow or fails on Chromium**: the full Hermes install
   pulls Playwright/Chromium and the computer-use driver. To build a lean
   image, add `--skip-browser --skip-computer-use` to the `install.sh` line
-  in `Dockerfile.base` and publish a new `ai-hermes-devbox-image` (or point
-  `docker-compose.yml` at `Dockerfile.base` for a local build).
+  in `Dockerfile` and publish a new `ai-hermes-devbox-image` (or point
+  `docker-compose.yml` at a local `build:` of that `Dockerfile`).
 - **Agent CLI asks you to log in again every rebuild**: check that the
   credential bind mounts in `docker-compose.yml` point at real, existing
   paths on your host.

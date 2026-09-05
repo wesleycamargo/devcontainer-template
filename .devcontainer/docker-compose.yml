@@ -1,8 +1,11 @@
 services:
   devcontainer:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    # Pull the prebuilt image (CI builds it from
+    # src/ai-devbox/.devcontainer/Dockerfile and publishes it as
+    # ai-devbox-image). No local build step -- for an extra local layer,
+    # swap this for a `build:` block pointing at a Dockerfile that does
+    # `FROM` this image. Requires `docker login ghcr.io` (private package).
+    image: ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image:latest
     init: true
     # Keeps the container running; VS Code/the devcontainer CLI exec into it
     # rather than relying on the image's own entrypoint to block.
@@ -23,7 +26,7 @@ services:
       # Only auth.json, NOT the whole ~/.codex: the rest of that directory is
       # desktop-app state (Windows-path config.toml, plugin dirs, live SQLite
       # files the app holds locks on). The container gets its own ~/.codex from
-      # the Dockerfile; sharing just the credentials file means token refreshes
+      # the image build; sharing just the credentials file means token refreshes
       # stay in sync in both directions. See .devcontainer/README.md.
       - /mnt/c/Users/Wesle/.codex/auth.json:/home/vscode/.codex/auth.json
       # Host git identity/credentials, read-only. postCreateCommand copies

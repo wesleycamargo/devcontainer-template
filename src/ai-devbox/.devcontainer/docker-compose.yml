@@ -1,8 +1,11 @@
 services:
   devcontainer:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    # Pull the prebuilt image (CI builds it from this directory's Dockerfile
+    # and publishes it as ai-devbox-image). No local build step -- for an
+    # extra local layer, swap this for a `build:` block pointing at a
+    # Dockerfile that does `FROM` this image. Requires `docker login
+    # ghcr.io` (private package).
+    image: ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image:latest
     init: true
     # Keeps the container running; VS Code/the devcontainer CLI exec into it
     # rather than relying on the image's own entrypoint to block.

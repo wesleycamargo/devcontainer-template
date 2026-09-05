@@ -1,16 +1,18 @@
 # Devcontainer notes
 
-## Dockerfile / Dockerfile.base
+## The image
 
-`Dockerfile.base` has the actual build recipe (PowerShell, Oh My Posh,
-Terminal-Icons, Node, the agent CLIs) — it's what
-`.github/workflows/publish-ai-devbox.yml` builds and publishes as
-`ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image`. `Dockerfile`
-itself is just `FROM` that published image, which is what `docker-compose.yml`
-actually builds here — so rebuilding this devcontainer pulls the prebuilt
-image instead of reinstalling everything. Personal tweaks go in `Dockerfile`
-(fast, local-only); anything worth baking into the image for next time goes
-in `Dockerfile.base` and needs a push to `main` to actually publish.
+This devcontainer has no Dockerfile. `docker-compose.yml` sets `image:` to
+`ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image`, the prebuilt
+image with the full build recipe (PowerShell, Oh My Posh, Terminal-Icons,
+Node, the agent CLIs) — so opening it pulls the image instead of
+reinstalling everything. `docker login ghcr.io` first (private package).
+
+The recipe lives in `src/ai-devbox/.devcontainer/Dockerfile`, which
+`.github/workflows/publish-ai-devbox.yml` builds and publishes as that
+image. Anything worth baking in goes there and needs a push to `main`. For
+a throwaway local tweak, swap the `image:` line for a `build:` block with a
+`Dockerfile` that does `FROM` the image.
 
 ## Persisting Claude Code / Codex credentials
 
@@ -34,7 +36,7 @@ Codex only exists on this machine's Windows side, so that mount crosses
 all of `~/.codex`: the rest of that directory is Windows desktop-app state
 (`config.toml` with Windows-only paths, plugin dirs, live SQLite files the
 app holds locks on) that doesn't belong in a Linux container.
-`Dockerfile.base` creates the container's own `~/.codex` (owned by `vscode`,
+The image build creates the container's own `~/.codex` (owned by `vscode`,
 with its own `config.toml`) so the `auth.json` bind mount doesn't cause
 Docker to create the parent directory as root. Sharing just the
 credentials file means token refreshes made in either environment stay in

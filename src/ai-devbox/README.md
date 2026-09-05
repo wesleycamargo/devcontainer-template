@@ -54,24 +54,23 @@ Then **Reopen in Container**.
 
 ## Configuration
 
-### Dockerfile / Dockerfile.base
+### The image
 
-This template builds in two layers:
+`docker-compose.yml` sets `image:` to
+`ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image` — the
+prebuilt image with the full recipe (PowerShell, Oh My Posh,
+Terminal-Icons, Node, the Claude Code/Codex CLIs) already installed.
+`.github/workflows/publish-ai-devbox.yml` builds it from the `Dockerfile`
+in this directory and pushes it there. `docker-compose.yml` doesn't build
+that `Dockerfile` — it's kept as the reference recipe for what's in the
+image. Applying the template and rebuilding just re-pulls the image.
 
-- **`Dockerfile.base`** — the full recipe (PowerShell, Oh My Posh,
-  Terminal-Icons, Node, the Claude Code/Codex CLIs).
-  `.github/workflows/publish-ai-devbox.yml` builds this and pushes it as
-  `ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image`.
-- **`Dockerfile`** — thin, just `FROM` that published image. This is what
-  `docker-compose.yml` actually builds, so applying the template and
-  rebuilding pulls the prebuilt image instead of reinstalling everything
-  from scratch.
-
-Add any of your own customizations as `RUN`/`COPY` lines in `Dockerfile` —
-they layer on top of the prebuilt base, so rebuilds stay fast. If you want a
-change baked into the base itself (so it doesn't re-run on every rebuild),
-add it to `Dockerfile.base` instead — that only takes effect for other users
-once a new `ai-devbox-image` is published.
+For your own customizations, add a second file (e.g. `Dockerfile.local`)
+that does `FROM
+ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image` followed by
+your `RUN`/`COPY` lines, and point `docker-compose.yml` at it with a
+`build:` block instead of `image:` — your layers sit on top of the
+prebuilt image, so rebuilds stay fast.
 
 ### Agent CLI credentials
 

@@ -2,8 +2,8 @@ name: Publish ai-devbox
 
 # One publish workflow per devcontainer under src/. This one owns the
 # `ai-devbox` template and the `ai-devbox-image` image, and only runs when
-# that devcontainer's files (or this workflow) change. It shares nothing with
-# the other publish-*.yml workflows -- separate version tags, parallel runs.
+# `src/ai-devbox/**` changes. It shares nothing with the other publish-*.yml
+# workflows -- separate version tags, parallel runs.
 
 on:
   push:
@@ -11,7 +11,6 @@ on:
       - main
     paths:
       - 'src/ai-devbox/**'
-      - '.github/workflows/publish-ai-devbox.yml'
   workflow_dispatch:
     inputs:
       bump_type:
@@ -119,7 +118,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ./src/${{ env.TEMPLATE_ID }}/.devcontainer
-          file: ./src/${{ env.TEMPLATE_ID }}/.devcontainer/Dockerfile.base
+          file: ./src/${{ env.TEMPLATE_ID }}/.devcontainer/Dockerfile
           push: true
           tags: |
             ghcr.io/${{ github.repository }}/${{ env.TEMPLATE_ID }}-image:latest

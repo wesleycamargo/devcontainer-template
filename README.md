@@ -42,13 +42,13 @@ devcontainer templates apply -w . -t ghcr.io/wesleycamargo/devcontainer-template
 
 ## Image
 
-Applying the template builds `Dockerfile`, which just does
-`FROM ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image` — a
-prebuilt image (published by `.github/workflows/publish-ai-devbox.yml` from
-`src/ai-devbox/.devcontainer/Dockerfile.base`) with all the tools below
-already installed. Rebuilds pull that image instead of reinstalling
-everything from scratch; add customizations to `Dockerfile` and they'll
-layer on top of it.
+Applying the template gives you a `docker-compose.yml` that pulls
+`ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image` — a prebuilt
+image (published by `.github/workflows/publish-ai-devbox.yml` from
+`src/ai-devbox/.devcontainer/Dockerfile`) with all the tools below already
+installed. There's no local build; rebuilds just re-pull the image. For a
+local customization layer, swap the `image:` line for a `build:` block with
+a `Dockerfile` that does `FROM` the image.
 
 ## Included tools
 

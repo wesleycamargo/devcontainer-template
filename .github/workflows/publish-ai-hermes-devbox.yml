@@ -2,7 +2,7 @@ name: Publish ai-hermes-devbox
 
 # One publish workflow per devcontainer under src/. This one owns the
 # `ai-hermes-devbox` template and the `ai-hermes-devbox-image` image, and
-# only runs when that devcontainer's files (or this workflow) change.
+# only runs when `src/ai-hermes-devbox/**` changes.
 #
 # ai-hermes-devbox-image is `FROM ai-devbox-image:latest` but the two
 # publishes are independent -- a base rebuild does NOT retrigger this. Push a
@@ -15,7 +15,6 @@ on:
       - main
     paths:
       - 'src/ai-hermes-devbox/**'
-      - '.github/workflows/publish-ai-hermes-devbox.yml'
   workflow_dispatch:
     inputs:
       bump_type:
@@ -116,7 +115,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ./src/${{ env.TEMPLATE_ID }}/.devcontainer
-          file: ./src/${{ env.TEMPLATE_ID }}/.devcontainer/Dockerfile.base
+          file: ./src/${{ env.TEMPLATE_ID }}/.devcontainer/Dockerfile
           push: true
           tags: |
             ghcr.io/${{ github.repository }}/${{ env.TEMPLATE_ID }}-image:latest
