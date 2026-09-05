@@ -1,16 +1,13 @@
 # AI Devbox (PowerShell)
 
 A PowerShell-first dev container with the Claude Code / Codex agent CLIs
-preconfigured, plus Azure tooling and MicroPython/ESP flashing support.
+preconfigured, plus Azure tooling.
 
 ## What's included
 
 - PowerShell (via the `powershell` devcontainer feature), set as the default
   integrated terminal.
 - Azure Bicep CLI (`azurebicep` feature) and GitHub CLI (`gh`).
-- `esptool` + `mpremote` for flashing and talking to MicroPython boards, with
-  the `vscode` user added to `dialout`/`plugdev` so `/dev/ttyUSB*` works
-  without `sudo`.
 - Node.js 20, with `@anthropic-ai/claude-code` and `@openai/codex` installed
   globally.
 - Codex's `AGENTS.md` symlinked to the same global agent instructions Claude
@@ -32,9 +29,6 @@ preconfigured, plus Azure tooling and MicroPython/ESP flashing support.
    ```powershell
    winget install --id GitHub.cli
    ```
-4. To flash/talk to a board: pass the serial device through to Docker (e.g.
-   `--device=/dev/ttyUSB0` or the Docker Desktop USB passthrough on Windows).
-
 ## Getting started
 
 The template is published as a **private** package, so Docker needs to be
@@ -65,7 +59,7 @@ Then **Reopen in Container**.
 This template builds in two layers:
 
 - **`Dockerfile.base`** — the full recipe (PowerShell, Oh My Posh,
-  Terminal-Icons, `esptool`/`mpremote`, Node, the Claude Code/Codex CLIs).
+  Terminal-Icons, Node, the Claude Code/Codex CLIs).
   `.github/workflows/publish.yml` builds this and pushes it as
   `ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image`.
 - **`Dockerfile`** — thin, just `FROM` that published image. This is what
@@ -97,9 +91,6 @@ folder name after applying the template.
 
 ## Troubleshooting
 
-- **Serial device not found / permission denied**: confirm the device is
-  passed through to Docker and that its host group ownership matches
-  `dialout`/`plugdev` inside the container.
 - **Agent CLI asks you to log in again every rebuild**: check that the
   credential bind mounts in `docker-compose.yml` point at real, existing
   paths on your host.
