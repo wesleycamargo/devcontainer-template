@@ -40,6 +40,16 @@ gh auth token | docker login ghcr.io -u wesleycamargo --password-stdin
 devcontainer templates apply -w . -t ghcr.io/wesleycamargo/devcontainer-template/ai-devbox
 ```
 
+## Image
+
+Applying the template builds `Dockerfile`, which just does
+`FROM ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image` — a
+prebuilt image (published by `.github/workflows/publish.yml` from
+`src/ai-devbox/.devcontainer/Dockerfile.base`) with all the tools below
+already installed. Rebuilds pull that image instead of reinstalling
+everything from scratch; add customizations to `Dockerfile` and they'll
+layer on top of it.
+
 ## Included tools
 
 | Tool                        | Purpose                                |

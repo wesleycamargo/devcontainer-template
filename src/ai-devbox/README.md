@@ -60,6 +60,25 @@ Then **Reopen in Container**.
 
 ## Configuration
 
+### Dockerfile / Dockerfile.base
+
+This template builds in two layers:
+
+- **`Dockerfile.base`** — the full recipe (PowerShell, Oh My Posh,
+  Terminal-Icons, `esptool`/`mpremote`, Node, the Claude Code/Codex CLIs).
+  `.github/workflows/publish.yml` builds this and pushes it as
+  `ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image`.
+- **`Dockerfile`** — thin, just `FROM` that published image. This is what
+  `docker-compose.yml` actually builds, so applying the template and
+  rebuilding pulls the prebuilt image instead of reinstalling everything
+  from scratch.
+
+Add any of your own customizations as `RUN`/`COPY` lines in `Dockerfile` —
+they layer on top of the prebuilt base, so rebuilds stay fast. If you want a
+change baked into the base itself (so it doesn't re-run on every rebuild),
+add it to `Dockerfile.base` instead — that only takes effect for other users
+once a new `ai-devbox-image` is published.
+
 ### Agent CLI credentials
 
 `docker-compose.yml` bind-mounts `~/.claude` and `~/.codex/auth.json` from

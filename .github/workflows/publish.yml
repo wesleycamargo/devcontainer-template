@@ -78,3 +78,23 @@ jobs:
           templates-namespace: ${{ github.repository }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push ai-devbox image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./src/ai-devbox/.devcontainer
+          file: ./src/ai-devbox/.devcontainer/Dockerfile.base
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/ai-devbox-image:latest
+            ghcr.io/${{ github.repository }}/ai-devbox-image:${{ steps.version.outputs.version }}
