@@ -2,6 +2,39 @@
 # Server enforces (older bases like Ubuntu 20.04 fail it).
 FROM mcr.microsoft.com/devcontainers/python:3.12-bookworm
 
+# PowerShell, installed directly (not via the devcontainer feature) so later
+# RUN steps in this Dockerfile can invoke `pwsh` at build time -- features are
+# layered on after the Dockerfile builds, so a feature-provided pwsh wouldn't
+# exist yet when this file runs.
+RUN apt-get update && apt-get install -y wget \
+    && wget -q https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb \
+    && dpkg -i packages-microsoft-prod.deb && rm packages-microsoft-prod.deb \
+    && apt-get update && apt-get install -y powershell \
+    && rm -rf /var/lib/apt/lists/*
+
+# Oh My Posh + theme, baked into the image instead of fetched by
+# postCreateCommand on every container creation.
+RUN curl -s https://ohmyposh.dev/install.sh | bash -s -- -d /usr/local/bin \
+    && mkdir -p /etc/oh-my-posh \
+    && curl -fsSL 'https://gist.githubusercontent.com/wesleycamargo/06b58b472fe0cded2e6d6451ea0778bd/raw/1c952297121a50826ef6f849bb7ee8c11d8e09a6/oh-my-posh-az-cli-az-pwsh.json' \
+       -o /etc/oh-my-posh/theme.omp.json
+
+# Terminal-Icons + an all-users PowerShell profile wiring both of the above in.
+# Note: a here-string (@' ... '@) won't survive Dockerfile line-continuation
+# (Docker joins continued lines by stripping the newline, so the closing '@
+# would no longer be alone on its own line) -- `n inside a normal quoted
+# string sidesteps that since it doesn't depend on real newlines surviving.
+RUN pwsh -NoProfile -Command ' \
+    Install-Module -Name Terminal-Icons -Force -Scope AllUsers; \
+    Set-Content -Path $PROFILE.AllUsersAllHosts -Value "if (Get-Module -ListAvailable -Name Terminal-Icons) { Import-Module Terminal-Icons }`noh-my-posh init pwsh --config /etc/oh-my-posh/theme.omp.json | Invoke-Expression" \
+'
+
+# Same prompt for bash, and make pwsh the vscode user's default shell (both
+# previously done at container-create time via postCreateCommand).
+RUN echo 'eval "$(oh-my-posh init bash --config /etc/oh-my-posh/theme.omp.json)"' >> /etc/bash.bashrc \
+    && echo "$(command -v pwsh)" >> /etc/shells \
+    && chsh -s "$(command -v pwsh)" vscode
+
 # esptool flashes the MicroPython firmware image itself; mpremote is the
 # official CLI for everything after that -- REPL, copying files to the
 # board, mounting a local folder as the board's filesystem.

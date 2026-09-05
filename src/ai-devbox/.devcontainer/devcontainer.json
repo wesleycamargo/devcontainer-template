@@ -17,10 +17,9 @@
     "ghcr.io/rchaganti/vsc-devcontainer-features/azurebicep:1": {
       "version": "latest"
     },
-    "ghcr.io/devcontainers/features/powershell:1": {},
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
-  "postCreateCommand": "cp /tmp/host-gitconfig ~/.gitconfig 2>/dev/null || true; cp /tmp/host-git-credentials ~/.git-credentials 2>/dev/null || true; chmod 600 ~/.git-credentials 2>/dev/null || true; curl -fsSL https://raw.githubusercontent.com/wesleycamargo/terminal-bootstrap/v1.0.0/terminal-setup.ps1 -o /tmp/terminal-setup.ps1 && pwsh -NoProfile -File /tmp/terminal-setup.ps1 -DevContainer && sudo chsh vscode -s \"$(which pwsh)\"",
+  "postCreateCommand": "cp /tmp/host-gitconfig ~/.gitconfig 2>/dev/null || true; cp /tmp/host-git-credentials ~/.git-credentials 2>/dev/null || true; chmod 600 ~/.git-credentials 2>/dev/null || true",
   "customizations": {
     "vscode": {
       "settings": {

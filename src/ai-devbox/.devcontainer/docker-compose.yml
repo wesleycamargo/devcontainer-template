@@ -26,3 +26,7 @@ services:
       # the Dockerfile; sharing just the credentials file means token refreshes
       # stay in sync in both directions. See .devcontainer/README.md.
       - /mnt/c/Users/Wesle/.codex/auth.json:/home/vscode/.codex/auth.json
+      # Host git identity/credentials, read-only. postCreateCommand copies
+      # these into ~/.gitconfig / ~/.git-credentials on container create.
+      - /mnt/c/Users/Wesle/.gitconfig:/tmp/host-gitconfig:ro
+      - /mnt/c/Users/Wesle/.git-credentials:/tmp/host-git-credentials:ro
