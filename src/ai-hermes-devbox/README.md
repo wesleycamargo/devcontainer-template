@@ -93,15 +93,22 @@ layer on top of the prebuilt image, so rebuilds stay fast. Editing
 
 ### Agent CLI credentials
 
-`docker-compose.yml` bind-mounts `~/.claude` and `~/.codex/auth.json` from
-the host so Claude Code / Codex logins survive a container rebuild, instead
-of baking tokens into the image (which would leave them in `docker history`
-and wouldn't pick up refreshed tokens). The paths in this template point at
-the original author's machine — edit or remove those `volumes` entries in
-`docker-compose.yml` to match your own host, or drop them entirely if you
-don't need persisted agent logins. Hermes keeps its own credentials in
-`~/.hermes/` inside the container; add a mount for that path if you want them
-to survive a rebuild.
+`docker-compose.yml` bind-mounts agent config from the host so logins
+survive a container rebuild, instead of baking tokens into the image (which
+would leave them in `docker history` and wouldn't pick up refreshed tokens):
+
+- `~/.claude` and `~/.claude.json` — Claude Code
+- `~/.codex/auth.json` — Codex (just the credential file; the rest of
+  `~/.codex` is desktop-app state)
+- `~/.hermes/.env` and `~/.hermes/config.yaml` — Hermes. Only these two
+  files, **not** all of `~/.hermes`: that directory also holds Hermes' own
+  cloned code, its `uv` venv, and live session/log state, which must stay
+  container-local. `.env` holds the API keys; drop the `config.yaml` mount
+  if host and container settings need to diverge.
+
+The paths in this template point at the original author's machine — edit or
+remove those `volumes` entries in `docker-compose.yml` to match your own
+host, or drop them entirely if you don't need persisted logins.
 
 ### Workspace folder name
 

@@ -26,6 +26,16 @@ services:
       # the Dockerfile; sharing just the credentials file means token refreshes
       # stay in sync in both directions. See .devcontainer/README.md.
       - /mnt/c/Users/Wesle/.codex/auth.json:/home/vscode/.codex/auth.json
+      # Hermes keeps everything under ~/.hermes, but that dir also holds the
+      # cloned agent code, its uv venv, and live session/log state -- all of
+      # which must stay container-local (the host copy is a Windows install).
+      # So mount only the config files, the same way ~/.codex/auth.json is:
+      # ~/.hermes is already created (owned by vscode) by the install.sh step
+      # in the Dockerfile, so these file mounts don't make Docker create the
+      # parent as root. Drop the config.yaml line if host/container settings
+      # need to diverge; .env holds the API keys and is the one worth syncing.
+      - /mnt/c/Users/Wesle/.hermes/.env:/home/vscode/.hermes/.env
+      - /mnt/c/Users/Wesle/.hermes/config.yaml:/home/vscode/.hermes/config.yaml
       # Host git identity/credentials, read-only. postCreateCommand copies
       # these into ~/.gitconfig / ~/.git-credentials on container create.
       - /mnt/c/Users/Wesle/.gitconfig:/tmp/host-gitconfig:ro
