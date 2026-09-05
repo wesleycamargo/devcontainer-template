@@ -3,16 +3,45 @@
 ## The image
 
 This devcontainer has no Dockerfile. `docker-compose.yml` sets `image:` to
-`ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image`, the prebuilt
-image with the full build recipe (PowerShell, Oh My Posh, Terminal-Icons,
-Node, the agent CLIs) — so opening it pulls the image instead of
-reinstalling everything. `docker login ghcr.io` first (private package).
+`ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox-image`, the
+prebuilt image with the full build recipe (PowerShell, Oh My Posh,
+Terminal-Icons, Node, the agent CLIs) plus the Hermes Agent (Nous
+Research) with the full browser + computer-use install — so opening it
+pulls the image instead of reinstalling everything. `docker login
+ghcr.io` first (private package).
 
-The recipe lives in `src/ai-devbox/.devcontainer/Dockerfile`, which
-`.github/workflows/publish-ai-devbox.yml` builds and publishes as that
-image. Anything worth baking in goes there and needs a push to `main`. For
-a throwaway local tweak, swap the `image:` line for a `build:` block with a
-`Dockerfile` that does `FROM` the image.
+The recipe is split across two files:
+`src/ai-devbox/.devcontainer/Dockerfile` (the base) and
+`src/ai-hermes-devbox/.devcontainer/Dockerfile` (`FROM ai-devbox-image` +
+the Hermes install), published by `publish-ai-devbox.yml` and
+`publish-ai-hermes-devbox.yml`. Anything worth baking in goes there and
+needs a push to `main`. For a throwaway local tweak, swap the `image:`
+line for a `build:` block with a `Dockerfile` that does `FROM` the image.
+
+## Hermes
+
+`hermes`, `hermes-agent`, and `hermes-acp` are on `PATH`. Hermes is
+installed but not configured — run `hermes` inside the container to set up
+API keys (writes `~/.hermes/.env` and `~/.hermes/config.yaml`). That
+`~/.hermes` is container-local; see the commented-out mounts in
+`docker-compose.yml` to persist it from a Windows-host copy.
+
+`docker-compose.yml` publishes the dashboard (`9119`) and gateway API
+(`8642`) to the host, and `postStartCommand` runs
+`.devcontainer/start-hermes.sh` on every container start to bring both up
+bound to `0.0.0.0` (Hermes binds to `127.0.0.1` by default, which the
+published ports can't reach). The script backgrounds them, skips one
+that's already running, logs to `~/.hermes/logs/`, and no-ops until Hermes
+is configured. Two prerequisites in `~/.hermes/`, both from `hermes`
+first-run:
+
+- **Dashboard** — an auth provider under `dashboard:` in `config.yaml`, or
+  Hermes refuses to bind non-loopback and the service just exits.
+- **Gateway** — `API_SERVER_KEY` in `.env` (`API_SERVER_HOST=0.0.0.0` is
+  passed by the script, so `config.yaml` doesn't need editing).
+
+To disable auto-start, drop the `postStartCommand` line from
+`devcontainer.json`.
 
 ## Persisting Claude Code / Codex credentials
 

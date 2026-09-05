@@ -1,15 +1,30 @@
 services:
   devcontainer:
     # Pull the prebuilt image (CI builds it from
-    # src/ai-devbox/.devcontainer/Dockerfile and publishes it as
-    # ai-devbox-image). No local build step -- for an extra local layer,
-    # swap this for a `build:` block pointing at a Dockerfile that does
-    # `FROM` this image. Requires `docker login ghcr.io` (private package).
-    image: ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image:latest
+    # src/ai-hermes-devbox/.devcontainer/Dockerfile and publishes it as
+    # ai-hermes-devbox-image -- the ai-devbox base plus the Hermes Agent,
+    # full browser + computer-use install). No local build step -- for an
+    # extra local layer, swap this for a `build:` block pointing at a
+    # Dockerfile that does `FROM` this image. Requires `docker login
+    # ghcr.io` (private package).
+    image: ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox-image:latest
     init: true
     # Keeps the container running; VS Code/the devcontainer CLI exec into it
     # rather than relying on the image's own entrypoint to block.
     command: sleep infinity
+    # Hermes services published to the host. Hermes binds to 127.0.0.1 *inside
+    # the container* by default, which a published port can't reach -- it has
+    # to listen on 0.0.0.0 as well:
+    #   Dashboard:  hermes dashboard --host 0.0.0.0
+    #               (binding non-loopback makes Hermes refuse to start until an
+    #               auth provider is configured under `dashboard` in
+    #               ~/.hermes/config.yaml)
+    #   Gateway:    set `gateway.api_server.host: 0.0.0.0` in ~/.hermes/config.yaml
+    #               (or `API_SERVER_HOST=0.0.0.0 hermes gateway`), plus
+    #               API_SERVER_KEY in ~/.hermes/.env -- required for every deploy.
+    ports:
+      - "9119:9119"   # hermes dashboard (web UI)
+      - "8642:8642"   # hermes gateway (OpenAI-compatible API)
     volumes:
       - ..:/workspaces/devcontainer-template:cached
       # Agent CLI configs, bind-mounted from the host rather than COPYed into
@@ -29,6 +44,16 @@ services:
       # the image build; sharing just the credentials file means token refreshes
       # stay in sync in both directions. See .devcontainer/README.md.
       - /mnt/c/Users/Wesle/.codex/auth.json:/home/vscode/.codex/auth.json
+      # Hermes config. This host has no ~/.hermes yet, so these stay commented
+      # out -- Hermes uses its container-local ~/.hermes (created by the image
+      # build) and you configure it by running `hermes` inside the container.
+      # To persist API keys / settings across rebuilds, create
+      # ~/.hermes/.env and ~/.hermes/config.yaml on the Windows host and
+      # uncomment. Mount only these two files, NOT all of ~/.hermes -- that
+      # dir also holds the cloned agent code, its uv venv, and live
+      # session/log state, which must stay container-local.
+      # - /mnt/c/Users/Wesle/.hermes/.env:/home/vscode/.hermes/.env
+      # - /mnt/c/Users/Wesle/.hermes/config.yaml:/home/vscode/.hermes/config.yaml
       # Host git identity/credentials, read-only. postCreateCommand copies
       # these into ~/.gitconfig / ~/.git-credentials on container create.
       - /mnt/c/Users/Wesle/.gitconfig:/tmp/host-gitconfig:ro

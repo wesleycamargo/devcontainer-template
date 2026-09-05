@@ -70,25 +70,30 @@ inside the container to set up API keys and connectors; it writes
 ## Reaching Hermes from the host
 
 `docker-compose.yml` publishes the Hermes dashboard (`9119`) and gateway
-API (`8642`) to the host. Publishing the port isn't enough on its own —
-Hermes binds to `127.0.0.1` *inside the container* by default, which the
-published port can't reach, so it also has to listen on `0.0.0.0`:
+API (`8642`) to the host, and `postStartCommand` runs
+`.devcontainer/start-hermes.sh` on every container start to bring both up.
+Publishing the port isn't enough on its own — Hermes binds to `127.0.0.1`
+*inside the container* by default, which the published port can't reach, so
+the script starts them on `0.0.0.0`. It backgrounds each service, skips one
+that's already running, logs to `~/.hermes/logs/<service>.out`, and no-ops
+until Hermes is configured. Each service still needs one thing set up
+during `hermes` first-run:
 
-- **Dashboard** (`http://localhost:9119` on the host):
-  ```bash
-  hermes dashboard --host 0.0.0.0
-  ```
-  Binding to a non-loopback address makes Hermes refuse to start until an
-  auth provider (OAuth or basic auth) is configured under the `dashboard`
-  key in `~/.hermes/config.yaml`.
-- **Gateway / OpenAI-compatible API** (`http://localhost:8642` on the host):
-  set `gateway.api_server.host: 0.0.0.0` in `~/.hermes/config.yaml` (or run
-  `API_SERVER_HOST=0.0.0.0 hermes gateway`), and set `API_SERVER_KEY` in
-  `~/.hermes/.env` — it's required for every deployment, since the gateway
-  exposes the full Hermes toolset including terminal commands.
+- **Dashboard** (`http://localhost:9119` on the host) — an auth provider
+  (OAuth or basic auth) under the `dashboard` key in
+  `~/.hermes/config.yaml`. Binding to a non-loopback address makes Hermes
+  refuse to start without one, so the service just exits and logs the error.
+- **Gateway / OpenAI-compatible API** (`http://localhost:8642` on the host)
+  — `API_SERVER_KEY` in `~/.hermes/.env`, required for every deployment
+  since the gateway exposes the full Hermes toolset including terminal
+  commands. (`API_SERVER_HOST=0.0.0.0` is passed by the script, so
+  `config.yaml` doesn't need editing.)
 
-Change or drop the `ports:` entries in `docker-compose.yml` if you don't
-want these reachable from the host.
+To start them by hand instead, drop the `postStartCommand` line from
+`devcontainer.json` and run `hermes dashboard --host 0.0.0.0` /
+`API_SERVER_HOST=0.0.0.0 hermes gateway` yourself. Change or drop the
+`ports:` entries in `docker-compose.yml` if you don't want these reachable
+from the host.
 
 ## Configuration
 
