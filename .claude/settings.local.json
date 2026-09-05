@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:protonvpn.com)",
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(docker --version)",
+      "Bash(docker build *)",
+      "PowerShell(docker --version)"
+    ]
+  }
+}

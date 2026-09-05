@@ -1,0 +1,80 @@
+name: Publish Dev Container Templates
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: 'Version bump type'
+        required: false
+        default: 'minor'
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bump version tag
+        id: version
+        run: |
+          LAST_TAG=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -1)
+          if [ -z "$LAST_TAG" ]; then LAST_TAG="v0.0.0"; fi
+          VERSION="${LAST_TAG#v}"
+          MAJOR=$(echo "$VERSION" | cut -d. -f1)
+          MINOR=$(echo "$VERSION" | cut -d. -f2)
+          PATCH=$(echo "$VERSION" | cut -d. -f3)
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            BUMP_TYPE="${{ github.event.inputs.bump_type || 'minor' }}"
+          else
+            COMMIT_MSG=$(git log -1 --pretty=%B)
+            if echo "$COMMIT_MSG" | grep -q '\[major\]'; then
+              BUMP_TYPE="major"
+            elif echo "$COMMIT_MSG" | grep -q '\[minor\]'; then
+              BUMP_TYPE="minor"
+            elif echo "$COMMIT_MSG" | grep -q '\[patch\]'; then
+              BUMP_TYPE="patch"
+            else
+              BUMP_TYPE="minor"
+            fi
+          fi
+          if [ "$BUMP_TYPE" = "major" ]; then
+            NEW_VERSION="$((MAJOR + 1)).0.0"
+          elif [ "$BUMP_TYPE" = "patch" ]; then
+            NEW_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
+          else
+            NEW_VERSION="$MAJOR.$((MINOR + 1)).0"
+          fi
+          NEW_TAG="v$NEW_VERSION"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$NEW_TAG"
+          git push origin "$NEW_TAG"
+          echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Set version in template
+        run: |
+          FILE="src/powershell/devcontainer-template.json"
+          jq --arg v "${{ steps.version.outputs.version }}" '.version = $v' "$FILE" > tmp.json && mv tmp.json "$FILE"
+
+      - name: Publish Templates
+        uses: devcontainers/action@v1
+        with:
+          publish-templates: "true"
+          base-path-to-templates: "./src"
+          generate-docs: "false"
+          templates-namespace: ${{ github.repository }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

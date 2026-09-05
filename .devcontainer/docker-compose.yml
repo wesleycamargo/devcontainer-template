@@ -1,0 +1,28 @@
+services:
+  devcontainer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    init: true
+    # Keeps the container running; VS Code/the devcontainer CLI exec into it
+    # rather than relying on the image's own entrypoint to block.
+    command: sleep infinity
+    volumes:
+      - ..:/workspaces/devcontainer-template:cached
+      # Agent CLI configs, bind-mounted from the host rather than COPYed into
+      # the image -- these hold live credentials (.credentials.json, auth.json)
+      # and baking them into image layers would persist them in `docker history`.
+      # Personal host paths for this learning machine. Claude comes from the
+      # WSL install (native fs, correct 0600 perms, and uid 1000 matches the
+      # container's `vscode` user). On a different host account, edit/remove
+      # these mounts rather than copying credentials into the image.
+      - /mnt/c/Users/Wesle/.claude:/home/vscode/.claude
+      - /mnt/c/Users/Wesle/.claude.json:/home/vscode/.claude.json
+      # Codex only exists on this machine's Windows side, so this one crosses
+      # /mnt/c and includes the local Windows user path.
+      # Only auth.json, NOT the whole ~/.codex: the rest of that directory is
+      # desktop-app state (Windows-path config.toml, plugin dirs, live SQLite
+      # files the app holds locks on). The container gets its own ~/.codex from
+      # the Dockerfile; sharing just the credentials file means token refreshes
+      # stay in sync in both directions. See .devcontainer/README.md.
+      - /mnt/c/Users/Wesle/.codex/auth.json:/home/vscode/.codex/auth.json
