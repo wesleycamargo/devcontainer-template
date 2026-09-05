@@ -1,9 +1,21 @@
-name: Publish Dev Container Templates
+name: Publish ai-hermes-devbox
+
+# One publish workflow per devcontainer under src/. This one owns the
+# `ai-hermes-devbox` template and the `ai-hermes-devbox-image` image, and
+# only runs when that devcontainer's files (or this workflow) change.
+#
+# ai-hermes-devbox-image is `FROM ai-devbox-image:latest` but the two
+# publishes are independent -- a base rebuild does NOT retrigger this. Push a
+# change under src/ai-hermes-devbox/ (or dispatch manually) to pick up a new
+# base.
 
 on:
   push:
     branches:
       - main
+    paths:
+      - 'src/ai-hermes-devbox/**'
+      - '.github/workflows/publish-ai-hermes-devbox.yml'
   workflow_dispatch:
     inputs:
       bump_type:
@@ -22,6 +34,9 @@ jobs:
     permissions:
       contents: write
       packages: write
+    env:
+      TEMPLATE_ID: ai-hermes-devbox
+      TAG_PREFIX: ai-hermes-devbox-v
     steps:
       - uses: actions/checkout@v4
         with:
@@ -30,9 +45,9 @@ jobs:
       - name: Bump version tag
         id: version
         run: |
-          LAST_TAG=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -1)
-          if [ -z "$LAST_TAG" ]; then LAST_TAG="v0.0.0"; fi
-          VERSION="${LAST_TAG#v}"
+          LAST_TAG=$(git tag --list "${TAG_PREFIX}[0-9]*.[0-9]*.[0-9]*" --sort=-v:refname | head -1)
+          if [ -z "$LAST_TAG" ]; then LAST_TAG="${TAG_PREFIX}0.0.0"; fi
+          VERSION="${LAST_TAG#"$TAG_PREFIX"}"
           MAJOR=$(echo "$VERSION" | cut -d. -f1)
           MINOR=$(echo "$VERSION" | cut -d. -f2)
           PATCH=$(echo "$VERSION" | cut -d. -f3)
@@ -57,24 +72,31 @@ jobs:
           else
             NEW_VERSION="$MAJOR.$((MINOR + 1)).0"
           fi
-          NEW_TAG="v$NEW_VERSION"
+          NEW_TAG="${TAG_PREFIX}${NEW_VERSION}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag "$NEW_TAG"
           git push origin "$NEW_TAG"
           echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Set version in templates
+      - name: Set version in template
         run: |
-          for FILE in src/ai-devbox/devcontainer-template.json src/ai-hermes-devbox/devcontainer-template.json; do
-            jq --arg v "${{ steps.version.outputs.version }}" '.version = $v' "$FILE" > tmp.json && mv tmp.json "$FILE"
-          done
+          FILE="src/${TEMPLATE_ID}/devcontainer-template.json"
+          jq --arg v "${{ steps.version.outputs.version }}" '.version = $v' "$FILE" > tmp.json && mv tmp.json "$FILE"
 
-      - name: Publish Templates
+      # devcontainers/action publishes every template dir under
+      # base-path-to-templates. Stage just this one so the workflow doesn't
+      # touch the other devcontainers' published templates.
+      - name: Stage template
+        run: |
+          mkdir -p _publish
+          cp -r "src/${TEMPLATE_ID}" "_publish/${TEMPLATE_ID}"
+
+      - name: Publish template
         uses: devcontainers/action@v1
         with:
           publish-templates: "true"
-          base-path-to-templates: "./src"
+          base-path-to-templates: "./_publish"
           generate-docs: "false"
           templates-namespace: ${{ github.repository }}
         env:
@@ -90,24 +112,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push ai-devbox image
+      - name: Build and push image
         uses: docker/build-push-action@v6
         with:
-          context: ./src/ai-devbox/.devcontainer
-          file: ./src/ai-devbox/.devcontainer/Dockerfile.base
+          context: ./src/${{ env.TEMPLATE_ID }}/.devcontainer
+          file: ./src/${{ env.TEMPLATE_ID }}/.devcontainer/Dockerfile.base
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/ai-devbox-image:latest
-            ghcr.io/${{ github.repository }}/ai-devbox-image:${{ steps.version.outputs.version }}
-
-      # FROM ai-devbox-image:latest -- the step above just pushed it -- plus
-      # the Hermes install. Not a full rebuild of the base recipe.
-      - name: Build and push ai-hermes-devbox image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./src/ai-hermes-devbox/.devcontainer
-          file: ./src/ai-hermes-devbox/.devcontainer/Dockerfile.base
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}/ai-hermes-devbox-image:latest
-            ghcr.io/${{ github.repository }}/ai-hermes-devbox-image:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository }}/${{ env.TEMPLATE_ID }}-image:latest
+            ghcr.io/${{ github.repository }}/${{ env.TEMPLATE_ID }}-image:${{ steps.version.outputs.version }}

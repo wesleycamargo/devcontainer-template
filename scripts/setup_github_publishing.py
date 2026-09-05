@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""One-time GitHub-side setup for the "Publish Dev Container Templates" workflow:
-grants the workflow write access, pushes main, watches the first run, then
-confirms the published ghcr.io package stayed private.
+"""One-time GitHub-side setup for a per-devcontainer publish workflow
+(`.github/workflows/publish-<template-id>.yml`): grants workflows write
+access, pushes main, watches the first run, then confirms the published
+ghcr.io package stayed private.
 
 Requires: gh CLI, authenticated (`gh auth login`), run from inside the repo.
 """
@@ -27,10 +28,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", default="wesleycamargo/devcontainer-template")
     parser.add_argument("--template-id", default="ai-devbox")
+    parser.add_argument(
+        "--workflow",
+        help="Workflow file to watch (default: publish-<template-id>.yml)",
+    )
     args = parser.parse_args()
 
     owner = args.repo.split("/")[0]
     package_name = f"devcontainer-template/{args.template_id}"
+    workflow = args.workflow or f"publish-{args.template_id}.yml"
 
     if not shutil.which("gh"):
         sys.exit("gh CLI not found: https://cli.github.com/")
@@ -47,11 +53,11 @@ def main():
     run(["git", "push"])
 
     head_sha = capture(["git", "rev-parse", "HEAD"])
-    print(f"==> Waiting for the publish.yml run for commit {head_sha}")
+    print(f"==> Waiting for the {workflow} run for commit {head_sha}")
     run_id = None
     for _ in range(15):
         out = capture([
-            "gh", "run", "list", "--repo", args.repo, "--workflow", "publish.yml",
+            "gh", "run", "list", "--repo", args.repo, "--workflow", workflow,
             "--json", "databaseId,headSha",
         ])
         matches = [r["databaseId"] for r in json.loads(out) if r["headSha"] == head_sha]

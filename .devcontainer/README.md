@@ -4,7 +4,7 @@
 
 `Dockerfile.base` has the actual build recipe (PowerShell, Oh My Posh,
 Terminal-Icons, Node, the agent CLIs) — it's what
-`.github/workflows/publish.yml` builds and publishes as
+`.github/workflows/publish-ai-devbox.yml` builds and publishes as
 `ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image`. `Dockerfile`
 itself is just `FROM` that published image, which is what `docker-compose.yml`
 actually builds here — so rebuilding this devcontainer pulls the prebuilt

@@ -44,7 +44,7 @@ devcontainer templates apply -w . -t ghcr.io/wesleycamargo/devcontainer-template
 
 Applying the template builds `Dockerfile`, which just does
 `FROM ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image` — a
-prebuilt image (published by `.github/workflows/publish.yml` from
+prebuilt image (published by `.github/workflows/publish-ai-devbox.yml` from
 `src/ai-devbox/.devcontainer/Dockerfile.base`) with all the tools below
 already installed. Rebuilds pull that image instead of reinstalling
 everything from scratch; add customizations to `Dockerfile` and they'll

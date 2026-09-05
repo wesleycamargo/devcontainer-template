@@ -6,7 +6,10 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(docker --version)",
       "Bash(docker build *)",
-      "PowerShell(docker --version)"
+      "PowerShell(docker --version)",
+      "Read(//home/vscode/.local/**)",
+      "Bash(command -v claude)",
+      "Bash(npm ls *)"
     ]
   }
 }

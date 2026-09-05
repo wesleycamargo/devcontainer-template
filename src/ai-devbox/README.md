@@ -60,7 +60,7 @@ This template builds in two layers:
 
 - **`Dockerfile.base`** — the full recipe (PowerShell, Oh My Posh,
   Terminal-Icons, Node, the Claude Code/Codex CLIs).
-  `.github/workflows/publish.yml` builds this and pushes it as
+  `.github/workflows/publish-ai-devbox.yml` builds this and pushes it as
   `ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image`.
 - **`Dockerfile`** — thin, just `FROM` that published image. This is what
   `docker-compose.yml` actually builds, so applying the template and

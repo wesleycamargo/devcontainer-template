@@ -77,8 +77,8 @@ This template builds in two layers:
   ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image` (the prebuilt
   base with PowerShell, Oh My Posh, Terminal-Icons, Node, and the Claude
   Code/Codex CLIs already installed) plus the Hermes install step.
-  `.github/workflows/publish.yml` builds this and pushes it as
-  `ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox-image`.
+  `.github/workflows/publish-ai-hermes-devbox.yml` builds this and pushes it
+  as `ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox-image`.
 - **`Dockerfile`** — thin, just `FROM` that published
   `ai-hermes-devbox-image`. This is what `docker-compose.yml` actually
   builds, so applying the template and rebuilding pulls the prebuilt image
