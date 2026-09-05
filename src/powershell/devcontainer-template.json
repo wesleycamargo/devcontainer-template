@@ -1,7 +1,0 @@
-{
-  "id": "powershell",
-  "version": "1.0.0",
-  "name": "PowerShell (Agentic)",
-  "description": "PowerShell devcontainer with Azure Bicep, MicroPython tooling, and Claude Code / Codex agent CLIs preconfigured.",
-  "options": {}
-}

@@ -66,7 +66,7 @@ jobs:
 
       - name: Set version in template
         run: |
-          FILE="src/powershell/devcontainer-template.json"
+          FILE="src/ai-devbox/devcontainer-template.json"
           jq --arg v "${{ steps.version.outputs.version }}" '.version = $v' "$FILE" > tmp.json && mv tmp.json "$FILE"
 
       - name: Publish Templates

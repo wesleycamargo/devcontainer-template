@@ -26,7 +26,7 @@ def capture(cmd):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", default="wesleycamargo/devcontainer-template")
-    parser.add_argument("--template-id", default="powershell")
+    parser.add_argument("--template-id", default="ai-devbox")
     args = parser.parse_args()
 
     owner = args.repo.split("/")[0]
