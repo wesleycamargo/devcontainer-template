@@ -71,4 +71,13 @@ template: everything above plus the [Hermes Agent](https://hermes-agent.nousrese
 from Nous Research (full browser + computer-use install). Apply it with
 `-t ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox`.
 
+## OpenHands variant
+
+[`ai-openhands-devbox`](src/ai-openhands-devbox/README.md) is a third
+published template: the AI Devbox development shell plus
+[OpenHands Agent Canvas](https://www.openhands.dev/) as a companion service.
+It uses the Codex ACP agent and accepts a ChatGPT subscription OAuth login as
+`CODEX_AUTH_JSON`; an OpenAI Platform API key is not required. Apply it with
+`-t ghcr.io/wesleycamargo/devcontainer-template/ai-openhands-devbox`.
+
 [github.com/wesleycamargo/devcontainer-template](https://github.com/wesleycamargo/devcontainer-template)

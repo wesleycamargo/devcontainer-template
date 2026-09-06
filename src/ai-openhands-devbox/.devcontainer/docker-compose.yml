@@ -1,0 +1,37 @@
+services:
+  devcontainer:
+    # CI builds this image from this directory's Dockerfile and publishes it as
+    # ai-openhands-devbox-image. The development shell inherits ai-devbox.
+    image: ghcr.io/wesleycamargo/devcontainer-template/ai-openhands-devbox-image:latest
+    init: true
+    command: sleep infinity
+    volumes:
+      - ..:/workspaces/devcontainer-template:cached
+      # Docker creates these named volumes on demand and populates them from
+      # the image once, so in-container Claude/Codex logins survive rebuilds
+      # without requiring host credential paths.
+      - claude-data:/home/vscode/.claude
+      - codex-data:/home/vscode/.codex
+
+  # Agent Canvas is the OpenHands web UI plus its local agent backend. It is
+  # intentionally not Hermes and does not use the Hermes gateway. Its Codex
+  # ACP backend receives ChatGPT OAuth through Canvas onboarding as
+  # CODEX_AUTH_JSON; never put that value in this Compose file or Git.
+  agent-canvas:
+    image: ghcr.io/openhands/agent-canvas:latest
+    network_mode: service:devcontainer
+    depends_on:
+      - devcontainer
+    volumes:
+      # Settings, saved onboarding credentials, and conversations persist
+      # across normal Compose stops and rebuilds.
+      - agent-canvas-data:/home/openhands/.openhands
+      # Agent Canvas may read and modify only this project directory. Select it
+      # in Canvas with Open Workspace before starting a conversation.
+      - ..:/projects/devcontainer-template:rw
+    restart: unless-stopped
+
+volumes:
+  claude-data:
+  codex-data:
+  agent-canvas-data:

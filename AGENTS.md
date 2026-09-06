@@ -21,9 +21,14 @@ template/image built from the same config.
   step, so it doesn't duplicate the base recipe. Published as
   `ai-hermes-devbox` / `ai-hermes-devbox-image`. The root `.devcontainer/`
   tracks this one.
+- `src/ai-openhands-devbox/` — a third published template: the `ai-devbox`
+  development shell plus OpenHands Agent Canvas as a companion service.
+  It is independent from Hermes and uses Codex ACP with the user-supplied
+  `CODEX_AUTH_JSON` OAuth secret. Published as `ai-openhands-devbox` /
+  `ai-openhands-devbox-image`.
 - `.github/workflows/publish-<id>.yml` — one publish workflow per
   devcontainer under `src/` (`publish-ai-devbox.yml`,
-  `publish-ai-hermes-devbox.yml`). Each runs only when its own
+  `publish-ai-hermes-devbox.yml`, `publish-ai-openhands-devbox.yml`). Each runs only when its own
   `src/<id>/**` changes, on `push` to `main`, or via `workflow_dispatch`. It
   bumps its own `<id>-vX.Y.Z` git tag (minor by
   default; `[major]`/`[minor]`/`[patch]` in the commit message overrides),
@@ -37,9 +42,9 @@ template/image built from the same config.
   authenticated with `packages` scope.
 
 All published packages under
-`ghcr.io/wesleycamargo/devcontainer-template/` — the `ai-devbox` and
-`ai-hermes-devbox` templates, the `ai-devbox-image` and
-`ai-hermes-devbox-image` images — are **private**.
+ghcr.io/wesleycamargo/devcontainer-template/` — the `ai-devbox`,
+`ai-hermes-devbox`, and `ai-openhands-devbox` templates and their matching
+images — are **private**.
 
 ## The devcontainer image
 

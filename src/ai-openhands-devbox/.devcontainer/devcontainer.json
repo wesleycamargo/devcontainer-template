@@ -1,0 +1,38 @@
+{
+  "name": "AI OpenHands Devbox",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "devcontainer",
+  "workspaceFolder": "/workspaces/devcontainer-template",
+  "shutdownAction": "stopCompose",
+  "remoteUser": "vscode",
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": "true",
+      "username": "vscode",
+      "upgradePackages": "false",
+      "nonFreePackages": "true"
+    },
+    "ghcr.io/rchaganti/vsc-devcontainer-features/azurebicep:1": {
+      "version": "latest"
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "forwardPorts": [8000],
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "pwsh",
+        "terminal.integrated.profiles.linux": {
+          "pwsh": {
+            "path": "pwsh"
+          }
+        },
+        "terminal.integrated.fontFamily": "MesloLGM Nerd Font"
+      },
+      "extensions": [
+        "ms-vscode.powershell",
+        "anthropic.claude-code"
+      ]
+    }
+  }
+}

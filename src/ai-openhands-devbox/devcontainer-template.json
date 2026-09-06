@@ -1,0 +1,7 @@
+{
+  "id": "ai-openhands-devbox",
+  "version": "1.0.0",
+  "name": "AI OpenHands Devbox (PowerShell)",
+  "description": "AI Devbox plus OpenHands Agent Canvas with Codex ACP / ChatGPT OAuth support.",
+  "options": {}
+}
