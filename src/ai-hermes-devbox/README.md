@@ -66,34 +66,56 @@ Hermes is installed but not configured — the image build passes
 `--skip-setup` so it doesn't block on the interactive wizard. Run `hermes`
 inside the container to set up API keys and connectors; it writes
 `~/.hermes/.env` and `~/.hermes/config.yaml`.
+The `hermes-data` Docker named volume persists that entire directory,
+including credentials, sessions, memory, skills, and logs, across normal
+devcontainer rebuilds. Do not remove Docker volumes (for example with
+`docker compose down -v`) if you need to retain Hermes data.
+After completing setup, restart the devcontainer or run
+`bash .devcontainer/start-hermes.sh` to start the gateway and dashboard.
 
-## Reaching Hermes from the host
+**Codex / ChatGPT shortcut.** If you sign in to Codex inside the container,
+`start-hermes.sh` seeds Hermes' default from its `~/.codex/auth.json` on the
+next container start: it copies those
+tokens into Hermes' own auth store and sets `model.provider: openai-codex`
+/ `model.default: gpt-5.6-terra` in `config.yaml` (the same import
+`hermes model` → "ChatGPT or Codex Subscription" does — `hermes auth add
+openai-codex` is *not* used, it only starts a fresh device-code login). It
+needs a currently-valid access token in that file — Codex refresh tokens
+are single-use, so Hermes won't adopt a stale pair; if the token has lapsed
+the step is skipped and retried on the next start. It runs once, guarded by
+`~/.hermes/.codex-default-seeded`; delete that marker (and
+`hermes auth logout openai-codex`) to re-seed, or run `hermes model` to
+pick a different provider — the marker keeps the seed from overriding your
+choice.
 
-`docker-compose.yml` publishes the Hermes dashboard (`9119`) and gateway
-API (`8642`) to the host, and `postStartCommand` runs
-`.devcontainer/start-hermes.sh` on every container start to bring both up.
-Publishing the port isn't enough on its own — Hermes binds to `127.0.0.1`
-*inside the container* by default, which the published port can't reach, so
-the script starts them on `0.0.0.0`. It backgrounds each service, skips one
-that's already running, logs to `~/.hermes/logs/<service>.out`, and no-ops
-until Hermes is configured. Each service still needs one thing set up
-during `hermes` first-run:
+## Hermes dashboard and Open WebUI
 
-- **Dashboard** (`http://localhost:9119` on the host) — an auth provider
-  (OAuth or basic auth) under the `dashboard` key in
-  `~/.hermes/config.yaml`. Binding to a non-loopback address makes Hermes
-  refuse to start without one, so the service just exits and logs the error.
-- **Gateway / OpenAI-compatible API** (`http://localhost:8642` on the host)
-  — `API_SERVER_KEY` in `~/.hermes/.env`, required for every deployment
-  since the gateway exposes the full Hermes toolset including terminal
-  commands. (`API_SERVER_HOST=0.0.0.0` is passed by the script, so
-  `config.yaml` doesn't need editing.)
+`postStartCommand` runs `.devcontainer/start-hermes.sh` on every container
+start. It first runs the one-time Codex seed described under
+[First run](#first-run), then generates `.devcontainer/.openwebui.env` if it
+does not exist. This Git-ignored file holds randomly generated Hermes API and
+Open WebUI session keys, so the credentials never enter the image or Git.
 
-To start them by hand instead, drop the `postStartCommand` line from
-`devcontainer.json` and run `hermes dashboard --host 0.0.0.0` /
-`API_SERVER_HOST=0.0.0.0 hermes gateway` yourself. Change or drop the
-`ports:` entries in `docker-compose.yml` if you don't want these reachable
-from the host.
+The script starts Hermes' gateway on `127.0.0.1:8642` and the dashboard on
+`127.0.0.1:9119`, logging to `~/.hermes/logs/gateway.out` and
+`~/.hermes/logs/dashboard.out`. The gateway is enabled with the generated
+key and is never exposed to the host.
+
+`docker-compose.yml` also starts Open WebUI as a companion container sharing
+the devcontainer's network namespace. It reaches Hermes at
+`http://127.0.0.1:8642/v1`, which means Hermes tool calls run inside this
+devcontainer while the API stays private. Its data persists in the named
+`open-webui-data` volume across normal Compose stops and rebuilds.
+
+`devcontainer.json` forwards the Hermes dashboard on `9119` and Open WebUI
+on `8080`. Open the forwarded `8080` address, create the first account (it
+becomes the local admin), and select `hermes-agent` in the model picker. The
+first Open WebUI start can take a little longer while it initializes.
+
+To rotate the generated API key, delete `.devcontainer/.openwebui.env` before
+rebuilding. Open WebUI persists its connection after first launch, so update
+that connection through Admin Settings or reset its named data volume before
+using the replacement key.
 
 ## Configuration
 
@@ -118,22 +140,22 @@ prebuilt image, so rebuilds stay fast.
 
 ### Agent CLI credentials
 
-`docker-compose.yml` bind-mounts agent config from the host so logins
-survive a container rebuild, instead of baking tokens into the image (which
-would leave them in `docker history` and wouldn't pick up refreshed tokens):
+`docker-compose.yml` uses named Docker volumes instead of host-path mounts,
+so a fresh template works on any host without pre-creating credential files:
 
-- `~/.claude` and `~/.claude.json` — Claude Code
-- `~/.codex/auth.json` — Codex (just the credential file; the rest of
-  `~/.codex` is desktop-app state)
-- `~/.hermes/.env` and `~/.hermes/config.yaml` — Hermes. Only these two
-  files, **not** all of `~/.hermes`: that directory also holds Hermes' own
-  cloned code, its `uv` venv, and live session/log state, which must stay
-  container-local. `.env` holds the API keys; drop the `config.yaml` mount
-  if host and container settings need to diverge.
+- `claude-data` — the complete `~/.claude` directory
+- `codex-data` — the complete `~/.codex` directory
+- `hermes-data` — the complete `~/.hermes` directory. The named volume is
+  initialized from the image on first use, preserving the installed Hermes
+  runtime as well as its credentials and state.
 
-The paths in this template point at the original author's machine — edit or
-remove those `volumes` entries in `docker-compose.yml` to match your own
-host, or drop them entirely if you don't need persisted logins.
+Docker creates these volumes on demand and initializes the CLI directories
+from the image on first use. Log in with `claude` or `codex` inside the
+container; that state survives normal rebuilds without copying credentials
+into image layers. The template does not read host credentials or Git
+settings, so configure Git with `git config --global ...` inside the
+container when needed. Do not remove the named volumes if you need to retain
+their state.
 
 ### Workspace folder name
 

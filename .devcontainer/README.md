@@ -23,56 +23,63 @@ line for a `build:` block with a `Dockerfile` that does `FROM` the image.
 `hermes`, `hermes-agent`, and `hermes-acp` are on `PATH`. Hermes is
 installed but not configured — run `hermes` inside the container to set up
 API keys (writes `~/.hermes/.env` and `~/.hermes/config.yaml`). That
-`~/.hermes` is container-local; see the commented-out mounts in
-`docker-compose.yml` to persist it from a Windows-host copy.
+directory is backed by the `hermes-data` Docker named volume, which persists
+Hermes credentials, sessions, memory, skills, and logs across normal
+devcontainer rebuilds. Do not run `docker compose down -v` or remove the
+named volume if you need to retain it.
+After completing setup, restart the devcontainer or run
+`bash .devcontainer/start-hermes.sh` to start the gateway and dashboard.
 
-`docker-compose.yml` publishes the dashboard (`9119`) and gateway API
-(`8642`) to the host, and `postStartCommand` runs
-`.devcontainer/start-hermes.sh` on every container start to bring both up
-bound to `0.0.0.0` (Hermes binds to `127.0.0.1` by default, which the
-published ports can't reach). The script backgrounds them, skips one
-that's already running, logs to `~/.hermes/logs/`, and no-ops until Hermes
-is configured. Two prerequisites in `~/.hermes/`, both from `hermes`
-first-run:
+`postStartCommand` runs `.devcontainer/start-hermes.sh` on every container
+start. It first does a one-time Codex seed: if `~/.codex/auth.json` is
+bind-mounted (a ChatGPT OAuth login) with a currently-valid access token,
+it copies those tokens into Hermes' auth store and sets `model.provider:
+openai-codex` / `model.default: gpt-5.6-terra` in `config.yaml` — the same
+import `hermes model` → "ChatGPT or Codex Subscription" performs (it calls
+Hermes' internal helpers directly; `hermes auth add openai-codex` is not
+used, as that only starts a fresh device-code login). It runs once, guarded
+by `~/.hermes/.codex-default-seeded` (delete that marker plus `hermes auth
+logout openai-codex` to re-seed); a lapsed token — Codex refresh tokens are
+single-use — just defers it to the next start; picking another provider
+with `hermes model` is safe, the marker stops the seed from overriding it.
 
-- **Dashboard** — an auth provider under `dashboard:` in `config.yaml`, or
-  Hermes refuses to bind non-loopback and the service just exits.
-- **Gateway** — `API_SERVER_KEY` in `.env` (`API_SERVER_HOST=0.0.0.0` is
-  passed by the script, so `config.yaml` doesn't need editing).
+The script creates `.devcontainer/.openwebui.env` on its first run. It is
+ignored by Git and contains generated API and Open WebUI session keys. The
+same file enables Hermes' OpenAI-compatible API and configures Open WebUI,
+without adding secrets to either image or `~/.hermes/.env`.
 
-To disable auto-start, drop the `postStartCommand` line from
-`devcontainer.json`.
+It then starts the Hermes gateway on `127.0.0.1:8642` and the dashboard on
+`127.0.0.1:9119`, logging to `~/.hermes/logs/gateway.out` and
+`~/.hermes/logs/dashboard.out`. Neither loopback service is exposed directly
+to the host.
+
+## Open WebUI
+
+`docker-compose.yml` runs Open WebUI as a companion service with the same
+network namespace as the devcontainer. It connects to Hermes at
+`http://127.0.0.1:8642/v1`, so tool calls run in this devcontainer while port
+`8642` remains inaccessible outside it. Open WebUI data is kept in the named
+`open-webui-data` volume and survives normal Compose stops and rebuilds.
+
+VS Code forwards the dashboard on port `9119` and Open WebUI on port `8080`.
+Open the forwarded `8080` address, create the first account (it becomes the
+local admin), then choose `hermes-agent` in the model picker. The first Open
+WebUI launch can take a little longer while its application data initializes.
+
+To rotate the generated API key, delete `.devcontainer/.openwebui.env` before
+rebuilding. Open WebUI stores its connection on first launch, so also update
+the connection in its Admin Settings or reset its named data volume before
+using the replacement key.
 
 ## Persisting Claude Code / Codex credentials
 
-Without help, both CLIs need you to log in again every time the container
-is rebuilt, since a fresh container has no `~/.claude` or `~/.codex`. To
-avoid that, `docker-compose.yml` bind-mounts the live credential files from
-the Windows host instead of baking them into the image (an image COPY
-would leave tokens sitting in `docker history`, and wouldn't pick up
-refreshed tokens after login):
+`docker-compose.yml` uses named Docker volumes for `~/.claude` and
+`~/.codex`, so it starts on a host that has neither directory and keeps
+logins made inside the container across normal rebuilds. Docker initializes
+each volume from the image on first use, so Codex keeps its Linux-native
+configuration rather than inheriting Windows desktop-app state.
 
-- `/mnt/c/Users/Wesle/.claude` -> `/home/vscode/.claude`
-- `/mnt/c/Users/Wesle/.claude.json` -> `/home/vscode/.claude.json`
-- `/mnt/c/Users/Wesle/.codex/auth.json` -> `/home/vscode/.codex/auth.json`
-
-Claude's mount is the whole `~/.claude` dir, sourced from the WSL install
-(native filesystem, correct `0600` perms, and uid 1000 matches the
-container's `vscode` user).
-
-Codex only exists on this machine's Windows side, so that mount crosses
-`/mnt/c` into the Windows user profile. Only `auth.json` is mounted, not
-all of `~/.codex`: the rest of that directory is Windows desktop-app state
-(`config.toml` with Windows-only paths, plugin dirs, live SQLite files the
-app holds locks on) that doesn't belong in a Linux container.
-The image build creates the container's own `~/.codex` (owned by `vscode`,
-with its own `config.toml`) so the `auth.json` bind mount doesn't cause
-Docker to create the parent directory as root. Sharing just the
-credentials file means token refreshes made in either environment stay in
-sync in both directions.
-
-### Using this on a different machine
-
-These are personal host paths for this machine. On a different host
-account (or a different OS), edit or remove the `volumes` entries in
-`docker-compose.yml` rather than copying credential files into the image.
+The container intentionally does not read host credentials or Git settings.
+Run `claude`, `codex`, and `git config --global ...` inside the container to
+configure them. Do not remove the `claude-data` or `codex-data` volumes if
+you need to retain those settings.

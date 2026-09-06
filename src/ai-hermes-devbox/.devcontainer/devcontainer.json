@@ -20,10 +20,10 @@
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
   "postCreateCommand": "cp /tmp/host-gitconfig ~/.gitconfig 2>/dev/null || true; cp /tmp/host-git-credentials ~/.git-credentials 2>/dev/null || true; chmod 600 ~/.git-credentials 2>/dev/null || true",
-  // Bring up the Hermes dashboard (9119) and gateway (8642) on every
-  // container start, bound to 0.0.0.0 for the published ports. No-ops until
-  // Hermes is configured (`hermes` first-run); see .devcontainer/start-hermes.sh.
+  // Bring up Hermes and its local Open WebUI backend on every container start.
+  // VS Code forwards the dashboard and Open WebUI ports; see start-hermes.sh.
   "postStartCommand": "bash .devcontainer/start-hermes.sh",
+  "forwardPorts": [9119, 8080],
   "customizations": {
     "vscode": {
       "settings": {

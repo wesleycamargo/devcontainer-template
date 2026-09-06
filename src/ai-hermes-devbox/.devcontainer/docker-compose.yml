@@ -10,49 +10,52 @@ services:
     # Keeps the container running; VS Code/the devcontainer CLI exec into it
     # rather than relying on the image's own entrypoint to block.
     command: sleep infinity
-    # Hermes services published to the host. Hermes binds to 127.0.0.1 *inside
-    # the container* by default, which a published port can't reach -- it has
-    # to listen on 0.0.0.0 as well:
-    #   Dashboard:  hermes dashboard --host 0.0.0.0
-    #               (binding non-loopback makes Hermes refuse to start until an
-    #               auth provider is configured under `dashboard` in
-    #               ~/.hermes/config.yaml)
-    #   Gateway:    set `gateway.api_server.host: 0.0.0.0` in ~/.hermes/config.yaml
-    #               (or `API_SERVER_HOST=0.0.0.0 hermes gateway`), plus
-    #               API_SERVER_KEY in ~/.hermes/.env -- required for every deploy.
-    ports:
-      - "9119:9119"   # hermes dashboard (web UI)
-      - "8642:8642"   # hermes gateway (OpenAI-compatible API)
+    # The Hermes dashboard (127.0.0.1:9119, started by start-hermes.sh) is
+    # reached from the host through VS Code's port forwarding -- `forwardPorts`
+    # in devcontainer.json -- not a Docker published port, which can't see a
+    # loopback listener.
     volumes:
       - ..:/workspaces/devcontainer-template:cached
-      # Agent CLI configs, bind-mounted from the host rather than COPYed into
-      # the image -- these hold live credentials (.credentials.json, auth.json)
-      # and baking them into image layers would persist them in `docker history`.
-      # Personal host paths for this learning machine. Claude comes from the
-      # WSL install (native fs, correct 0600 perms, and uid 1000 matches the
-      # container's `vscode` user). On a different host account, edit/remove
-      # these mounts rather than copying credentials into the image.
-      - /mnt/c/Users/Wesle/.claude:/home/vscode/.claude
-      - /mnt/c/Users/Wesle/.claude.json:/home/vscode/.claude.json
-      # Codex only exists on this machine's Windows side, so this one crosses
-      # /mnt/c and includes the local Windows user path.
-      # Only auth.json, NOT the whole ~/.codex: the rest of that directory is
-      # desktop-app state (Windows-path config.toml, plugin dirs, live SQLite
-      # files the app holds locks on). The container gets its own ~/.codex from
-      # the Dockerfile; sharing just the credentials file means token refreshes
-      # stay in sync in both directions. See .devcontainer/README.md.
-      - /mnt/c/Users/Wesle/.codex/auth.json:/home/vscode/.codex/auth.json
-      # Hermes keeps everything under ~/.hermes, but that dir also holds the
-      # cloned agent code, its uv venv, and live session/log state -- all of
-      # which must stay container-local (the host copy is a Windows install).
-      # So mount only the config files, the same way ~/.codex/auth.json is:
-      # ~/.hermes is already created (owned by vscode) by the install.sh step
-      # in the Dockerfile, so these file mounts don't make Docker create the
-      # parent as root. Drop the config.yaml line if host/container settings
-      # need to diverge; .env holds the API keys and is the one worth syncing.
-      - /mnt/c/Users/Wesle/.hermes/.env:/home/vscode/.hermes/.env
-      - /mnt/c/Users/Wesle/.hermes/config.yaml:/home/vscode/.hermes/config.yaml
-      # Host git identity/credentials, read-only. postCreateCommand copies
-      # these into ~/.gitconfig / ~/.git-credentials on container create.
-      - /mnt/c/Users/Wesle/.gitconfig:/tmp/host-gitconfig:ro
-      - /mnt/c/Users/Wesle/.git-credentials:/tmp/host-git-credentials:ro
+      # Named volumes make a fresh checkout usable on any host: Docker creates
+      # them on demand and copies each image directory into it on first use.
+      # They keep CLI logins across normal container rebuilds without depending
+      # on personal host paths or baking credentials into the image.
+      - claude-data:/home/vscode/.claude
+      - codex-data:/home/vscode/.codex
+      # Persist all Hermes state, including sessions, memories, skills,
+      # credentials, and logs. Docker copies the image's installed Hermes
+      # runtime into this named volume the first time it is created, so the
+      # hermes launcher remains usable after a rebuild.
+      - hermes-data:/home/vscode/.hermes
+
+  # Shares the devcontainer's loopback namespace so its OpenAI connection can
+  # reach Hermes at 127.0.0.1:8642 without exposing the API outside Compose.
+  open-webui:
+    # Pin a tested release. `main` is a moving development build and has
+    # shipped SSE parsing regressions that break Hermes streaming replies.
+    image: ghcr.io/open-webui/open-webui:v0.11.1
+    network_mode: service:devcontainer
+    depends_on:
+      - devcontainer
+    environment:
+      OPENAI_API_BASE_URL: http://127.0.0.1:8642/v1
+      ENABLE_OLLAMA_API: "false"
+    volumes:
+      - open-webui-data:/app/backend/data
+      - .:/openwebui-config:ro
+    command:
+      - /bin/bash
+      - -c
+      - |
+        while [ ! -s /openwebui-config/.openwebui.env ]; do sleep 1; done
+        set -a
+        . /openwebui-config/.openwebui.env
+        set +a
+        exec bash start.sh
+    restart: unless-stopped
+
+volumes:
+  claude-data:
+  codex-data:
+  hermes-data:
+  open-webui-data:
