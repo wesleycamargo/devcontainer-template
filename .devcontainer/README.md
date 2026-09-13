@@ -29,10 +29,10 @@ about old runtime leftovers such as `~/.hermes/hermes-agent` or `~/.hermes/node`
 and then starts the OpenSSH daemon as PID 1. Those leftovers are no longer used;
 remove them by hand only after confirming you do not need anything inside them.
 
-This local development container does not publish the SSH port or collect host
-public keys. It still starts the daemon internally because the same image is used
-by the published template; the daily-driver root `.devcontainer/` keeps it
-unreachable from the host.
+This local development container also publishes the SSH gateway (loopback-only)
+and collects host public keys, mirroring `src/ai-hermes-devbox/`'s setup —
+see [`SSH-BACKEND.md`](SSH-BACKEND.md) for pointing a host-side Hermes (e.g.
+Hermes Desktop) at it.
 
 ## Hermes services
 

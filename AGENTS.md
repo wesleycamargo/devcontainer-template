@@ -8,12 +8,16 @@ template/image built from the same config.
 - `.devcontainer/` — the devcontainer used to develop this repo itself.
   Personal, host-specific (bind-mounts Windows host paths for Claude/Codex
   credentials and git config — see `.devcontainer/README.md`). Pulls
-  `ai-hermes-devbox-image`; its `devcontainer.json` and `docker-compose.yml` track
-  `src/ai-hermes-devbox/.devcontainer/`, but intentionally omit the published
-  template's host SSH port and public-key collection service. The image-owned
-  scripts (`entrypoint.sh`, `start-services.sh`, `hermes-ssh-info.sh`, and the
-  SSH drop-in) live only under `src/ai-hermes-devbox/.devcontainer/`; mirror
-  Compose/devcontainer behavior across both directories when it applies.
+  `ai-hermes-devbox-image`; its `devcontainer.json` and `docker-compose.yml`
+  track `src/ai-hermes-devbox/.devcontainer/`, including the published
+  template's host SSH port and public-key collection service (see
+  `.devcontainer/SSH-BACKEND.md`). The image-owned scripts (`entrypoint.sh`,
+  `start-services.sh`, `hermes-ssh-info.sh`, and the SSH drop-in) live only
+  under `src/ai-hermes-devbox/.devcontainer/`; `.devcontainer/scripts/connect-hermes-desktop.ps1`
+  and `.devcontainer/SSH-BACKEND.md` are plain copies of their
+  `src/ai-hermes-devbox/.devcontainer/` counterparts (the latter trimmed of
+  the template-apply steps), kept in sync by hand. Mirror Compose/devcontainer
+  behavior across both directories when it applies.
 - `src/ai-devbox/.devcontainer/` — the base template, published via CI. The
   build recipe (`Dockerfile`) lives only here; nothing else consumes this
   directory directly.

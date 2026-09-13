@@ -353,7 +353,7 @@ main() {
   esac
   printf '\n%s%d passed, %d failed, %d skipped%s\n' "$bld" "$PASS" "$FAIL" "$SKIP" "$off"
   printf 'Checkpoint F (real Hermes Desktop connection) is manual: run\n'
-  printf '  docker compose exec devcontainer hermes-ssh-info\n'
+  printf '  bash .devcontainer/scripts/find-devcontainer.sh "$(pwd)" hermes-ssh-info\n'
   printf 'and use the printed values.\n'
   [ "$FAIL" -eq 0 ]
 }

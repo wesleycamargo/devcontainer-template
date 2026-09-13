@@ -11,14 +11,25 @@ services:
     init: true
     # No `command:` override: the image's entrypoint runs sshd in the
     # foreground, which keeps the container up and starts the Hermes services.
+    #
+    # This container now mirrors src/ai-hermes-devbox/'s SSH gateway wiring
+    # (see SSH-BACKEND.md next to this file): the internal port is always
+    # 2222, only the host side varies, so several projects can run at once.
+    # Loopback-only, so nothing outside this machine can reach it.
+    ports:
+      - "127.0.0.1:${HERMES_SSH_PORT:-2222}:2222"
     environment:
       HERMES_AUTOSTART_SERVICES: "1"
       HERMES_PROJECT_NAME: "devcontainer-template"
-    # This container consumes the image but is NOT published as an SSH gateway:
-    # no `ports:` mapping and no ssh-pubkeys service, so sshd runs but is
-    # unreachable from the host. See src/ai-hermes-devbox/ for the gateway
-    # setup; mirroring it here would expose this daily-driver container.
-    #
+      # The container cannot see its own published port -- pass it through so
+      # `hermes-ssh-info` prints a host port you can actually connect to.
+      HERMES_SSH_HOST_PORT: "${HERMES_SSH_PORT:-2222}"
+      # Pins `hermes-ssh-info`'s suggested terminal.cwd to the workspace mount
+      # below instead of its /workspaces/*/ auto-detect glob.
+      HERMES_SSH_CWD: "/workspaces/devcontainer-template"
+    depends_on:
+      ssh-pubkeys:
+        condition: service_completed_successfully
     # The Hermes dashboard (127.0.0.1:9119) is reached from the host through VS
     # Code's port forwarding -- `forwardPorts` in devcontainer.json -- not a
     # Docker published port, which can't see a loopback listener.
@@ -37,11 +48,29 @@ services:
       # ~/.hermes/hermes-agent and ~/.hermes/node from an older image; they are
       # unused now and safe to delete by hand (the entrypoint says so on start).
       - hermes-data:/home/hermes/.hermes
+      # Host public keys collected by ssh-pubkeys, at the contract path the
+      # image reads. Read-only: the entrypoint copies them to hermes's
+      # authorized_keys rather than using them in place.
+      - ssh-pubkeys:/run/hermes-ssh:ro
       # Keeps this container's SSH host identity stable across recreates.
       - ssh-host-keys:/var/lib/hermes-ssh/host_keys
+
+  # One-shot: copies only the host's ~/.ssh/*.pub into the ssh-pubkeys volume
+  # and exits, so the devcontainer (where agents run) never sees the private
+  # keys next to them. Re-runs on every `up`, picking up new or removed keys.
+  ssh-pubkeys:
+    image: busybox:1.37
+    volumes:
+      - ${HOME:-${USERPROFILE:-}}/.ssh:/host-ssh:ro
+      - ssh-pubkeys:/keys
+    command:
+      - sh
+      - -c
+      - cat /host-ssh/*.pub 2>/dev/null | tr -d '\r' > /keys/authorized_keys; chmod 644 /keys/authorized_keys
 
 volumes:
   claude-data:
   codex-data:
   hermes-data:
+  ssh-pubkeys:
   ssh-host-keys:

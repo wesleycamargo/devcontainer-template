@@ -1,0 +1,2 @@
+# Per-project host port. Copy .env.example to .env.
+.env

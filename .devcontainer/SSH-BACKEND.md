@@ -7,8 +7,13 @@ terminal commands it runs go over SSH into the container
 [SSH backend guide](https://hermes-agent.ai/how-to/configure-ssh-terminal-backend)).
 
 In this mode the host's Hermes does the work. The Hermes installed inside the
-container is still available for local use, and Compose can start its gateway
+container is still available for local use, and Compose starts its gateway
 and dashboard, but the host SSH backend does not depend on those services.
+
+This mirrors the setup documented in
+[`src/ai-hermes-devbox/.devcontainer/SSH-BACKEND.md`](../src/ai-hermes-devbox/.devcontainer/SSH-BACKEND.md)
+for the published template; this copy is trimmed to skip the "apply the
+template" steps, since this devcontainer is already checked into the repo.
 
 ## How it works
 
@@ -29,8 +34,8 @@ Host (Windows)                          Docker (e.g. in WSL)
   outside your machine can reach it.
 - **Stable host identity** — host keys are generated on first start into the
   `ssh-host-keys` named volume. They survive restarts, recreates, and image
-  upgrades for the same Compose project, so Hermes' `accept-new` host-key check
-  does not break on every rebuild.
+  upgrades, so Hermes' `accept-new` host-key check does not break on every
+  rebuild.
 - **User and shell** — login is `hermes`, key-only. Its login shell is bash:
   Hermes keeps a `bash -l` session open and runs one-shot commands through the
   login shell, which would break under the base image's pwsh. VS Code terminals
@@ -38,34 +43,8 @@ Host (Windows)                          Docker (e.g. in WSL)
 - **Keys** — every `*.pub` in `~/.ssh` of the machine that starts the container
   (`$HOME`, or `%USERPROFILE%` on Windows) is authorized. The one-shot
   `ssh-pubkeys` service copies only public keys into a volume and exits; the
-  entrypoint turns them into `authorized_keys` on start. Private keys never enter
-  the devcontainer, where agents run.
-
-## Prerequisites
-
-Run these where Docker runs (WSL, if that's where your Docker engine is).
-
-1. Authenticate to the private GHCR packages — `gh` needs the `read:packages`
-   scope, and Docker needs the login:
-
-   ```bash
-   gh auth refresh -h github.com -s read:packages
-   gh auth token | docker login ghcr.io -u wesleycamargo --password-stdin
-   ```
-
-2. Pull the latest image. Docker caches `:latest` and never re-downloads it on
-   apply or rebuild:
-
-   ```bash
-   docker pull ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox-image:latest
-   ```
-
-   Do this again whenever a new image is published. See
-   [Updating to the latest image](../README.md#updating-to-the-latest-image) for
-   how to check whether you're behind and rebuild on the new image.
-3. If the project already has `.devcontainer/` files from an older version of
-   the template, re-apply the template so you get the image-owned gateway
-   compose wiring, public-key collector, host-key volume, and helper scripts.
+  entrypoint turns them into `authorized_keys` on start. Private keys never
+  enter the devcontainer, where agents run.
 
 ## Setup
 
@@ -85,17 +64,13 @@ Copy the Windows public key into WSL once:
 cp /mnt/c/Users/<you>/.ssh/<key>.pub ~/.ssh/
 ```
 
-### 2. Apply the template and open the container
+### 2. Start the container
 
 ```bash
-devcontainer templates apply -w . -t ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox
+docker compose -f .devcontainer/docker-compose.yml up -d
 ```
 
-or in VS Code: **Dev Containers: Add Dev Container Configuration Files** ->
-enter the full ID `ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox`
-(the `ghcr.io/` prefix is required), then **Reopen in Container**. Open the
-folder in WSL first so VS Code uses WSL's GHCR login; see
-[Getting started](../README.md#getting-started) for Windows folders.
+or in VS Code: **Reopen in Container**.
 
 Keys added or removed later apply on the next container start.
 
@@ -148,8 +123,7 @@ writes the matching `terminal.backend`/`terminal.cwd` into Hermes'
 three files first), then runs the connection check from step 4. It targets
 `$env:HERMES_HOME` when that's set, otherwise `%USERPROFILE%\.hermes` — check
 `echo $env:HERMES_HOME` first if you're not sure which one your Hermes
-Desktop install actually reads (the script also prints which one it's
-using).
+Desktop install actually reads (the script also prints which one it's using).
 
 ```powershell
 ./.devcontainer/scripts/connect-hermes-desktop.ps1
@@ -211,23 +185,20 @@ TERMINAL_SSH_PORT=<port-from-hermes-ssh-info>
 
   `connect-hermes-desktop.ps1` runs the same `BatchMode` check and prints this
   guidance automatically when it fails.
-- **`$SHELL` is pwsh, or commands fail with PowerShell errors** — you are on an
-  older, cached image. Pull the latest one and rebuild without cache; see
-  [Updating to the latest image](../README.md#updating-to-the-latest-image).
-- **`Connection refused` after updating** — the project's `.devcontainer/` files
-  predate the image-owned gateway wiring. Re-apply the template, then rebuild.
+- **`Connection refused`** — the container may not have finished starting, or
+  `docker compose up` was run without `-d` and got interrupted. Check
+  `docker compose -f .devcontainer/docker-compose.yml ps`.
 - **`REMOTE HOST IDENTIFICATION HAS CHANGED` / Hermes refuses to connect after a
-  rebuild** — you may have deleted the `ssh-host-keys` volume or reused the same
-  host alias for a different Compose project. Clear the old host key on the
-  machine running Hermes:
+  rebuild** — you may have deleted the `ssh-host-keys` volume. Clear the old
+  host key on the machine running Hermes:
 
   ```powershell
   ssh-keygen -R "[127.0.0.1]:<port>"
   ```
 
 - **Port `2222` is already in use** — set `HERMES_SSH_PORT` in
-  `.devcontainer/.env`, restart Compose, then run `hermes-ssh-info` again and
-  update `TERMINAL_SSH_PORT`.
+  `.devcontainer/.env` (copy `.devcontainer/.env.example` first), restart
+  Compose, then run `hermes-ssh-info` again and update `TERMINAL_SSH_PORT`.
 - **Port `2222` appears in VS Code's Ports view on a different local port** —
   VS Code auto-forwarding; ignore it. Use the Compose mapping printed by
   `hermes-ssh-info`.
