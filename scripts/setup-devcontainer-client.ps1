@@ -5,13 +5,14 @@
   and their published ghcr.io images. Safe to re-run.
 
 .DESCRIPTION
-  Verifies/installs Git, GitHub CLI, Docker, VS Code, and the VS Code Dev
-  Containers extension, then authenticates `gh` with the `read:packages`
-  scope and logs Docker in to ghcr.io so the private
+  Verifies/installs Git, GitHub CLI, VS Code, the VS Code Dev Containers and
+  Remote-WSL extensions, and Docker Engine running inside WSL (never Docker
+  Desktop). Then authenticates `gh` with the `read:packages` scope and logs
+  Docker in to ghcr.io so the private
   ghcr.io/wesleycamargo/devcontainer-template/* packages can be pulled.
 
-  Windows: installs missing tools via winget.
-  macOS: installs missing tools via Homebrew.
+  Windows: installs missing tools via winget; installs Docker Engine inside
+  your default WSL distro.
   Linux: checks for tools and prints install instructions for anything
   missing (package managers vary too much to automate safely here).
 #>
@@ -28,11 +29,9 @@ function Test-Command([string]$Name) {
 
 $OS =
     if (-not (Test-Path variable:IsWindows)) {
-        'windows'  # Windows PowerShell 5.1 has no $IsWindows/$IsMacOS/$IsLinux; it only runs on Windows
+        'windows'  # Windows PowerShell 5.1 has no $IsWindows; it only runs on Windows
     } elseif ($IsWindows) {
         'windows'
-    } elseif ($IsMacOS) {
-        'macos'
     } else {
         'linux'
     }
@@ -44,8 +43,6 @@ function Install-Tool {
         [string]$Name,
         [string]$Command,
         [string]$WingetId,
-        [string]$BrewFormula,
-        [switch]$BrewCask,
         [string]$LinuxHint
     )
     Write-Step $Name
@@ -62,14 +59,6 @@ function Install-Tool {
             }
             winget install --id $WingetId -e --accept-source-agreements --accept-package-agreements
         }
-        'macos' {
-            if (-not (Test-Command 'brew')) {
-                Write-Warn2 "Homebrew not found; install $Name manually (https://brew.sh)"
-                $manualInstallNeeded.Add($Name)
-                return
-            }
-            if ($BrewCask) { brew install --cask $BrewFormula } else { brew install $BrewFormula }
-        }
         'linux' {
             Write-Warn2 "$Name not found. $LinuxHint"
             $manualInstallNeeded.Add($Name)
@@ -77,29 +66,93 @@ function Install-Tool {
     }
 }
 
-Install-Tool -Name 'Git' -Command 'git' -WingetId 'Git.Git' -BrewFormula 'git' `
+function Get-WslDistro {
+    if (-not (Test-Command 'wsl')) { return $null }
+    $names = (wsl -l -q 2>$null) -replace "`0", '' | Where-Object { $_.Trim() -ne '' }
+    if ($names) { return $names[0].Trim() }
+    return $null
+}
+
+function Test-DockerInWsl([string]$Distro) {
+    if (-not $Distro) { return $false }
+    wsl -d $Distro -- bash -lc "command -v docker" *> $null
+    return ($LASTEXITCODE -eq 0)
+}
+
+function Install-DockerOnWsl {
+    Write-Step 'Docker Engine (inside WSL — not Docker Desktop)'
+    if (-not (Test-Command 'wsl')) {
+        Write-Warn2 'WSL not found. Run `wsl --install`, reboot, then re-run this script.'
+        $manualInstallNeeded.Add('WSL + Docker')
+        return
+    }
+    $distro = Get-WslDistro
+    if (-not $distro) {
+        Write-Warn2 'No WSL distro found. Run `wsl --install -d Ubuntu`, reboot, then re-run this script.'
+        $manualInstallNeeded.Add('WSL distro + Docker')
+        return
+    }
+    if (Test-DockerInWsl $distro) {
+        Write-Ok "Docker already installed in WSL distro '$distro'"
+    } else {
+        Write-Host "    installing Docker Engine in WSL distro '$distro'..."
+        $installScript = @'
+set -e
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+. /etc/os-release
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $VERSION_CODENAME stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update -y
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo usermod -aG docker "$USER"
+'@
+        wsl -d $distro -- bash -c $installScript
+    }
+
+    $hasSystemd = wsl -d $distro -- bash -lc "grep -qx 'systemd=true' /etc/wsl.conf 2>/dev/null && echo yes || echo no"
+    if ($hasSystemd -notmatch 'yes') {
+        wsl -d $distro -- bash -c "printf '[boot]\nsystemd=true\n' | sudo tee -a /etc/wsl.conf > /dev/null"
+        Write-Warn2 "Enabled systemd in WSL distro '$distro' so Docker starts automatically. Run 'wsl --shutdown' yourself, then reopen a WSL terminal for it to take effect."
+    } else {
+        wsl -d $distro -- bash -lc "sudo service docker start" *> $null
+    }
+}
+
+function Test-DockerAvailable {
+    if ($OS -eq 'windows') { return (Test-DockerInWsl (Get-WslDistro)) }
+    return (Test-Command 'docker')
+}
+
+Install-Tool -Name 'Git' -Command 'git' -WingetId 'Git.Git' `
     -LinuxHint 'Install via your distro package manager, e.g. `sudo apt install git`.'
 
-Install-Tool -Name 'GitHub CLI' -Command 'gh' -WingetId 'GitHub.cli' -BrewFormula 'gh' `
+Install-Tool -Name 'GitHub CLI' -Command 'gh' -WingetId 'GitHub.cli' `
     -LinuxHint 'See https://github.com/cli/cli/blob/trunk/docs/install_linux.md'
 
-Install-Tool -Name 'Docker' -Command 'docker' -WingetId 'Docker.DockerDesktop' -BrewFormula 'docker' -BrewCask `
-    -LinuxHint 'See https://docs.docker.com/engine/install/'
+if ($OS -eq 'windows') {
+    Install-DockerOnWsl
+} else {
+    Install-Tool -Name 'Docker' -Command 'docker' -WingetId 'n/a' `
+        -LinuxHint 'See https://docs.docker.com/engine/install/'
+}
 
-Install-Tool -Name 'Visual Studio Code' -Command 'code' -WingetId 'Microsoft.VisualStudioCode' -BrewFormula 'visual-studio-code' -BrewCask `
+Install-Tool -Name 'Visual Studio Code' -Command 'code' -WingetId 'Microsoft.VisualStudioCode' `
     -LinuxHint 'See https://code.visualstudio.com/docs/setup/linux'
 
-Write-Step 'VS Code Dev Containers extension'
+Write-Step 'VS Code extensions (Dev Containers, Remote-WSL)'
 if (Test-Command 'code') {
     $extensions = code --list-extensions 2>$null
-    if ($extensions -contains 'ms-vscode-remote.remote-containers') {
-        Write-Ok 'Dev Containers extension already installed'
-    } else {
-        code --install-extension ms-vscode-remote.remote-containers
+    foreach ($ext in @('ms-vscode-remote.remote-containers', 'ms-vscode-remote.remote-wsl')) {
+        if ($extensions -contains $ext) {
+            Write-Ok "$ext already installed"
+        } else {
+            code --install-extension $ext
+        }
     }
 } else {
-    Write-Warn2 'VS Code CLI (code) not on PATH yet; install the Dev Containers extension after restarting your terminal, or manually: https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers'
-    $manualInstallNeeded.Add('Dev Containers extension')
+    Write-Warn2 'VS Code CLI (code) not on PATH yet; install the Dev Containers and Remote-WSL extensions after restarting your terminal, or manually from the Marketplace.'
+    $manualInstallNeeded.Add('Dev Containers / Remote-WSL extensions')
 }
 
 Write-Step 'GitHub authentication (read:packages scope)'
@@ -122,12 +175,14 @@ if (-not $ghAvailable) {
 Write-Step 'Docker login to ghcr.io'
 if (-not $ghAvailable) {
     Write-Warn2 'gh CLI unavailable; cannot obtain a token for ghcr.io login'
-} elseif (-not (Test-Command 'docker')) {
-    Write-Warn2 'docker CLI unavailable; skipping ghcr.io login'
+} elseif (-not (Test-DockerAvailable)) {
+    Write-Warn2 'docker unavailable; skipping ghcr.io login'
 } else {
     $ghcrUser = (gh api user -q .login 2>$null)
     if (-not $ghcrUser) {
         Write-Warn2 'Not logged in to gh; skipping ghcr.io login'
+    } elseif ($OS -eq 'windows') {
+        gh auth token | wsl -d (Get-WslDistro) -- docker login ghcr.io -u $ghcrUser --password-stdin
     } else {
         gh auth token | docker login ghcr.io -u $ghcrUser --password-stdin
     }
@@ -139,4 +194,8 @@ if ($manualInstallNeeded.Count -gt 0) {
 } else {
     Write-Ok 'All tools installed and authenticated.'
 }
-Write-Host "`nNext: open this repo (or any project) in VS Code and run 'Dev Containers: Add Dev Container Configuration Files', or see README.md for the devcontainer CLI / raw devcontainer.json options."
+if ($OS -eq 'windows') {
+    Write-Host "`nNext: open this repo from inside WSL (e.g. run 'wsl' then 'code .' from the repo's WSL path, or use 'Remote-WSL: Reopen Folder in WSL' from the command palette) so VS Code's Dev Containers extension talks to the Docker daemon running in WSL. Then run 'Dev Containers: Add Dev Container Configuration Files', or see README.md for the devcontainer CLI / raw devcontainer.json options."
+} else {
+    Write-Host "`nNext: open this repo (or any project) in VS Code and run 'Dev Containers: Add Dev Container Configuration Files', or see README.md for the devcontainer CLI / raw devcontainer.json options."
+}

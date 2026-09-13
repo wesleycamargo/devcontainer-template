@@ -7,9 +7,10 @@ tooling, and MicroPython/ESP flashing support preconfigured.
 
 This package is private — Docker needs to be logged in to `ghcr.io` first.
 Run [`scripts/setup-devcontainer-client.ps1`](scripts/setup-devcontainer-client.ps1)
-to install Git/GitHub CLI/Docker/VS Code + the Dev Containers extension (any
-that are missing) and do this login step; it's idempotent, so re-run it any
-time. Or do the login manually:
+to install Git/GitHub CLI/VS Code + the Dev Containers/Remote-WSL extensions
+and Docker Engine inside WSL (any that are missing — no Docker Desktop) and
+do this login step; it's idempotent, so re-run it any time. Or do the login
+manually:
 
 ```powershell
 gh auth refresh -h github.com -s read:packages
