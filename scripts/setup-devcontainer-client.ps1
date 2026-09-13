@@ -68,8 +68,8 @@ function Install-Tool {
 
 function Get-WslDistro {
     if (-not (Test-Command 'wsl')) { return $null }
-    $names = (wsl -l -q 2>$null) -replace "`0", '' | Where-Object { $_.Trim() -ne '' }
-    if ($names) { return $names[0].Trim() }
+    $names = @((wsl -l -q 2>$null) -replace "`0", '' | Where-Object { $_.Trim() -ne '' })
+    if ($names.Count -gt 0) { return $names[0].Trim() }
     return $null
 }
 
