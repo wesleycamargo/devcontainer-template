@@ -131,19 +131,24 @@ report the image-installed Hermes from `/usr/local/bin/hermes`.
 ### 5. Point Hermes at the container
 
 On Windows, `.devcontainer/scripts/connect-hermes-desktop.ps1` does steps 3-5
-for you: it reads `hermes-ssh-info` from the running container and writes the matching
-`terminal.backend`/`terminal.cwd` into Hermes' `config.yaml` and the
-`TERMINAL_SSH_*` values into its `.env` (backing up both first), then runs
-the connection check from step 4. It targets `$env:HERMES_HOME` when that's
-set, otherwise `%USERPROFILE%\.hermes` — check `echo $env:HERMES_HOME` first
-if you're not sure which one your Hermes Desktop install actually reads (the
-script also prints which one it's using).
+for you: it reads `hermes-ssh-info` from the running container, adds/updates
+a `Host` block for the alias in `%USERPROFILE%\.ssh\config` (a managed block
+bounded by `# BEGIN/END hermes-devcontainer <alias>` comments, so re-running
+it updates in place and leaves the rest of your SSH config untouched), then
+writes the matching `terminal.backend`/`terminal.cwd` into Hermes'
+`config.yaml` and the `TERMINAL_SSH_*` values into its `.env` (backing up all
+three files first), then runs the connection check from step 4. It targets
+`$env:HERMES_HOME` when that's set, otherwise `%USERPROFILE%\.hermes` — check
+`echo $env:HERMES_HOME` first if you're not sure which one your Hermes
+Desktop install actually reads (the script also prints which one it's
+using).
 
 ```powershell
 ./.devcontainer/scripts/connect-hermes-desktop.ps1
 ```
 
-Or by hand, in the host Hermes' `config.yaml`:
+Or by hand: add the `Host` block `hermes-ssh-info` prints to
+`~/.ssh/config`, and in the host Hermes' `config.yaml`:
 
 ```yaml
 terminal:

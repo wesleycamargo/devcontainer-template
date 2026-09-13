@@ -6,7 +6,8 @@
 
 .DESCRIPTION
   Reads the real host/port/user from `hermes-ssh-info` inside the running
-  devcontainer (Docker runs in WSL for this template), then updates Hermes'
+  devcontainer (Docker runs in WSL for this template), then updates
+  ~/.ssh/config (a Host block keyed by alias) and Hermes'
   config.yaml (terminal.backend / terminal.cwd) and .env
   (TERMINAL_SSH_HOST/USER/PORT) to match. Existing files are backed up
   alongside themselves before being edited. Finishes with a live SSH check.
@@ -29,9 +30,14 @@
   Hermes Desktop's config directory. Defaults to `$env:HERMES_HOME` when set
   (Hermes itself respects this override), otherwise `$env:USERPROFILE\.hermes`.
 
+.PARAMETER SshConfigPath
+  Path to the Windows OpenSSH client config to update. Defaults to
+  `$env:USERPROFILE\.ssh\config`.
+
 .PARAMETER IdentityFile
-  Path to a private key to set as TERMINAL_SSH_KEY, only needed when SSH
-  would not offer the right key by default.
+  Path to a private key to set as TERMINAL_SSH_KEY and, in ~/.ssh/config, as
+  IdentityFile on the managed Host block. Only needed when SSH would not
+  offer the right key by default.
 
 .PARAMETER SkipConnectionTest
   Skip the final `ssh ... "echo $SHELL"` check.
@@ -40,6 +46,7 @@
 param(
     [string]$ProjectPath = (Resolve-Path (Join-Path $PSScriptRoot '..\..')),
     [string]$HermesHome = $(if ($env:HERMES_HOME) { $env:HERMES_HOME } else { Join-Path $env:USERPROFILE '.hermes' }),
+    [string]$SshConfigPath = (Join-Path $env:USERPROFILE '.ssh\config'),
     [string]$IdentityFile,
     [switch]$SkipConnectionTest
 )
@@ -69,6 +76,56 @@ function Backup-IfExists([string]$Path) {
         Copy-Item $Path "$Path.bak-$stamp"
         Write-Ok "backed up $(Split-Path -Leaf $Path) -> $(Split-Path -Leaf $Path).bak-$stamp"
     }
+}
+
+function Set-SshConfigHost {
+    param(
+        [string]$Path,
+        [string]$Alias,
+        [string]$HostName,
+        [string]$Port,
+        [string]$User,
+        [string]$IdentityFile
+    )
+
+    $sshDir = Split-Path -Parent $Path
+    if (-not (Test-Path $sshDir)) {
+        New-Item -ItemType Directory -Path $sshDir -Force | Out-Null
+    }
+
+    $lines = if (Test-Path $Path) { @(Get-Content $Path) } else { @() }
+    Backup-IfExists $Path
+
+    $beginMarker = "# BEGIN hermes-devcontainer $Alias"
+    $endMarker = "# END hermes-devcontainer $Alias"
+
+    $block = [System.Collections.Generic.List[string]]::new()
+    $block.Add($beginMarker)
+    $block.Add("Host $Alias")
+    $block.Add("    HostName $HostName")
+    $block.Add("    Port $Port")
+    $block.Add("    User $User")
+    $block.Add("    StrictHostKeyChecking accept-new")
+    if ($IdentityFile) { $block.Add("    IdentityFile $IdentityFile") }
+    $block.Add($endMarker)
+
+    $startIdx = ($lines | Select-String -SimpleMatch $beginMarker).LineNumber
+    if ($startIdx) {
+        $start = $startIdx - 1  # 1-based match -> 0-based index
+        $endIdx = ($lines | Select-String -SimpleMatch $endMarker).LineNumber
+        $end = $endIdx - 1
+
+        $newLines = @()
+        if ($start -gt 0) { $newLines += $lines[0..($start - 1)] }
+        $newLines += $block
+        if ($end + 1 -lt $lines.Count) { $newLines += $lines[($end + 1)..($lines.Count - 1)] }
+    } else {
+        $newLines = $lines
+        if ($newLines.Count -gt 0 -and $newLines[-1].Trim() -ne '') { $newLines += '' }
+        $newLines += $block
+    }
+
+    Set-Content -Path $Path -Value $newLines
 }
 
 Write-Step 'Hermes config directory'
@@ -110,7 +167,14 @@ $alias   = Get-InfoField 'Alias\s+(\S+)'
 
 Write-Ok "host=$sshHost port=$sshPort user=$sshUser cwd=$cwd alias=$alias"
 
-# --- 2. Update config.yaml (terminal.backend / terminal.cwd) ---------------
+# --- 2. Update ~/.ssh/config (Host block keyed by alias) -------------------
+
+Write-Step 'Updating ~/.ssh/config'
+
+Set-SshConfigHost -Path $SshConfigPath -Alias $alias -HostName $sshHost -Port $sshPort -User $sshUser -IdentityFile $IdentityFile
+Write-Ok "wrote $SshConfigPath (Host $alias)"
+
+# --- 3. Update config.yaml (terminal.backend / terminal.cwd) ---------------
 
 Write-Step 'Updating Hermes config.yaml'
 
@@ -147,7 +211,7 @@ Set-Content -Path $configPath -Value $newLines
 Write-Ok "wrote $configPath"
 Write-Warn2 "Hermes Desktop's own Settings UI can silently reset terminal.cwd back to '.' on next launch (it demotes this script's value to a comment rather than keeping it). If that happens, set the working directory to '$cwd' from Settings -> Terminal/SSH Backend in the app instead of re-running this script."
 
-# --- 3. Update .env (TERMINAL_SSH_HOST/USER/PORT[/KEY]) --------------------
+# --- 4. Update .env (TERMINAL_SSH_HOST/USER/PORT[/KEY]) --------------------
 
 Write-Step 'Updating Hermes .env'
 
@@ -182,7 +246,7 @@ foreach ($key in $values.Keys) {
 Set-Content -Path $envPath -Value $envLines
 Write-Ok "wrote $envPath"
 
-# --- 4. Verify -------------------------------------------------------------
+# --- 5. Verify -------------------------------------------------------------
 
 if (-not $SkipConnectionTest) {
     Write-Step 'Testing the SSH connection'
@@ -201,5 +265,5 @@ if (-not $SkipConnectionTest) {
 }
 
 Write-Step 'Summary'
-Write-Ok "Hermes config.yaml and .env at $HermesHome now point at $alias ($sshHost`:$sshPort)."
+Write-Ok "~/.ssh/config, and Hermes config.yaml/.env at $HermesHome, now point at $alias ($sshHost`:$sshPort)."
 Write-Host "`nRestart Hermes Desktop to pick up the change."
