@@ -136,13 +136,14 @@ usermod -aG docker "$SUDO_USER"
         }
     }
 
-    $hasSystemd = wsl -d $distro -- bash -lc "grep -qx 'systemd=true' /etc/wsl.conf 2>/dev/null && echo yes || echo no"
-    if ($hasSystemd -notmatch 'yes') {
-        Invoke-WslSudoScript $distro "printf '[boot]\nsystemd=true\n' >> /etc/wsl.conf" | Out-Null
-        Write-Warn2 "Enabled systemd in WSL distro '$distro' so Docker starts automatically. Run 'wsl --shutdown' yourself, then reopen a WSL terminal for it to take effect."
-    } else {
-        Invoke-WslSudoScript $distro 'service docker start' | Out-Null
-    }
+    # Deliberately does NOT enable `systemd=true` in /etc/wsl.conf: on some
+    # WSL/distro combinations that leaves nss-systemd intercepting every user
+    # lookup while systemd-userdbd never comes up, so getpwuid() fails for
+    # every uid -- including root -- and NO process can be launched in that
+    # distro any more, not even a shell to fix it. Just start the service for
+    # this session instead; re-run this script (or `sudo service docker
+    # start`) after every `wsl --shutdown` / reboot.
+    Invoke-WslSudoScript $distro 'service docker start' | Out-Null
 }
 
 function Test-DevcontainerCliInWsl([string]$Distro) {
@@ -306,6 +307,7 @@ if ($manualInstallNeeded.Count -gt 0) {
     Write-Ok 'All tools installed and authenticated.'
 }
 if ($OS -eq 'windows') {
+    Write-Host "`nDocker's service isn't enabled at WSL boot (see the comment in Install-DockerOnWsl for why); re-run this script after every 'wsl --shutdown' or reboot to start it again, or run 'sudo service docker start' yourself inside WSL."
     Write-Host "`nNext: open this repo from inside WSL (e.g. run 'wsl' then 'code .' from the repo's WSL path, or use 'Remote-WSL: Reopen Folder in WSL' from the command palette) so VS Code's Dev Containers extension talks to the Docker daemon running in WSL. Then run 'Dev Containers: Add Dev Container Configuration Files', or see README.md for the devcontainer CLI / raw devcontainer.json options."
 } else {
     Write-Host "`nNext: open this repo (or any project) in VS Code and run 'Dev Containers: Add Dev Container Configuration Files', or see README.md for the devcontainer CLI / raw devcontainer.json options."
