@@ -1,0 +1,52 @@
+name: Validate Hermes SSH gateway
+
+# Run the gateway contract checks for every relevant pull request and main
+# branch update. The publish workflow also runs these checks as its deploy
+# gate, so no Hermes image is published before A-E pass.
+on:
+  pull_request:
+    paths:
+      - 'src/ai-hermes-devbox/**'
+      - 'scripts/validate-hermes-gateway.sh'
+      - '.github/workflows/validate-hermes-gateway.yml'
+      - '.github/workflows/publish-ai-hermes-devbox.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/ai-hermes-devbox/**'
+      - 'scripts/validate-hermes-gateway.sh'
+      - '.github/workflows/validate-hermes-gateway.yml'
+      - '.github/workflows/publish-ai-hermes-devbox.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  gateway-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Dev Container CLI
+        run: npm install --global @devcontainers/cli
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build validation image
+        run: ./scripts/validate-hermes-gateway.sh build
+
+      - name: Run gateway checkpoints A through E
+        run: ./scripts/validate-hermes-gateway.sh all

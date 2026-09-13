@@ -103,6 +103,29 @@ The seed runs once, guarded by `~/.hermes/.codex-default-seeded`; delete that
 marker plus `hermes auth logout openai-codex` to re-seed. If the Codex access
 token has expired, the step is skipped and retried on the next start.
 
+## Gateway validation
+
+The SSH gateway contract is checked by
+`scripts/validate-hermes-gateway.sh`. Run it on the Docker host, not from
+inside a devcontainer:
+
+```bash
+./scripts/validate-hermes-gateway.sh build
+./scripts/validate-hermes-gateway.sh all
+```
+
+The build uses the private `ai-devbox-image` base, so authenticate to GHCR
+first as shown in [Getting started](#getting-started). Checkpoints A-E cover
+raw Docker startup, Compose, concurrent projects, the Dev Container manifest,
+and migration from the old Hermes data-volume layout. GitHub Actions runs them
+for relevant pull requests and main-branch changes; publishing the Hermes image
+also waits for the same checks to pass.
+
+Checkpoint F is intentionally manual: run `hermes-ssh-info` against the real
+Compose project, add its alias to the Windows SSH config, then confirm Hermes
+Desktop can execute a terminal action through it. See
+[SSH-BACKEND.md](SSH-BACKEND.md).
+
 ## Hermes dashboard and Open WebUI
 
 SSH and the optional Hermes services are owned by the image entrypoint, so they

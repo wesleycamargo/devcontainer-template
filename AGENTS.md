@@ -39,6 +39,11 @@ template/image built from the same config.
   `src/<id>/.devcontainer/Dockerfile`. The workflows share nothing and
   run in parallel; `ai-hermes-devbox-image` is `FROM ai-devbox-image` but a
   base rebuild does **not** retrigger it.
+- `.github/workflows/validate-hermes-gateway.yml` — runs
+  `scripts/validate-hermes-gateway.sh build` and `all` for relevant Hermes
+  pull requests and main-branch updates. The Hermes publish workflow repeats
+  the same A-E contract checks as a required deployment gate; checkpoint F is
+  a real Hermes Desktop connection and remains manual.
 - `scripts/setup_github_publishing.py` — one-time GitHub-side setup helper
   (workflow token permissions, package visibility check). Requires `gh`
   authenticated with `packages` scope.

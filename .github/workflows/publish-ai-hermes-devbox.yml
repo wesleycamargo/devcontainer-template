@@ -2,7 +2,9 @@ name: Publish ai-hermes-devbox
 
 # One publish workflow per devcontainer under src/. This one owns the
 # `ai-hermes-devbox` template and the `ai-hermes-devbox-image` image, and
-# only runs when `src/ai-hermes-devbox/**` changes.
+# publishes only when `src/ai-hermes-devbox/**` changes. Pull requests that
+# affect the template or its gateway validation script run the contract check
+# without publishing.
 #
 # ai-hermes-devbox-image is `FROM ai-devbox-image:latest` but the two
 # publishes are independent -- a base rebuild does NOT retrigger this. Push a
@@ -10,6 +12,11 @@ name: Publish ai-hermes-devbox
 # base.
 
 on:
+  pull_request:
+    paths:
+      - 'src/ai-hermes-devbox/**'
+      - 'scripts/validate-hermes-gateway.sh'
+      - '.github/workflows/publish-ai-hermes-devbox.yml'
   push:
     branches:
       - main
@@ -28,7 +35,39 @@ on:
           - patch
 
 jobs:
+  validate:
+    name: Validate Hermes SSH gateway
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Dev Container CLI
+        run: npm install --global @devcontainers/cli
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build validation image
+        run: ./scripts/validate-hermes-gateway.sh build
+
+      - name: Run gateway checkpoints A through E
+        run: ./scripts/validate-hermes-gateway.sh all
+
   deploy:
+    if: github.event_name != 'pull_request'
+    needs: validate
     runs-on: ubuntu-latest
     permissions:
       contents: write
