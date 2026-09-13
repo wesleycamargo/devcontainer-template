@@ -228,9 +228,11 @@ their state.
 
 ### Workspace folder name
 
-`workspaceFolder` and the compose bind mount both hardcode
-`/workspaces/devcontainer-template`. Update both to match your project's
-folder name after applying the template.
+`workspaceFolder`, the compose bind mount, and `HERMES_SSH_CWD` all hardcode
+`/workspaces/devcontainer-template`. Update all three (`devcontainer.json`'s
+`workspaceFolder` and `docker-compose.yml`'s bind mount target and
+`HERMES_SSH_CWD`) to match your project's folder name after applying the
+template.
 
 ## Troubleshooting
 

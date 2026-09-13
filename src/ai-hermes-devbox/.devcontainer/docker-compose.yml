@@ -25,6 +25,12 @@ services:
       # `hermes-ssh-info` prints a host port you can actually connect to.
       HERMES_SSH_HOST_PORT: "${HERMES_SSH_PORT:-2222}"
       HERMES_PROJECT_NAME: "${COMPOSE_PROJECT_NAME:-hermes}"
+      # Pins `hermes-ssh-info`'s suggested terminal.cwd to the workspace mount
+      # below instead of its /workspaces/*/ auto-detect glob, which falls back
+      # to /home/vscode if it ever can't find a match. Keep this in sync with
+      # workspaceFolder (devcontainer.json) and the bind mount target (below)
+      # -- see "Workspace folder name" in README.md.
+      HERMES_SSH_CWD: "/workspaces/devcontainer-template"
     depends_on:
       ssh-pubkeys:
         condition: service_completed_successfully

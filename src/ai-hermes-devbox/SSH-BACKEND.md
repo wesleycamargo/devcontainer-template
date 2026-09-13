@@ -130,13 +130,36 @@ report the image-installed Hermes from `/usr/local/bin/hermes`.
 
 ### 5. Point Hermes at the container
 
-In the host Hermes' `config.yaml`:
+On Windows, `scripts/connect-hermes-desktop.ps1` does steps 3-5 for you: it
+reads `hermes-ssh-info` from the running container and writes the matching
+`terminal.backend`/`terminal.cwd` into Hermes' `config.yaml` and the
+`TERMINAL_SSH_*` values into its `.env` (backing up both first), then runs
+the connection check from step 4. It targets `$env:HERMES_HOME` when that's
+set, otherwise `%USERPROFILE%\.hermes` — check `echo $env:HERMES_HOME` first
+if you're not sure which one your Hermes Desktop install actually reads (the
+script also prints which one it's using).
+
+```powershell
+./scripts/connect-hermes-desktop.ps1
+```
+
+Or by hand, in the host Hermes' `config.yaml`:
 
 ```yaml
 terminal:
   backend: ssh
   cwd: /workspaces/devcontainer-template   # the container's workspaceFolder
 ```
+
+**`terminal.cwd` may not stick from a file edit.** Hermes Desktop has been
+observed resetting `cwd` back to `.` on its own startup and demoting the
+edited value to a comment — it appears to treat this field as owned by its
+own UI rather than something to pick up from an external edit. `backend`
+does not have this problem; only `cwd` does. If terminal actions keep
+landing in the SSH login's home directory (`ls` showing dotfiles like
+`.bashrc`, `.ssh`, `.hermes` instead of the workspace), set the working
+directory from Hermes Desktop's own **Settings → Terminal/SSH Backend** UI
+instead — that write does stick — then confirm `config.yaml` reflects it.
 
 and in its `~/.hermes/.env`:
 
@@ -153,7 +176,28 @@ TERMINAL_SSH_PORT=<port-from-hermes-ssh-info>
 - **`Permission denied (publickey)`** — the key Hermes uses is not in `~/.ssh`
   of the machine that started the container, or the container has not been
   restarted since you added it. Check what the container accepts with
-  `docker compose exec devcontainer cat ~/.ssh/authorized_keys`.
+  `docker compose exec -u vscode devcontainer sh -c 'cat ~/.ssh/authorized_keys'`
+  (specify `-u vscode` — `exec` defaults to root — and quote the `~` so it
+  expands inside the container instead of on your host shell).
+- **Hermes reports SSH auth failure even though a manual `ssh` login works** —
+  Hermes runs ssh non-interactively (`BatchMode`), which cannot supply a
+  passphrase. If your private key has one, a plain `ssh -p <port> vscode@127.0.0.1`
+  will succeed (after prompting for it) while
+  `ssh -p <port> -o BatchMode=yes vscode@127.0.0.1 "echo hi"` fails with
+  `Permission denied (publickey)`. Load the key into Windows' OpenSSH agent so
+  it can be used without a prompt:
+
+  ```powershell
+  # once, as Administrator:
+  Get-Service ssh-agent | Set-Service -StartupType Automatic
+  Start-Service ssh-agent
+
+  # then, as yourself (persists across reboots as long as the service keeps running):
+  ssh-add "$env:USERPROFILE\.ssh\<key>"
+  ```
+
+  `connect-hermes-desktop.ps1` runs the same `BatchMode` check and prints this
+  guidance automatically when it fails.
 - **`$SHELL` is pwsh, or commands fail with PowerShell errors** — you are on an
   older, cached image. Pull the latest one and rebuild without cache; see
   [Updating to the latest image](README.md#updating-to-the-latest-image).
