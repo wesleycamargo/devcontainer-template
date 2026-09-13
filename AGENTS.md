@@ -49,11 +49,11 @@ template/image built from the same config.
   authenticated with `packages` scope.
 - `scripts/setup-devcontainer-client.ps1` — one-time client-side setup for
   someone *consuming* a published template/image: installs Git/GitHub
-  CLI/VS Code + the Dev Containers/Remote-WSL extensions via winget, and
-  Docker Engine inside WSL (never Docker Desktop), then authenticates `gh`
-  with `read:packages` and logs Docker in to ghcr.io. Idempotent; safe to
-  re-run. Windows-only install automation; Linux prints manual install
-  instructions.
+  CLI/VS Code + the Dev Containers/Remote-WSL extensions via winget, Docker
+  Engine inside WSL (never Docker Desktop), and the `devcontainer` CLI, then
+  authenticates `gh` with `read:packages` and logs Docker in to ghcr.io.
+  Idempotent; safe to re-run. Windows-only install automation; Linux prints
+  manual install instructions.
 
 All published packages under
 ghcr.io/wesleycamargo/devcontainer-template/` — the `ai-devbox`,

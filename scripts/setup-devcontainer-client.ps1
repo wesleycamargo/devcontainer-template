@@ -6,9 +6,10 @@
 
 .DESCRIPTION
   Verifies/installs Git, GitHub CLI, VS Code, the VS Code Dev Containers and
-  Remote-WSL extensions, and Docker Engine running inside WSL (never Docker
-  Desktop). Then authenticates `gh` with the `read:packages` scope and logs
-  Docker in to ghcr.io so the private
+  Remote-WSL extensions, Docker Engine running inside WSL (never Docker
+  Desktop), and the `devcontainer` CLI (for the `devcontainer templates
+  apply` / `devcontainer up` workflow). Then authenticates `gh` with the
+  `read:packages` scope and logs Docker in to ghcr.io so the private
   ghcr.io/wesleycamargo/devcontainer-template/* packages can be pulled.
 
   Windows: installs missing tools via winget; installs Docker Engine inside
@@ -144,6 +145,40 @@ usermod -aG docker "$SUDO_USER"
     }
 }
 
+function Test-DevcontainerCliInWsl([string]$Distro) {
+    if (-not $Distro) { return $false }
+    wsl -d $Distro -- bash -lc "command -v devcontainer" *> $null
+    return ($LASTEXITCODE -eq 0)
+}
+
+function Install-DevcontainerCliOnWsl([string]$Distro) {
+    Write-Step 'devcontainer CLI (inside WSL)'
+    if (-not $Distro) {
+        Write-Warn2 'No WSL distro available; skipping devcontainer CLI install.'
+        $manualInstallNeeded.Add('devcontainer CLI in WSL')
+        return
+    }
+    if (Test-DevcontainerCliInWsl $Distro) {
+        Write-Ok "devcontainer CLI already installed in WSL distro '$Distro'"
+        return
+    }
+    if (-not (Test-PasswordlessSudo $Distro)) {
+        Write-Warn2 "sudo in WSL distro '$Distro' needs a password, so it can't be automated here. Open a WSL terminal (``wsl -d $Distro``) and run: sudo apt-get install -y nodejs npm && sudo npm install -g @devcontainers/cli"
+        $manualInstallNeeded.Add('devcontainer CLI in WSL (sudo password required)')
+        return
+    }
+    Write-Host "    installing Node.js + @devcontainers/cli in WSL distro '$Distro'..."
+    $installScript = @'
+set -e
+command -v npm >/dev/null 2>&1 || { apt-get update -y; apt-get install -y nodejs npm; }
+npm install -g @devcontainers/cli
+'@
+    if (-not (Invoke-WslSudoScript $Distro $installScript)) {
+        Write-Warn2 "devcontainer CLI install failed in WSL distro '$Distro'; see output above."
+        $manualInstallNeeded.Add('devcontainer CLI in WSL')
+    }
+}
+
 function Test-DockerAvailable {
     if ($OS -eq 'windows') { return (Test-DockerInWsl (Get-WslDistro)) }
     return (Test-Command 'docker')
@@ -188,9 +223,20 @@ Install-Tool -Name 'GitHub CLI' -Command 'gh' -WingetId 'GitHub.cli' `
 
 if ($OS -eq 'windows') {
     Install-DockerOnWsl
+    Install-DevcontainerCliOnWsl (Get-WslDistro)
 } else {
     Install-Tool -Name 'Docker' -Command 'docker' -WingetId 'n/a' `
         -LinuxHint 'See https://docs.docker.com/engine/install/'
+
+    Write-Step 'devcontainer CLI'
+    if (Test-Command 'devcontainer') {
+        Write-Ok 'devcontainer CLI already installed'
+    } elseif (Test-Command 'npm') {
+        npm install -g @devcontainers/cli
+    } else {
+        Write-Warn2 'npm not found. Install Node.js, then `npm install -g @devcontainers/cli`.'
+        $manualInstallNeeded.Add('devcontainer CLI')
+    }
 }
 
 Install-Tool -Name 'Visual Studio Code' -Command 'code' -WingetId 'Microsoft.VisualStudioCode' `
