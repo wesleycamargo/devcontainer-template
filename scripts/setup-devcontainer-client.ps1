@@ -79,6 +79,19 @@ function Test-DockerInWsl([string]$Distro) {
     return ($LASTEXITCODE -eq 0)
 }
 
+function Test-PasswordlessSudo([string]$Distro) {
+    wsl -d $Distro -- sudo -n true *> $null
+    return ($LASTEXITCODE -eq 0)
+}
+
+function Invoke-WslSudoScript([string]$Distro, [string]$Script) {
+    # sudo -n never prompts: it fails immediately if a password would be
+    # required, instead of hanging forever waiting for input this
+    # non-interactive `wsl.exe` invocation can never deliver.
+    wsl -d $Distro -- sudo -n bash -c $Script *> $null
+    return ($LASTEXITCODE -eq 0)
+}
+
 function Install-DockerOnWsl {
     Write-Step 'Docker Engine (inside WSL — not Docker Desktop)'
     if (-not (Test-Command 'wsl')) {
@@ -92,30 +105,42 @@ function Install-DockerOnWsl {
         $manualInstallNeeded.Add('WSL distro + Docker')
         return
     }
+
+    $canSudo = Test-PasswordlessSudo $distro
+    if (-not $canSudo) {
+        Write-Warn2 "sudo in WSL distro '$distro' needs a password, so it can't be automated here. Open a WSL terminal (``wsl -d $distro``) and, if 'docker' isn't already on PATH there, follow https://docs.docker.com/engine/install/ubuntu/ to install it, then re-run this script."
+        $manualInstallNeeded.Add('Docker Engine in WSL (sudo password required)')
+        return
+    }
+
     if (Test-DockerInWsl $distro) {
         Write-Ok "Docker already installed in WSL distro '$distro'"
     } else {
         Write-Host "    installing Docker Engine in WSL distro '$distro'..."
         $installScript = @'
 set -e
-sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-sudo chmod a+r /etc/apt/keyrings/docker.gpg
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+chmod a+r /etc/apt/keyrings/docker.gpg
 . /etc/os-release
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $VERSION_CODENAME stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-sudo apt-get update -y
-sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-sudo usermod -aG docker "$USER"
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $VERSION_CODENAME stable" > /etc/apt/sources.list.d/docker.list
+apt-get update -y
+apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+usermod -aG docker "$SUDO_USER"
 '@
-        wsl -d $distro -- bash -c $installScript
+        if (-not (Invoke-WslSudoScript $distro $installScript)) {
+            Write-Warn2 "Docker install failed in WSL distro '$distro'; see output above."
+            $manualInstallNeeded.Add('Docker Engine in WSL')
+            return
+        }
     }
 
     $hasSystemd = wsl -d $distro -- bash -lc "grep -qx 'systemd=true' /etc/wsl.conf 2>/dev/null && echo yes || echo no"
     if ($hasSystemd -notmatch 'yes') {
-        wsl -d $distro -- bash -c "printf '[boot]\nsystemd=true\n' | sudo tee -a /etc/wsl.conf > /dev/null"
+        Invoke-WslSudoScript $distro "printf '[boot]\nsystemd=true\n' >> /etc/wsl.conf" | Out-Null
         Write-Warn2 "Enabled systemd in WSL distro '$distro' so Docker starts automatically. Run 'wsl --shutdown' yourself, then reopen a WSL terminal for it to take effect."
     } else {
-        wsl -d $distro -- bash -lc "sudo service docker start" *> $null
+        Invoke-WslSudoScript $distro 'service docker start' | Out-Null
     }
 }
 
