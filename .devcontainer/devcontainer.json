@@ -19,10 +19,10 @@
     },
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
+  // Editor/development concerns only. Hermes' gateway and dashboard are
+  // started by the image's entrypoint (HERMES_AUTOSTART_SERVICES in
+  // docker-compose.yml), so no Dev Container startup hook is needed.
   "postCreateCommand": "cp /tmp/host-gitconfig ~/.gitconfig 2>/dev/null || true; cp /tmp/host-git-credentials ~/.git-credentials 2>/dev/null || true; chmod 600 ~/.git-credentials 2>/dev/null || true",
-  // Bring up Hermes and its local Open WebUI backend on every container start.
-  // VS Code forwards the dashboard and Open WebUI ports; see start-hermes.sh.
-  "postStartCommand": "bash .devcontainer/start-hermes.sh",
   "forwardPorts": [9119, 8080],
   "customizations": {
     "vscode": {

@@ -68,7 +68,8 @@ details, prerequisites, and configuration notes.
 
 [`ai-hermes-devbox`](src/ai-hermes-devbox/README.md) is a second published
 template: everything above plus the [Hermes Agent](https://hermes-agent.nousresearch.com/)
-from Nous Research (full browser + computer-use install). Apply it with
+from Nous Research (full browser + computer-use install), an image-owned SSH
+gateway for Hermes Desktop, and an Open WebUI companion service. Apply it with
 `-t ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox`.
 
 ## OpenHands variant

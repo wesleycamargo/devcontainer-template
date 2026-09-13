@@ -3,9 +3,11 @@
   "dockerComposeFile": "docker-compose.yml",
   "service": "devcontainer",
   "workspaceFolder": "/workspaces/devcontainer-template",
-  // Compose owns container lifecycle now (see docker-compose.yml); stop the
-  // service on close instead of leaving it running detached.
-  "shutdownAction": "stopCompose",
+  // Leave the Compose project running when the VS Code window closes. This
+  // container is an SSH gateway: `stopCompose` would tear down the SSH daemon underneath
+  // a connected Hermes Desktop just because an editor window was closed. Stop
+  // it deliberately instead, with `docker compose down`.
+  "shutdownAction": "none",
   "remoteUser": "vscode",
   "features": {
     "ghcr.io/devcontainers/features/common-utils:2": {
@@ -17,18 +19,14 @@
     "ghcr.io/rchaganti/vsc-devcontainer-features/azurebicep:1": {
       "version": "latest"
     },
-    "ghcr.io/devcontainers/features/github-cli:1": {},
-    // sshd on port 2222 so a Hermes running on the host can use this
-    // container as its SSH terminal backend (published in docker-compose.yml).
-    "ghcr.io/devcontainers/features/sshd:1": {}
+    "ghcr.io/devcontainers/features/github-cli:1": {}
   },
+  // Editor/development concerns only. SSH and the Hermes services are owned by
+  // the image's entrypoint, so they behave identically under `docker run` and
+  // `docker compose` -- there is deliberately no Dev Container startup hook here.
   "postCreateCommand": "cp /tmp/host-gitconfig ~/.gitconfig 2>/dev/null || true; cp /tmp/host-git-credentials ~/.git-credentials 2>/dev/null || true; chmod 600 ~/.git-credentials 2>/dev/null || true",
-  // Bring up Hermes and its local Open WebUI backend on every container start.
-  // VS Code forwards the dashboard and Open WebUI ports; see start-hermes.sh.
-  // Before that, authorize the host's SSH public keys (collected by the
-  // ssh-pubkeys service in docker-compose.yml). Copied rather than mounted so
-  // sshd's StrictModes permission check passes.
-  "postStartCommand": "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cp /tmp/host-ssh-pubkeys/authorized_keys ~/.ssh/authorized_keys 2>/dev/null; chmod 600 ~/.ssh/authorized_keys 2>/dev/null; bash .devcontainer/start-hermes.sh",
+  // Hermes dashboard and Open WebUI. Both bind loopback inside the container,
+  // so VS Code forwards them rather than Docker publishing them.
   "forwardPorts": [9119, 8080],
   "customizations": {
     "vscode": {

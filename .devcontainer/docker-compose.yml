@@ -9,13 +9,20 @@ services:
     # ghcr.io` (private package).
     image: ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox-image:latest
     init: true
-    # Keeps the container running; VS Code/the devcontainer CLI exec into it
-    # rather than relying on the image's own entrypoint to block.
-    command: sleep infinity
-    # The Hermes dashboard (127.0.0.1:9119, started by start-hermes.sh) is
-    # reached from the host through VS Code's port forwarding -- `forwardPorts`
-    # in devcontainer.json -- not a Docker published port, which can't see a
-    # loopback listener.
+    # No `command:` override: the image's entrypoint runs sshd in the
+    # foreground, which keeps the container up and starts the Hermes services.
+    environment:
+      HERMES_AUTOSTART_SERVICES: "1"
+      HERMES_OPENWEBUI_ENV: /workspaces/devcontainer-template/.devcontainer/.openwebui.env
+      HERMES_PROJECT_NAME: "devcontainer-template"
+    # This container consumes the image but is NOT published as an SSH gateway:
+    # no `ports:` mapping and no ssh-pubkeys service, so sshd runs but is
+    # unreachable from the host. See src/ai-hermes-devbox/ for the gateway
+    # setup; mirroring it here would expose this daily-driver container.
+    #
+    # The Hermes dashboard (127.0.0.1:9119) is reached from the host through VS
+    # Code's port forwarding -- `forwardPorts` in devcontainer.json -- not a
+    # Docker published port, which can't see a loopback listener.
     volumes:
       - ..:/workspaces/devcontainer-template:cached
       # Named volumes make a fresh checkout usable on any host: Docker creates
@@ -24,11 +31,15 @@ services:
       # on personal host paths or baking credentials into the image.
       - claude-data:/home/vscode/.claude
       - codex-data:/home/vscode/.codex
-      # Persist all Hermes state, including sessions, memories, skills,
-      # credentials, and logs. Docker copies the image's installed Hermes
-      # runtime into this named volume the first time it is created, so the
-      # hermes launcher remains usable after a rebuild.
+      # Hermes USER DATA only -- credentials, config, sessions, memories,
+      # skills, logs. Hermes' code and runtime live in the image
+      # (/usr/local/lib/hermes-agent, /opt/hermes), so pulling a newer image
+      # actually upgrades Hermes. An existing volume may still contain
+      # ~/.hermes/hermes-agent and ~/.hermes/node from an older image; they are
+      # unused now and safe to delete by hand (the entrypoint says so on start).
       - hermes-data:/home/vscode/.hermes
+      # Keeps this container's SSH host identity stable across recreates.
+      - ssh-host-keys:/var/lib/hermes-ssh/host_keys
 
   # Shares the devcontainer's loopback namespace so its OpenAI connection can
   # reach Hermes at 127.0.0.1:8642 without exposing the API outside Compose.
@@ -61,3 +72,4 @@ volumes:
   codex-data:
   hermes-data:
   open-webui-data:
+  ssh-host-keys:

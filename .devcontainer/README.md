@@ -2,84 +2,76 @@
 
 ## The image
 
-This devcontainer has no Dockerfile. `docker-compose.yml` sets `image:` to
+This devcontainer has no Dockerfile. `docker-compose.yml` pulls
 `ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox-image`, the
-prebuilt image with the full build recipe (PowerShell, Oh My Posh,
-Terminal-Icons, Node, the agent CLIs) plus the Hermes Agent (Nous
-Research) with the full browser + computer-use install — so opening it
-pulls the image instead of reinstalling everything. `docker login
-ghcr.io` first (private package).
+prebuilt base devbox plus Hermes Agent, browser/computer-use dependencies, and
+an image-owned SSH gateway. Authenticate to the private package first with
+`docker login ghcr.io`.
 
-The recipe is split across two files:
-`src/ai-devbox/.devcontainer/Dockerfile` (the base) and
-`src/ai-hermes-devbox/.devcontainer/Dockerfile` (`FROM ai-devbox-image` +
-the Hermes install), published by `publish-ai-devbox.yml` and
-`publish-ai-hermes-devbox.yml`. Anything worth baking in goes there and
-needs a push to `main`. For a throwaway local tweak, swap the `image:`
-line for a `build:` block with a `Dockerfile` that does `FROM` the image.
+The recipe is split across `src/ai-devbox/.devcontainer/Dockerfile` for the
+base image and `src/ai-hermes-devbox/.devcontainer/Dockerfile` for the Hermes
+layer. Anything worth baking in goes there and needs a push to `main`. For a
+throwaway local tweak, swap this directory's `image:` line for a `build:` block
+with a tiny Dockerfile that does `FROM` the image.
 
 ## Hermes
 
-`hermes`, `hermes-agent`, and `hermes-acp` are on `PATH`. Hermes is
-installed but not configured — run `hermes` inside the container to set up
-API keys (writes `~/.hermes/.env` and `~/.hermes/config.yaml`). That
-directory is backed by the `hermes-data` Docker named volume, which persists
-Hermes credentials, sessions, memory, skills, and logs across normal
-devcontainer rebuilds. Do not run `docker compose down -v` or remove the
-named volume if you need to retain it.
-After completing setup, restart the devcontainer or run
-`bash .devcontainer/start-hermes.sh` to start the gateway and dashboard.
+`hermes`, `hermes-agent`, and `hermes-acp` are on `PATH`. Hermes' code and
+runtime live in the image under `/usr/local/lib/hermes-agent` and `/opt/hermes`;
+`~/.hermes` is user data only: `.env`, `config.yaml`, credentials, sessions,
+logs, memories, and skills. That directory is backed by the `hermes-data` named
+volume, so normal rebuilds keep your state. Do not run `docker compose down -v`
+or remove the named volume if you need to retain it.
 
-`postStartCommand` runs `.devcontainer/start-hermes.sh` on every container
-start. It first does a one-time Codex seed: if `~/.codex/auth.json` is
-bind-mounted (a ChatGPT OAuth login) with a currently-valid access token,
-it copies those tokens into Hermes' auth store and sets `model.provider:
-openai-codex` / `model.default: gpt-5.6-terra` in `config.yaml` — the same
-import `hermes model` → "ChatGPT or Codex Subscription" performs (it calls
-Hermes' internal helpers directly; `hermes auth add openai-codex` is not
-used, as that only starts a fresh device-code login). It runs once, guarded
-by `~/.hermes/.codex-default-seeded` (delete that marker plus `hermes auth
-logout openai-codex` to re-seed); a lapsed token — Codex refresh tokens are
-single-use — just defers it to the next start; picking another provider
-with `hermes model` is safe, the marker stops the seed from overriding it.
+Run `hermes` inside the container once to set up API keys and connectors. On
+container start, the image entrypoint creates the user-data directories, warns
+about old runtime leftovers such as `~/.hermes/hermes-agent` or `~/.hermes/node`,
+and then starts the OpenSSH daemon as PID 1. Those leftovers are no longer used;
+remove them by hand only after confirming you do not need anything inside them.
 
-The script creates `.devcontainer/.openwebui.env` on its first run. It is
-ignored by Git and contains generated API and Open WebUI session keys. The
-same file enables Hermes' OpenAI-compatible API and configures Open WebUI,
-without adding secrets to either image or `~/.hermes/.env`.
+This local development container does not publish the SSH port or collect host
+public keys. It still starts the daemon internally because the same image is used
+by the published template; the daily-driver root `.devcontainer/` keeps it
+unreachable from the host.
 
-It then starts the Hermes gateway on `127.0.0.1:8642` and the dashboard on
-`127.0.0.1:9119`, logging to `~/.hermes/logs/gateway.out` and
-`~/.hermes/logs/dashboard.out`. Neither loopback service is exposed directly
-to the host.
+## Hermes services and Open WebUI
 
-## Open WebUI
+Compose sets `HERMES_AUTOSTART_SERVICES=1`, so the entrypoint runs
+`hermes-start-services` as `vscode` after SSH setup. That helper is safe to run
+again by hand and never creates duplicate gateway or dashboard processes.
 
-`docker-compose.yml` runs Open WebUI as a companion service with the same
-network namespace as the devcontainer. It connects to Hermes at
-`http://127.0.0.1:8642/v1`, so tool calls run in this devcontainer while port
-`8642` remains inaccessible outside it. Open WebUI data is kept in the named
-`open-webui-data` volume and survives normal Compose stops and rebuilds.
+The helper first performs the one-time Codex seed: if `~/.codex/auth.json` has a
+currently-valid ChatGPT/Codex OAuth token, it copies those tokens into Hermes'
+auth store and sets `model.provider: openai-codex` / `model.default:
+gpt-5.6-terra`. It is guarded by `~/.hermes/.codex-default-seeded`; delete that
+marker plus `hermes auth logout openai-codex` to re-seed. A stale Codex token
+just defers the seed to the next start.
 
-VS Code forwards the dashboard on port `9119` and Open WebUI on port `8080`.
-Open the forwarded `8080` address, create the first account (it becomes the
-local admin), then choose `hermes-agent` in the model picker. The first Open
-WebUI launch can take a little longer while its application data initializes.
+It then creates `.devcontainer/.openwebui.env` on first run. The file is ignored
+by Git and holds generated Hermes API and Open WebUI session keys. The Hermes
+gateway listens on `127.0.0.1:8642`, the dashboard on `127.0.0.1:9119`, and logs
+go to `~/.hermes/logs/gateway.out` and `~/.hermes/logs/dashboard.out`.
+
+Open WebUI runs as a companion service sharing the devcontainer's network
+namespace, so it reaches Hermes at `http://127.0.0.1:8642/v1` without publishing
+the API to the host. VS Code forwards the dashboard on `9119` and Open WebUI on
+`8080`. Open the forwarded `8080` address, create the first account, then select
+`hermes-agent` in the model picker.
 
 To rotate the generated API key, delete `.devcontainer/.openwebui.env` before
-rebuilding. Open WebUI stores its connection on first launch, so also update
-the connection in its Admin Settings or reset its named data volume before
-using the replacement key.
+rebuilding. Open WebUI stores its connection on first launch, so also update the
+connection in Admin Settings or reset the `open-webui-data` volume before using
+the replacement key.
 
 ## Persisting Claude Code / Codex credentials
 
-`docker-compose.yml` uses named Docker volumes for `~/.claude` and
-`~/.codex`, so it starts on a host that has neither directory and keeps
-logins made inside the container across normal rebuilds. Docker initializes
-each volume from the image on first use, so Codex keeps its Linux-native
-configuration rather than inheriting Windows desktop-app state.
+`docker-compose.yml` uses named Docker volumes for `~/.claude` and `~/.codex`,
+so it starts on a host that has neither directory and keeps logins made inside
+the container across normal rebuilds. Docker initializes each volume from the
+image on first use, preserving Linux-native CLI configuration rather than
+inheriting Windows desktop-app state.
 
-The container intentionally does not read host credentials or Git settings.
-Run `claude`, `codex`, and `git config --global ...` inside the container to
-configure them. Do not remove the `claude-data` or `codex-data` volumes if
-you need to retain those settings.
+The container intentionally does not read host credentials or Git settings. Run
+`claude`, `codex`, and `git config --global ...` inside the container to
+configure them. Do not remove the `claude-data` or `codex-data` volumes if you
+need to retain those settings.
