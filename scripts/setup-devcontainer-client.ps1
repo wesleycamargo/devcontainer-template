@@ -149,6 +149,37 @@ function Test-DockerAvailable {
     return (Test-Command 'docker')
 }
 
+function Repair-DockerCredsStore([string]$Distro) {
+    # A stale/inherited ~/.docker/config.json can point `credsStore` at a
+    # credential helper (e.g. secretservice, from a desktop keyring) that
+    # isn't installed in a headless WSL/Linux shell. When that helper is
+    # missing, `docker login` fails to persist the token, and every later
+    # pull gets a silent 401 with no obvious cause. Drop the reference so
+    # docker falls back to storing the token directly in config.json.
+    $fixScript = @'
+set -e
+CONFIG="$HOME/.docker/config.json"
+[ -f "$CONFIG" ] || exit 0
+command -v python3 >/dev/null 2>&1 || exit 0
+python3 - "$CONFIG" <<'PY'
+import json, sys, shutil
+path = sys.argv[1]
+with open(path) as f:
+    cfg = json.load(f)
+store = cfg.get("credsStore")
+if store and shutil.which("docker-credential-" + store) is None:
+    cfg.pop("credsStore", None)
+    with open(path, "w") as f:
+        json.dump(cfg, f, indent=2)
+PY
+'@
+    if ($Distro) {
+        wsl -d $Distro -- bash -c $fixScript *> $null
+    } else {
+        bash -c $fixScript *> $null
+    }
+}
+
 Install-Tool -Name 'Git' -Command 'git' -WingetId 'Git.Git' `
     -LinuxHint 'Install via your distro package manager, e.g. `sudo apt install git`.'
 
@@ -207,9 +238,18 @@ if (-not $ghAvailable) {
     if (-not $ghcrUser) {
         Write-Warn2 'Not logged in to gh; skipping ghcr.io login'
     } elseif ($OS -eq 'windows') {
-        gh auth token | wsl -d (Get-WslDistro) -- docker login ghcr.io -u $ghcrUser --password-stdin
+        $distro = Get-WslDistro
+        Repair-DockerCredsStore $distro
+        gh auth token | wsl -d $distro -- docker login ghcr.io -u $ghcrUser --password-stdin
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warn2 "docker login failed in WSL distro '$distro'; see output above."
+        }
     } else {
+        Repair-DockerCredsStore $null
         gh auth token | docker login ghcr.io -u $ghcrUser --password-stdin
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warn2 'docker login failed; see output above.'
+        }
     }
 }
 
