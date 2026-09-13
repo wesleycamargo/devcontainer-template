@@ -27,7 +27,7 @@ services:
       HERMES_PROJECT_NAME: "${COMPOSE_PROJECT_NAME:-hermes}"
       # Pins `hermes-ssh-info`'s suggested terminal.cwd to the workspace mount
       # below instead of its /workspaces/*/ auto-detect glob, which falls back
-      # to /home/vscode if it ever can't find a match. Keep this in sync with
+      # to /home/hermes if it ever can't find a match. Keep this in sync with
       # workspaceFolder (devcontainer.json) and the bind mount target (below)
       # -- see "Workspace folder name" in README.md.
       HERMES_SSH_CWD: "/workspaces/devcontainer-template"
@@ -43,16 +43,16 @@ services:
       # them on demand and copies each image directory into it on first use.
       # They keep CLI logins across normal container rebuilds without depending
       # on personal host paths or baking credentials into the image.
-      - claude-data:/home/vscode/.claude
-      - codex-data:/home/vscode/.codex
+      - claude-data:/home/hermes/.claude
+      - codex-data:/home/hermes/.codex
       # Hermes USER DATA only -- credentials, config, sessions, memories,
       # skills, logs. Hermes' code and runtime now live in the image
       # (/usr/local/lib/hermes-agent, /opt/hermes), so pulling a newer image
       # actually upgrades Hermes. When this volume held the runtime too, Docker
       # seeded it once and every later upgrade was invisible.
-      - hermes-data:/home/vscode/.hermes
+      - hermes-data:/home/hermes/.hermes
       # Host public keys collected by ssh-pubkeys, at the contract path the
-      # image reads. Read-only: the entrypoint copies them to vscode's
+      # image reads. Read-only: the entrypoint copies them to hermes's
       # authorized_keys rather than using them in place.
       - ssh-pubkeys:/run/hermes-ssh:ro
       # The container's own SSH host identity. Persisted so a rebuild or

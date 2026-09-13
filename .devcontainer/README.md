@@ -37,7 +37,7 @@ unreachable from the host.
 ## Hermes services
 
 Compose sets `HERMES_AUTOSTART_SERVICES=1`, so the entrypoint runs
-`hermes-start-services` as `vscode` after SSH setup. That helper is safe to run
+`hermes-start-services` as `hermes` after SSH setup. That helper is safe to run
 again by hand and never creates duplicate gateway or dashboard processes.
 
 The helper first performs the one-time Codex seed: if `~/.codex/auth.json` has a

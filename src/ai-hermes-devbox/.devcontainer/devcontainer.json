@@ -8,11 +8,11 @@
   // a connected Hermes Desktop just because an editor window was closed. Stop
   // it deliberately instead, with `docker compose down`.
   "shutdownAction": "none",
-  "remoteUser": "vscode",
+  "remoteUser": "hermes",
   "features": {
     "ghcr.io/devcontainers/features/common-utils:2": {
       "installZsh": "true",
-      "username": "vscode",
+      "username": "hermes",
       "upgradePackages": "false",
       "nonFreePackages": "true"
     },

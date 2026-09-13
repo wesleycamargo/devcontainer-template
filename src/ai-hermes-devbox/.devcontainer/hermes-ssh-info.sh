@@ -11,7 +11,7 @@ set -u
 
 host="${HERMES_SSH_HOST:-127.0.0.1}"
 port="${HERMES_SSH_HOST_PORT:-2222}"
-user="vscode"
+user="hermes"
 hermes_path="/usr/local/bin/hermes"
 project="${HERMES_PROJECT_NAME:-$(hostname)}"
 alias_name="hermes-${project}"
@@ -21,7 +21,7 @@ alias_name="hermes-${project}"
 if [ -n "${HERMES_SSH_CWD:-}" ]; then
   cwd="$HERMES_SSH_CWD"
 else
-  cwd="${HOME:-/home/vscode}"
+  cwd="${HOME:-/home/hermes}"
   for candidate in /workspaces/*/; do
     [ -d "$candidate" ] && cwd="${candidate%/}" && break
   done

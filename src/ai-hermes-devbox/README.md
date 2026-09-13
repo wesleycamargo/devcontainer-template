@@ -131,7 +131,7 @@ Desktop can execute a terminal action through it. See
 SSH and the optional Hermes services are owned by the image entrypoint, so they
 behave the same under `docker run`, `docker compose`, and VS Code Dev
 Containers. Compose sets `HERMES_AUTOSTART_SERVICES=1`, which makes the
-entrypoint run `hermes-start-services` as `vscode` after SSH setup. A bare
+entrypoint run `hermes-start-services` as `hermes` after SSH setup. A bare
 `docker run` leaves that variable unset and starts only the SSH daemon.
 
 `hermes-start-services` starts the Hermes gateway on `127.0.0.1:8642` and the

@@ -28,15 +28,15 @@ services:
       # them on demand and copies each image directory into it on first use.
       # They keep CLI logins across normal container rebuilds without depending
       # on personal host paths or baking credentials into the image.
-      - claude-data:/home/vscode/.claude
-      - codex-data:/home/vscode/.codex
+      - claude-data:/home/hermes/.claude
+      - codex-data:/home/hermes/.codex
       # Hermes USER DATA only -- credentials, config, sessions, memories,
       # skills, logs. Hermes' code and runtime live in the image
       # (/usr/local/lib/hermes-agent, /opt/hermes), so pulling a newer image
       # actually upgrades Hermes. An existing volume may still contain
       # ~/.hermes/hermes-agent and ~/.hermes/node from an older image; they are
       # unused now and safe to delete by hand (the entrypoint says so on start).
-      - hermes-data:/home/vscode/.hermes
+      - hermes-data:/home/hermes/.hermes
       # Keeps this container's SSH host identity stable across recreates.
       - ssh-host-keys:/var/lib/hermes-ssh/host_keys
 

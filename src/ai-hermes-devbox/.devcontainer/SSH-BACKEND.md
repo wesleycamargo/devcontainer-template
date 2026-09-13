@@ -16,7 +16,7 @@ and dashboard, but the host SSH backend does not depend on those services.
 Host (Windows)                          Docker (e.g. in WSL)
 +------------------+   ssh :2222      +-------------------------------+
 | Hermes Desktop / | ----------------> | devcontainer                  |
-| Hermes on host   |  127.0.0.1 only  |  OpenSSH (vscode, bash, sudo) |
+| Hermes on host   |  127.0.0.1 only  |  OpenSSH (hermes, bash, sudo) |
 +------------------+                  |  ~/.ssh/authorized_keys <---+ |
                                       +-----------------------------|-+
 ~/.ssh (host that starts Docker)                                    |
@@ -31,7 +31,7 @@ Host (Windows)                          Docker (e.g. in WSL)
   `ssh-host-keys` named volume. They survive restarts, recreates, and image
   upgrades for the same Compose project, so Hermes' `accept-new` host-key check
   does not break on every rebuild.
-- **User and shell** — login is `vscode`, key-only. Its login shell is bash:
+- **User and shell** — login is `hermes`, key-only. Its login shell is bash:
   Hermes keeps a `bash -l` session open and runs one-shot commands through the
   login shell, which would break under the base image's pwsh. VS Code terminals
   still open pwsh.
@@ -122,7 +122,7 @@ ssh <alias-from-hermes-ssh-info> "hermes --version"
 Or, without adding the alias first:
 
 ```powershell
-ssh -p <port-from-hermes-ssh-info> vscode@127.0.0.1 "echo `$SHELL"
+ssh -p <port-from-hermes-ssh-info> hermes@127.0.0.1 "echo `$SHELL"
 ```
 
 It should print `/bin/bash` for the shell check, and `hermes --version` should
@@ -165,7 +165,7 @@ and in its `~/.hermes/.env`:
 
 ```ini
 TERMINAL_SSH_HOST=127.0.0.1
-TERMINAL_SSH_USER=vscode
+TERMINAL_SSH_USER=hermes
 TERMINAL_SSH_PORT=<port-from-hermes-ssh-info>
 # only for a key ssh does not try by default:
 # TERMINAL_SSH_KEY=C:\Users\<you>\.ssh\<key>
@@ -176,14 +176,14 @@ TERMINAL_SSH_PORT=<port-from-hermes-ssh-info>
 - **`Permission denied (publickey)`** — the key Hermes uses is not in `~/.ssh`
   of the machine that started the container, or the container has not been
   restarted since you added it. Check what the container accepts with
-  `docker compose exec -u vscode devcontainer sh -c 'cat ~/.ssh/authorized_keys'`
-  (specify `-u vscode` — `exec` defaults to root — and quote the `~` so it
+  `docker compose exec -u hermes devcontainer sh -c 'cat ~/.ssh/authorized_keys'`
+  (specify `-u hermes` — `exec` defaults to root — and quote the `~` so it
   expands inside the container instead of on your host shell).
 - **Hermes reports SSH auth failure even though a manual `ssh` login works** —
   Hermes runs ssh non-interactively (`BatchMode`), which cannot supply a
-  passphrase. If your private key has one, a plain `ssh -p <port> vscode@127.0.0.1`
+  passphrase. If your private key has one, a plain `ssh -p <port> hermes@127.0.0.1`
   will succeed (after prompting for it) while
-  `ssh -p <port> -o BatchMode=yes vscode@127.0.0.1 "echo hi"` fails with
+  `ssh -p <port> -o BatchMode=yes hermes@127.0.0.1 "echo hi"` fails with
   `Permission denied (publickey)`. Load the key into Windows' OpenSSH agent so
   it can be used without a prompt:
 

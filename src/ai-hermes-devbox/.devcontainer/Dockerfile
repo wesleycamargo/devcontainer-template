@@ -11,13 +11,27 @@
 # one, so :latest is whatever ai-devbox last published.
 #
 # The container contract this image implements (see SSH-BACKEND.md):
-#   SSH user              vscode, public key only
+#   SSH user              hermes, public key only
 #   Internal SSH port     2222
 #   Hermes executable     /usr/local/bin/hermes
 #   Authorized keys in    /run/hermes-ssh/authorized_keys
 # It holds for `docker run`, `docker compose` and VS Code Dev Containers alike,
 # because it is implemented here rather than in devcontainer.json.
 FROM ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image:latest
+
+# --- rename the base image's default user -----------------------------------
+# ai-devbox-image (built FROM a Microsoft devcontainers base) ships a
+# pre-created `vscode` user/group. Only this image renames it to `hermes` --
+# ai-devbox and any other consumer of ai-devbox-image (e.g. ai-openhands-devbox)
+# is untouched and still uses vscode. Every step below this point uses hermes;
+# if you add a new step that shells out as the container's user, use hermes
+# too, not vscode.
+RUN usermod -l hermes -d /home/hermes -m vscode \
+    && groupmod -n hermes vscode \
+    && if [ -f /etc/sudoers.d/vscode ]; then \
+         mv /etc/sudoers.d/vscode /etc/sudoers.d/hermes \
+         && sed -i 's/\bvscode\b/hermes/g' /etc/sudoers.d/hermes; \
+       fi
 
 # --- SSH server ------------------------------------------------------------
 # Installed here, not via the devcontainer `sshd` feature: features are applied
@@ -40,7 +54,7 @@ RUN chmod 644 /etc/ssh/sshd_config.d/10-hermes-gateway.conf \
 # --- Hermes ----------------------------------------------------------------
 # Playwright keys its browser download location off this variable. Without it a
 # root install would put Chromium under /root/.cache (mode 700) where the
-# vscode user cannot read it, breaking browser and computer-use support.
+# hermes user cannot read it, breaking browser and computer-use support.
 #
 # ENV alone is not enough: sshd builds a fresh environment for each session and
 # does not inherit the container's, so anything Hermes needs over SSH must also
@@ -54,7 +68,7 @@ RUN printf 'PLAYWRIGHT_BROWSERS_PATH=/opt/playwright\n' >> /etc/environment
 #   uv python     /usr/local/share/uv/python
 #   node runtime  $HERMES_HOME/node
 # That last one is why --hermes-home is passed: the default would be
-# /root/.hermes/node, unreadable by vscode. Everything above lives in image
+# /root/.hermes/node, unreadable by hermes. Everything above lives in image
 # layers, so ~/.hermes holds user data only and pulling a newer image actually
 # upgrades Hermes -- previously the whole runtime sat inside the hermes-data
 # volume, which Docker seeds once and never refreshes.
@@ -65,7 +79,7 @@ RUN printf 'PLAYWRIGHT_BROWSERS_PATH=/opt/playwright\n' >> /etc/environment
 RUN curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- \
       --non-interactive --skip-setup --hermes-home /opt/hermes
 
-# Make the root-owned install readable and traversable by vscode. Each path is
+# Make the root-owned install readable and traversable by hermes. Each path is
 # optional (layout varies by installer version), but the install itself above
 # is not allowed to fail silently.
 RUN for d in /opt/hermes /usr/local/lib/hermes-agent /usr/local/share/uv /opt/playwright; do \
@@ -77,22 +91,22 @@ RUN for d in /opt/hermes /usr/local/lib/hermes-agent /usr/local/share/uv /opt/pl
 # in an image that accepts SSH connections.
 RUN rm -f /usr/share/doc/libxmlsec1-dev/examples/rsakey.pem
 
-# The base image makes pwsh vscode's login shell. Hermes' SSH backend keeps a
+# The base image makes pwsh hermes's login shell. Hermes' SSH backend keeps a
 # persistent `bash` session and drops to one-shot commands for stdin/sudo, both
 # of which expect POSIX sh. VS Code terminals still open pwsh via
 # terminal.integrated.defaultProfile.linux in devcontainer.json.
-RUN chsh -s /bin/bash vscode
+RUN chsh -s /bin/bash hermes
 
-# Build-time proof of the contract: the vscode user must be able to run the
+# Build-time proof of the contract: the hermes user must be able to run the
 # root-installed Hermes from the contract path with no shell initialisation and
 # no write access to the install tree. If the app/data split regresses, the
 # build fails here instead of at someone's first SSH attempt.
 # </dev/null and timeout guard against an unexpected interactive prompt.
-RUN timeout 180 su vscode -c '/usr/local/bin/hermes --version' </dev/null \
-    && timeout 60 su vscode -c 'node --version' </dev/null
+RUN timeout 180 su hermes -c '/usr/local/bin/hermes --version' </dev/null \
+    && timeout 60 su hermes -c 'node --version' </dev/null
 # Diagnostics only: surfaces whether Hermes' Node shadows the base image's
 # Node 20 for the agent CLIs. Never fails the build.
-RUN su vscode -c 'command -v node npm hermes claude codex; claude --version; codex --version' </dev/null 2>&1 | sed 's/^/build-check: /' || true
+RUN su hermes -c 'command -v node npm hermes claude codex; claude --version; codex --version' </dev/null 2>&1 | sed 's/^/build-check: /' || true
 
 # --- container-owned runtime ----------------------------------------------
 COPY entrypoint.sh     /usr/local/bin/hermes-entrypoint

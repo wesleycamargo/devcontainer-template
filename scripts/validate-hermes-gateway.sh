@@ -43,7 +43,7 @@ sshc() { # sshc <port> <command...>
   ssh -q -i "$KEY" -p "$port" \
       -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=no \
       -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 \
-      vscode@127.0.0.1 "$@" 2>/dev/null
+      hermes@127.0.0.1 "$@" 2>/dev/null
 }
 
 wait_ssh() { # wait_ssh <port> [tries]
@@ -132,7 +132,7 @@ do_A() {
   out="$(ssh -p 22222 -o PreferredAuthentications=password -o PubkeyAuthentication=no \
       -o NumberOfPasswordPrompts=0 -o StrictHostKeyChecking=no \
       -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 \
-      vscode@127.0.0.1 true 2>&1)"
+      hermes@127.0.0.1 true 2>&1)"
   case "$out" in
     *[Pp]ermission\ denied*|*no\ supported\ authentication*) ok "password authentication refused" ;;
     *) bad "password authentication not clearly refused: $out" ;;
@@ -312,7 +312,7 @@ do_E() {
 
   docker run -d --init --name hermes-test-e -p 127.0.0.1:22233:2222 \
     -v "$KEY.pub:/run/hermes-ssh/authorized_keys:ro" \
-    -v hermes-test-data:/home/vscode/.hermes "$IMAGE" >/dev/null
+    -v hermes-test-data:/home/hermes/.hermes "$IMAGE" >/dev/null
   wait_ssh 22233 || { bad "container with legacy volume did not come up"; docker logs hermes-test-e | tail -30; return 1; }
   ok "starts against a volume from the old layout"
 

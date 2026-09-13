@@ -48,15 +48,15 @@ fi
 # rejects an authorized_keys file it does not consider safely owned, and a bind
 # mount carries the host's uid/gid. Only ever public keys.
 authorized_src=/run/hermes-ssh/authorized_keys
-ssh_dir=/home/vscode/.ssh
+ssh_dir=/home/hermes/.ssh
 mkdir -p /run/hermes-ssh
-install -d -o vscode -g vscode -m 700 "$ssh_dir"
+install -d -o hermes -g hermes -m 700 "$ssh_dir"
 if [ -s "$authorized_src" ]; then
   # tr strips CR so a key authored on Windows still parses.
   tr -d '\r' <"$authorized_src" >"$ssh_dir/authorized_keys"
-  chown vscode:vscode "$ssh_dir/authorized_keys"
+  chown hermes:hermes "$ssh_dir/authorized_keys"
   chmod 600 "$ssh_dir/authorized_keys"
-  log "authorized $(grep -c . "$ssh_dir/authorized_keys" 2>/dev/null || echo 0) public key(s) for vscode"
+  log "authorized $(grep -c . "$ssh_dir/authorized_keys" 2>/dev/null || echo 0) public key(s) for hermes"
 else
   rm -f "$ssh_dir/authorized_keys"
   log "WARNING: no keys at $authorized_src -- SSH logins will be refused."
@@ -68,14 +68,14 @@ fi
 # The image installs Hermes' code and runtime under /usr/local/lib and /opt,
 # so ~/.hermes holds user data only and an image upgrade actually takes effect.
 # The install-time data dirs were created under the build user's home, so make
-# sure vscode's own copy exists (the volume mounts in empty and root-owned).
-install -d -o vscode -g vscode /home/vscode/.hermes
+# sure hermes's own copy exists (the volume mounts in empty and root-owned).
+install -d -o hermes -g hermes /home/hermes/.hermes
 for d in cron sessions logs pairing hooks image_cache audio_cache memories skills; do
-  install -d -o vscode -g vscode "/home/vscode/.hermes/$d"
+  install -d -o hermes -g hermes "/home/hermes/.hermes/$d"
 done
-if [ ! -f /home/vscode/.hermes/.env ] && [ -f /usr/local/lib/hermes-agent/.env.example ]; then
-  install -o vscode -g vscode -m 600 \
-    /usr/local/lib/hermes-agent/.env.example /home/vscode/.hermes/.env
+if [ ! -f /home/hermes/.hermes/.env ] && [ -f /usr/local/lib/hermes-agent/.env.example ]; then
+  install -o hermes -g hermes -m 600 \
+    /usr/local/lib/hermes-agent/.env.example /home/hermes/.hermes/.env
   log "seeded ~/.hermes/.env from the installed template"
 fi
 
@@ -85,7 +85,7 @@ fi
 # archaeology. Never removed automatically: this directory also holds
 # credentials, sessions, memories and skills.
 for legacy in hermes-agent node; do
-  if [ -e "/home/vscode/.hermes/$legacy" ]; then
+  if [ -e "/home/hermes/.hermes/$legacy" ]; then
     log "legacy Hermes data notice: found leftover from an older image at ~/.hermes/$legacy"
     log "note: ~/.hermes/$legacy is a leftover from an older image and is no longer used."
     log "      the active runtime is /usr/local/lib/hermes-agent. to reclaim the space:"
@@ -99,14 +99,14 @@ done
 # be two extra processes writing the same ~/.hermes as the incoming SSH
 # session. Compose sets HERMES_AUTOSTART_SERVICES=1 to run them anyway.
 if [ "${HERMES_AUTOSTART_SERVICES:-0}" = "1" ]; then
-  # -s /bin/bash: `su` would otherwise use vscode's LOGIN shell, and the base
+  # -s /bin/bash: `su` would otherwise use hermes's LOGIN shell, and the base
   # image sets that to pwsh, which cannot parse `VAR=value cmd` and fails with
   # a confusing "not recognized as a cmdlet" error. The Dockerfile chsh's this
   # user to bash anyway; forcing the shell here keeps start-up working
   # regardless of what the login shell happens to be.
   # HOME is passed explicitly: `su` rewrites it and PAM may prune the rest,
   # so it cannot be assumed to survive the switch.
-  ( cd / && su vscode -s /bin/bash -c "HOME=/home/vscode /usr/local/bin/hermes-start-services" ) \
+  ( cd / && su hermes -s /bin/bash -c "HOME=/home/hermes /usr/local/bin/hermes-start-services" ) \
     || log "hermes-start-services reported a problem; SSH is unaffected"
 else
   log "HERMES_AUTOSTART_SERVICES is not 1; starting sshd only"

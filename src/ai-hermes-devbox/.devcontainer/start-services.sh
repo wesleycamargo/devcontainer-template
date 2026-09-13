@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Start the Hermes gateway and web dashboard. Installed as
-# /usr/local/bin/hermes-start-services and run as vscode by hermes-entrypoint
+# /usr/local/bin/hermes-start-services and run as hermes by hermes-entrypoint
 # when HERMES_AUTOSTART_SERVICES=1. Safe to re-run by hand: every service is
 # guarded, so a second run never produces a duplicate process.
 #

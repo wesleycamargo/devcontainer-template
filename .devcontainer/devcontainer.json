@@ -6,11 +6,11 @@
   // Compose owns container lifecycle now (see docker-compose.yml); stop the
   // service on close instead of leaving it running detached.
   "shutdownAction": "stopCompose",
-  "remoteUser": "vscode",
+  "remoteUser": "hermes",
   "features": {
     "ghcr.io/devcontainers/features/common-utils:2": {
       "installZsh": "true",
-      "username": "vscode",
+      "username": "hermes",
       "upgradePackages": "false",
       "nonFreePackages": "true"
     },
