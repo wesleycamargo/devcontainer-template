@@ -124,7 +124,7 @@ also waits for the same checks to pass.
 Checkpoint F is intentionally manual: run `hermes-ssh-info` against the real
 Compose project, add its alias to the Windows SSH config, then confirm Hermes
 Desktop can execute a terminal action through it. See
-[SSH-BACKEND.md](SSH-BACKEND.md).
+[SSH-BACKEND.md](.devcontainer/SSH-BACKEND.md).
 
 ## Hermes dashboard
 
@@ -145,7 +145,7 @@ port.
 A Hermes running on the host (for example Hermes Desktop) can use this
 container as its sandbox, sending its terminal commands to `127.0.0.1` on
 `${HERMES_SSH_PORT:-2222}`. Your host's `~/.ssh/*.pub` keys are authorized
-automatically. See [SSH-BACKEND.md](SSH-BACKEND.md) for setup and
+automatically. See [SSH-BACKEND.md](.devcontainer/SSH-BACKEND.md) for setup and
 troubleshooting.
 
 ## Configuration

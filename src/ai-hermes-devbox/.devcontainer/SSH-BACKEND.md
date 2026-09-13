@@ -61,7 +61,7 @@ Run these where Docker runs (WSL, if that's where your Docker engine is).
    ```
 
    Do this again whenever a new image is published. See
-   [Updating to the latest image](README.md#updating-to-the-latest-image) for
+   [Updating to the latest image](../README.md#updating-to-the-latest-image) for
    how to check whether you're behind and rebuild on the new image.
 3. If the project already has `.devcontainer/` files from an older version of
    the template, re-apply the template so you get the image-owned gateway
@@ -95,7 +95,7 @@ or in VS Code: **Dev Containers: Add Dev Container Configuration Files** ->
 enter the full ID `ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox`
 (the `ghcr.io/` prefix is required), then **Reopen in Container**. Open the
 folder in WSL first so VS Code uses WSL's GHCR login; see
-[Getting started](README.md#getting-started) for Windows folders.
+[Getting started](../README.md#getting-started) for Windows folders.
 
 Keys added or removed later apply on the next container start.
 
@@ -130,8 +130,8 @@ report the image-installed Hermes from `/usr/local/bin/hermes`.
 
 ### 5. Point Hermes at the container
 
-On Windows, `scripts/connect-hermes-desktop.ps1` does steps 3-5 for you: it
-reads `hermes-ssh-info` from the running container and writes the matching
+On Windows, `.devcontainer/scripts/connect-hermes-desktop.ps1` does steps 3-5
+for you: it reads `hermes-ssh-info` from the running container and writes the matching
 `terminal.backend`/`terminal.cwd` into Hermes' `config.yaml` and the
 `TERMINAL_SSH_*` values into its `.env` (backing up both first), then runs
 the connection check from step 4. It targets `$env:HERMES_HOME` when that's
@@ -140,7 +140,7 @@ if you're not sure which one your Hermes Desktop install actually reads (the
 script also prints which one it's using).
 
 ```powershell
-./scripts/connect-hermes-desktop.ps1
+./.devcontainer/scripts/connect-hermes-desktop.ps1
 ```
 
 Or by hand, in the host Hermes' `config.yaml`:
@@ -200,7 +200,7 @@ TERMINAL_SSH_PORT=<port-from-hermes-ssh-info>
   guidance automatically when it fails.
 - **`$SHELL` is pwsh, or commands fail with PowerShell errors** — you are on an
   older, cached image. Pull the latest one and rebuild without cache; see
-  [Updating to the latest image](README.md#updating-to-the-latest-image).
+  [Updating to the latest image](../README.md#updating-to-the-latest-image).
 - **`Connection refused` after updating** — the project's `.devcontainer/` files
   predate the image-owned gateway wiring. Re-apply the template, then rebuild.
 - **`REMOTE HOST IDENTIFICATION HAS CHANGED` / Hermes refuses to connect after a

@@ -22,7 +22,8 @@
 
 .PARAMETER ProjectPath
   Root of the project containing `.devcontainer/docker-compose.yml`.
-  Defaults to the parent of this script's folder.
+  Defaults to two levels up from this script's folder
+  (<project>/.devcontainer/scripts/).
 
 .PARAMETER HermesHome
   Hermes Desktop's config directory. Defaults to `$env:HERMES_HOME` when set
@@ -37,7 +38,7 @@
 #>
 
 param(
-    [string]$ProjectPath = (Resolve-Path (Join-Path $PSScriptRoot '..')),
+    [string]$ProjectPath = (Resolve-Path (Join-Path $PSScriptRoot '..\..')),
     [string]$HermesHome = $(if ($env:HERMES_HOME) { $env:HERMES_HOME } else { Join-Path $env:USERPROFILE '.hermes' }),
     [string]$IdentityFile,
     [switch]$SkipConnectionTest
