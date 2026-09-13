@@ -43,10 +43,33 @@ jobs:
 
       - name: Bump version tag
         id: version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           LAST_TAG=$(git tag --list "${TAG_PREFIX}[0-9]*.[0-9]*.[0-9]*" --sort=-v:refname | head -1)
           if [ -z "$LAST_TAG" ]; then LAST_TAG="${TAG_PREFIX}0.0.0"; fi
           VERSION="${LAST_TAG#"$TAG_PREFIX"}"
+          # devcontainers/action only moves the template's `latest` tag when the
+          # new version is above everything already on GHCR. If the registry is
+          # ahead of the git tags (e.g. versions from an older workflow), counting
+          # from git alone publishes a lower version and `latest` silently stays
+          # on the old template -- so continue from whichever is higher.
+          TEMPLATE_REPO="${GITHUB_REPOSITORY,,}/${TEMPLATE_ID}"
+          REGISTRY_TOKEN=$(curl -fsS -u "${GITHUB_ACTOR}:${GITHUB_TOKEN}" \
+            "https://ghcr.io/token?scope=repository:${TEMPLATE_REPO}:pull&service=ghcr.io" | jq -r .token)
+          STATUS=$(curl -sS -o registry-tags.json -w '%{http_code}' \
+            -H "Authorization: Bearer ${REGISTRY_TOKEN}" \
+            "https://ghcr.io/v2/${TEMPLATE_REPO}/tags/list?n=1000")
+          case "$STATUS" in
+            200) PUBLISHED=$(jq -r '.tags[]?' registry-tags.json | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1) ;;
+            404) PUBLISHED="" ;;  # template not published yet
+            *) echo "::error::Listing ${TEMPLATE_REPO} tags on GHCR failed (HTTP ${STATUS})"; cat registry-tags.json; exit 1 ;;
+          esac
+          rm -f registry-tags.json
+          if [ -n "$PUBLISHED" ] && [ "$(printf '%s\n' "$VERSION" "$PUBLISHED" | sort -V | tail -1)" != "$VERSION" ]; then
+            echo "GHCR already has ${PUBLISHED}, ahead of the git tags (${VERSION}); continuing from ${PUBLISHED}"
+            VERSION="$PUBLISHED"
+          fi
           MAJOR=$(echo "$VERSION" | cut -d. -f1)
           MINOR=$(echo "$VERSION" | cut -d. -f2)
           PATCH=$(echo "$VERSION" | cut -d. -f3)

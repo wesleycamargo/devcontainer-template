@@ -11,7 +11,7 @@ dashboard and Open WebUI) isn't used — it's the host's Hermes doing the work.
 
 ## How it works
 
-```
+```text
 Host (Windows)                          Docker (e.g. in WSL)
 ┌──────────────────┐   ssh :2222      ┌───────────────────────────────┐
 │ Hermes Desktop / │ ───────────────▶ │ devcontainer                  │
@@ -41,16 +41,27 @@ Run these where Docker runs (WSL, if that's where your Docker engine is).
 
 1. Authenticate to the private GHCR packages — `gh` needs the
    `read:packages` scope, and Docker needs the login:
+
    ```bash
    gh auth refresh -h github.com -s read:packages
    gh auth token | docker login ghcr.io -u wesleycamargo --password-stdin
    ```
-2. Pull the latest image. Compose uses `:latest` and won't re-pull an image
-   it already has, so an older image (pwsh login shell, no SSH) would be
-   reused otherwise:
+
+2. Pull the latest image. Docker caches `:latest` and never re-downloads it
+   on apply or rebuild, so an image from before SSH support (pwsh login
+   shell) would otherwise be reused:
+
    ```bash
    docker pull ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox-image:latest
    ```
+
+   Do this again whenever a new image is published. See
+   [Updating to the latest image](README.md#updating-to-the-latest-image)
+   for how to check whether you're behind and rebuild on the new image.
+3. If the project already has `.devcontainer/` files from an older version
+   of the template, re-apply the template (step 2 of [Setup](#setup)) — SSH
+   needs the new `devcontainer.json` and `docker-compose.yml`, not just the
+   new image.
 
 ## Setup
 
@@ -77,8 +88,10 @@ devcontainer templates apply -w . -t ghcr.io/wesleycamargo/devcontainer-template
 ```
 
 or in VS Code: **Dev Containers: Add Dev Container Configuration Files** →
-`wesleycamargo/devcontainer-template/ai-hermes-devbox`, then **Reopen in
-Container**.
+enter the full ID `ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox`
+(the `ghcr.io/` prefix is required), then **Reopen in Container**. Open the
+folder in WSL first so VS Code uses WSL's GHCR login — see
+[Getting started](README.md#getting-started) for Windows folders.
 
 Keys added or removed later apply on the next container start.
 
@@ -106,7 +119,7 @@ terminal:
 
 and in its `~/.hermes/.env`:
 
-```
+```ini
 TERMINAL_SSH_HOST=127.0.0.1
 TERMINAL_SSH_USER=vscode
 TERMINAL_SSH_PORT=2222
@@ -122,16 +135,21 @@ TERMINAL_SSH_PORT=2222
   container hasn't been restarted since you added it. Check what the
   container accepts: `cat ~/.ssh/authorized_keys` inside it.
 - **`$SHELL` is pwsh, or commands fail with PowerShell errors** — you're on
-  an older image. `docker pull` the image (see
-  [Prerequisites](#prerequisites)) and rebuild the container.
+  an older, cached image. Pull the latest one and rebuild without cache
+  (see [Updating to the latest image](README.md#updating-to-the-latest-image)).
+- **`Connection refused` on 2222 right after updating** — the project's
+  `.devcontainer/` files predate SSH support (no `sshd` feature or port
+  mapping). Re-apply the template, then rebuild.
 - **`REMOTE HOST IDENTIFICATION HAS CHANGED` / Hermes refuses to connect
   after a rebuild** — the container's SSH host key is generated at build
   time, so it can change after a rebuild. Hermes uses
   `StrictHostKeyChecking=accept-new`, which rejects a changed key. Clear the
   old one on the host:
+
   ```powershell
   ssh-keygen -R "[127.0.0.1]:2222"
   ```
+
 - **`Connection refused` on 2222** — the container isn't running, or
   another process on the host already uses 2222. Change the left side of
   `127.0.0.1:2222:2222` in `docker-compose.yml` (and `TERMINAL_SSH_PORT`).

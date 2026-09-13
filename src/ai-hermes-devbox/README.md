@@ -54,9 +54,21 @@ Then apply the template into a project:
 devcontainer templates apply -w . -t ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox
 ```
 
-or in VS Code (after the `docker login` step above): **Dev Containers: Add
-Dev Container Configuration Files** → search for
-`wesleycamargo/devcontainer-template/ai-hermes-devbox`.
+or in VS Code: **Dev Containers: Add Dev Container Configuration Files** →
+enter the full ID, including `ghcr.io/` —
+`ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox`. Without the
+registry prefix the template can't be found ("Failed to fetch template
+manifest").
+
+The login has to exist where VS Code runs the devcontainer CLI. For a folder
+opened in WSL that's WSL (the `docker login` above, run there). For a Windows
+folder it's Windows: either `docker login` on Windows, or start VS Code with a
+token for that session:
+
+```powershell
+$env:GITHUB_TOKEN = gh auth token   # token needs read:packages
+code .
+```
 
 Then **Reopen in Container**.
 
@@ -137,7 +149,45 @@ prebuilt image. Its `Dockerfile` (which
 prebuilt base with PowerShell, Oh My Posh, Terminal-Icons, Node, and the
 Claude Code/Codex CLIs) plus the Hermes install step. `docker-compose.yml`
 doesn't build that `Dockerfile` — it's kept as the reference recipe.
-Applying the template and rebuilding just re-pulls the image.
+
+### Updating to the latest image
+
+Docker caches `:latest`: once the image is on your machine, applying the
+template or rebuilding the container **does not download a newer one**. Pull
+it yourself whenever a new version is published (a new
+`ai-hermes-devbox-v*` tag / **Publish ai-hermes-devbox** run), or when the
+container is missing something these docs describe.
+
+Run these where Docker runs (e.g. WSL):
+
+1. Check whether you're behind — the two digests differ if a newer image
+   exists:
+
+   ```bash
+   img=ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox-image:latest
+   docker image inspect -f '{{index .RepoDigests 0}}' "$img"   # local
+   docker buildx imagetools inspect "$img" | grep -m1 Digest    # published
+   ```
+
+2. Pull it:
+
+   ```bash
+   docker pull ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox-image:latest
+   ```
+
+3. Recreate the container on the new image — in VS Code, **Dev Containers:
+   Rebuild Without Cache and Reopen in Container**, or with the CLI:
+
+   ```bash
+   devcontainer up --workspace-folder . --remove-existing-container --build-no-cache
+   ```
+
+The image only covers what's baked into it. If the template's
+`.devcontainer/` files changed too (new services, features, or ports),
+re-run `devcontainer templates apply` first — it overwrites your
+`.devcontainer/` files, so redo local edits such as the
+[workspace folder name](#workspace-folder-name). Named volumes (Claude, Codex,
+Hermes, Open WebUI data) survive both steps.
 
 For your own customizations, add a second file (e.g. `Dockerfile.local`)
 that does `FROM
