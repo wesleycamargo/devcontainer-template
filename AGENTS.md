@@ -47,6 +47,11 @@ template/image built from the same config.
 - `scripts/setup_github_publishing.py` — one-time GitHub-side setup helper
   (workflow token permissions, package visibility check). Requires `gh`
   authenticated with `packages` scope.
+- `scripts/setup-devcontainer-client.ps1` — one-time client-side setup for
+  someone *consuming* a published template/image: installs Git/GitHub
+  CLI/Docker/VS Code + the Dev Containers extension via winget (Windows) or
+  Homebrew (macOS), then authenticates `gh` with `read:packages` and logs
+  Docker in to ghcr.io. Idempotent; safe to re-run.
 
 All published packages under
 ghcr.io/wesleycamargo/devcontainer-template/` — the `ai-devbox`,
