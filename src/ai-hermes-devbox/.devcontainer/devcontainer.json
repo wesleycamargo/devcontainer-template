@@ -17,12 +17,18 @@
     "ghcr.io/rchaganti/vsc-devcontainer-features/azurebicep:1": {
       "version": "latest"
     },
-    "ghcr.io/devcontainers/features/github-cli:1": {}
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    // sshd on port 2222 so a Hermes running on the host can use this
+    // container as its SSH terminal backend (published in docker-compose.yml).
+    "ghcr.io/devcontainers/features/sshd:1": {}
   },
   "postCreateCommand": "cp /tmp/host-gitconfig ~/.gitconfig 2>/dev/null || true; cp /tmp/host-git-credentials ~/.git-credentials 2>/dev/null || true; chmod 600 ~/.git-credentials 2>/dev/null || true",
   // Bring up Hermes and its local Open WebUI backend on every container start.
   // VS Code forwards the dashboard and Open WebUI ports; see start-hermes.sh.
-  "postStartCommand": "bash .devcontainer/start-hermes.sh",
+  // Before that, authorize the host's SSH public keys (collected by the
+  // ssh-pubkeys service in docker-compose.yml). Copied rather than mounted so
+  // sshd's StrictModes permission check passes.
+  "postStartCommand": "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cp /tmp/host-ssh-pubkeys/authorized_keys ~/.ssh/authorized_keys 2>/dev/null; chmod 600 ~/.ssh/authorized_keys 2>/dev/null; bash .devcontainer/start-hermes.sh",
   "forwardPorts": [9119, 8080],
   "customizations": {
     "vscode": {

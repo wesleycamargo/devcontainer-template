@@ -20,3 +20,10 @@ FROM ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image:latest
 # pulled in by the installer through the vscode user's passwordless sudo
 # (provided by the devcontainers base image).
 RUN su vscode -c 'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- --non-interactive --skip-setup'
+
+# The base image makes pwsh vscode's login shell. Hermes' SSH terminal backend
+# runs its one-shot commands (sudo, stdin) through the SSH user's login shell
+# and expects POSIX sh, so switch it back to bash. VS Code terminals still open
+# pwsh via terminal.integrated.defaultProfile.linux in devcontainer.json, and
+# bash login shells get ~/.local/bin on PATH from ~/.profile.
+RUN chsh -s /bin/bash vscode

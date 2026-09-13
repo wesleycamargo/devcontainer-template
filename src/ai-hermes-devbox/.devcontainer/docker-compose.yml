@@ -10,6 +10,14 @@ services:
     # Keeps the container running; VS Code/the devcontainer CLI exec into it
     # rather than relying on the image's own entrypoint to block.
     command: sleep infinity
+    # sshd (the `sshd` feature in devcontainer.json) for Hermes' SSH terminal
+    # backend. Published on the host's loopback only -- unlike the dashboard,
+    # sshd listens on all container interfaces, so a Docker port works here.
+    ports:
+      - "127.0.0.1:2222:2222"
+    depends_on:
+      ssh-pubkeys:
+        condition: service_completed_successfully
     # The Hermes dashboard (127.0.0.1:9119, started by start-hermes.sh) is
     # reached from the host through VS Code's port forwarding -- `forwardPorts`
     # in devcontainer.json -- not a Docker published port, which can't see a
@@ -27,6 +35,22 @@ services:
       # runtime into this named volume the first time it is created, so the
       # hermes launcher remains usable after a rebuild.
       - hermes-data:/home/vscode/.hermes
+      # Host public keys collected by ssh-pubkeys; postStartCommand installs
+      # them as vscode's SSH authorized_keys.
+      - ssh-pubkeys:/tmp/host-ssh-pubkeys:ro
+
+  # One-shot: copies only the host's ~/.ssh/*.pub into the ssh-pubkeys volume
+  # and exits, so the devcontainer (where agents run) never sees the private
+  # keys next to them. Re-runs on every `up`, picking up new or removed keys.
+  ssh-pubkeys:
+    image: busybox:1.37
+    volumes:
+      - ${HOME:-${USERPROFILE:-}}/.ssh:/host-ssh:ro
+      - ssh-pubkeys:/keys
+    command:
+      - sh
+      - -c
+      - cat /host-ssh/*.pub 2>/dev/null | tr -d '\r' > /keys/authorized_keys; chmod 644 /keys/authorized_keys
 
   # Shares the devcontainer's loopback namespace so its OpenAI connection can
   # reach Hermes at 127.0.0.1:8642 without exposing the API outside Compose.
@@ -59,3 +83,4 @@ volumes:
   codex-data:
   hermes-data:
   open-webui-data:
+  ssh-pubkeys:

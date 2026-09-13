@@ -117,6 +117,14 @@ rebuilding. Open WebUI persists its connection after first launch, so update
 that connection through Admin Settings or reset its named data volume before
 using the replacement key.
 
+## Using the container as Hermes' SSH terminal backend
+
+A Hermes running on the host (for example Hermes Desktop) can use this
+container as its sandbox, sending its terminal commands in over SSH on
+`127.0.0.1:2222`. Your host's `~/.ssh/*.pub` keys are authorized
+automatically. See [SSH-BACKEND.md](SSH-BACKEND.md) for setup and
+troubleshooting.
+
 ## Configuration
 
 ### The image
