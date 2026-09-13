@@ -4,9 +4,8 @@
 # when HERMES_AUTOSTART_SERVICES=1. Safe to re-run by hand: every service is
 # guarded, so a second run never produces a duplicate process.
 #
-# Both services bind loopback only. Open WebUI shares this container's network
-# namespace; VS Code forwards the dashboard port. Neither is published by
-# Docker. Output goes to ~/.hermes/logs/<service>.out.
+# Both services bind loopback only; VS Code forwards the dashboard port.
+# Neither is published by Docker. Output goes to ~/.hermes/logs/<service>.out.
 #
 # This used to be a Dev Container lifecycle helper, which meant `docker run`
 # and `docker compose` never started Hermes at all.
@@ -15,30 +14,6 @@ set -u
 command -v hermes >/dev/null 2>&1 || exit 0
 
 mkdir -p "$HOME/.hermes/logs"
-
-# --- Open WebUI shared key -------------------------------------------------
-# Compose points HERMES_OPENWEBUI_ENV at a file on the workspace mount that
-# both this container and the Open WebUI container can read; Open WebUI blocks
-# until it appears. Unset (plain `docker run`) means no Open WebUI, so the
-# gateway's HTTP API stays off.
-openwebui_env="${HERMES_OPENWEBUI_ENV:-}"
-if [ -n "$openwebui_env" ]; then
-  if [ ! -s "$openwebui_env" ]; then
-    umask 077
-    mkdir -p "$(dirname "$openwebui_env")"
-    temp_env="$(mktemp "${openwebui_env}.XXXXXX")"
-    api_server_key="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
-    webui_secret_key="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
-    printf 'API_SERVER_ENABLED=true\nAPI_SERVER_KEY=%s\nOPENAI_API_KEY=%s\nWEBUI_SECRET_KEY=%s\n' \
-      "$api_server_key" "$api_server_key" "$webui_secret_key" >"$temp_env"
-    mv "$temp_env" "$openwebui_env"
-    chmod 600 "$openwebui_env"
-    echo "hermes-start-services: created $openwebui_env"
-  fi
-  set -a
-  . "$openwebui_env"
-  set +a
-fi
 
 # --- one-time Codex/ChatGPT seed -------------------------------------------
 # Point Hermes' default model at a persisted Codex login. ~/.codex is backed by

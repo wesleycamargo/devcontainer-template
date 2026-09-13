@@ -13,7 +13,6 @@ services:
     # foreground, which keeps the container up and starts the Hermes services.
     environment:
       HERMES_AUTOSTART_SERVICES: "1"
-      HERMES_OPENWEBUI_ENV: /workspaces/devcontainer-template/.devcontainer/.openwebui.env
       HERMES_PROJECT_NAME: "devcontainer-template"
     # This container consumes the image but is NOT published as an SSH gateway:
     # no `ports:` mapping and no ssh-pubkeys service, so sshd runs but is
@@ -41,35 +40,8 @@ services:
       # Keeps this container's SSH host identity stable across recreates.
       - ssh-host-keys:/var/lib/hermes-ssh/host_keys
 
-  # Shares the devcontainer's loopback namespace so its OpenAI connection can
-  # reach Hermes at 127.0.0.1:8642 without exposing the API outside Compose.
-  open-webui:
-    # Pin a tested release. `main` is a moving development build and has
-    # shipped SSE parsing regressions that break Hermes streaming replies.
-    image: ghcr.io/open-webui/open-webui:v0.11.1
-    network_mode: service:devcontainer
-    depends_on:
-      - devcontainer
-    environment:
-      OPENAI_API_BASE_URL: http://127.0.0.1:8642/v1
-      ENABLE_OLLAMA_API: "false"
-    volumes:
-      - open-webui-data:/app/backend/data
-      - .:/openwebui-config:ro
-    command:
-      - /bin/bash
-      - -c
-      - |
-        while [ ! -s /openwebui-config/.openwebui.env ]; do sleep 1; done
-        set -a
-        . /openwebui-config/.openwebui.env
-        set +a
-        exec bash start.sh
-    restart: unless-stopped
-
 volumes:
   claude-data:
   codex-data:
   hermes-data:
-  open-webui-data:
   ssh-host-keys:

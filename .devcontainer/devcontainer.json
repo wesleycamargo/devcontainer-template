@@ -23,7 +23,7 @@
   // started by the image's entrypoint (HERMES_AUTOSTART_SERVICES in
   // docker-compose.yml), so no Dev Container startup hook is needed.
   "postCreateCommand": "cp /tmp/host-gitconfig ~/.gitconfig 2>/dev/null || true; cp /tmp/host-git-credentials ~/.git-credentials 2>/dev/null || true; chmod 600 ~/.git-credentials 2>/dev/null || true",
-  "forwardPorts": [9119, 8080],
+  "forwardPorts": [9119],
   "customizations": {
     "vscode": {
       "settings": {

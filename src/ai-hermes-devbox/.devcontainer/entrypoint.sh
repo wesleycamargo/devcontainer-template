@@ -97,17 +97,16 @@ done
 # Off unless asked for. With terminal.backend=ssh the agent runs on the
 # operator's machine and only shells in here, so a gateway/dashboard pair would
 # be two extra processes writing the same ~/.hermes as the incoming SSH
-# session. Compose sets HERMES_AUTOSTART_SERVICES=1 because Open WebUI needs
-# the gateway.
+# session. Compose sets HERMES_AUTOSTART_SERVICES=1 to run them anyway.
 if [ "${HERMES_AUTOSTART_SERVICES:-0}" = "1" ]; then
   # -s /bin/bash: `su` would otherwise use vscode's LOGIN shell, and the base
   # image sets that to pwsh, which cannot parse `VAR=value cmd` and fails with
   # a confusing "not recognized as a cmdlet" error. The Dockerfile chsh's this
   # user to bash anyway; forcing the shell here keeps start-up working
   # regardless of what the login shell happens to be.
-  # HOME and the Open WebUI path are passed explicitly: `su` rewrites HOME and
-  # PAM may prune the rest, so neither can be assumed to survive the switch.
-  ( cd / && su vscode -s /bin/bash -c "HOME=/home/vscode HERMES_OPENWEBUI_ENV='${HERMES_OPENWEBUI_ENV:-}' /usr/local/bin/hermes-start-services" ) \
+  # HOME is passed explicitly: `su` rewrites it and PAM may prune the rest,
+  # so it cannot be assumed to survive the switch.
+  ( cd / && su vscode -s /bin/bash -c "HOME=/home/vscode /usr/local/bin/hermes-start-services" ) \
     || log "hermes-start-services reported a problem; SSH is unaffected"
 else
   log "HERMES_AUTOSTART_SERVICES is not 1; starting sshd only"

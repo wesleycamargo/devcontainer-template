@@ -34,7 +34,7 @@ public keys. It still starts the daemon internally because the same image is use
 by the published template; the daily-driver root `.devcontainer/` keeps it
 unreachable from the host.
 
-## Hermes services and Open WebUI
+## Hermes services
 
 Compose sets `HERMES_AUTOSTART_SERVICES=1`, so the entrypoint runs
 `hermes-start-services` as `vscode` after SSH setup. That helper is safe to run
@@ -47,21 +47,9 @@ gpt-5.6-terra`. It is guarded by `~/.hermes/.codex-default-seeded`; delete that
 marker plus `hermes auth logout openai-codex` to re-seed. A stale Codex token
 just defers the seed to the next start.
 
-It then creates `.devcontainer/.openwebui.env` on first run. The file is ignored
-by Git and holds generated Hermes API and Open WebUI session keys. The Hermes
-gateway listens on `127.0.0.1:8642`, the dashboard on `127.0.0.1:9119`, and logs
-go to `~/.hermes/logs/gateway.out` and `~/.hermes/logs/dashboard.out`.
-
-Open WebUI runs as a companion service sharing the devcontainer's network
-namespace, so it reaches Hermes at `http://127.0.0.1:8642/v1` without publishing
-the API to the host. VS Code forwards the dashboard on `9119` and Open WebUI on
-`8080`. Open the forwarded `8080` address, create the first account, then select
-`hermes-agent` in the model picker.
-
-To rotate the generated API key, delete `.devcontainer/.openwebui.env` before
-rebuilding. Open WebUI stores its connection on first launch, so also update the
-connection in Admin Settings or reset the `open-webui-data` volume before using
-the replacement key.
+It then starts the Hermes gateway on `127.0.0.1:8642` and the dashboard on
+`127.0.0.1:9119`, logging to `~/.hermes/logs/gateway.out` and
+`~/.hermes/logs/dashboard.out`. VS Code forwards the dashboard port.
 
 ## Persisting Claude Code / Codex credentials
 

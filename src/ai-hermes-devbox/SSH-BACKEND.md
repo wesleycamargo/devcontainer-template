@@ -7,9 +7,8 @@ terminal commands it runs go over SSH into the container
 [SSH backend guide](https://hermes-agent.ai/how-to/configure-ssh-terminal-backend)).
 
 In this mode the host's Hermes does the work. The Hermes installed inside the
-container is still available for local use, and Compose can start its gateway,
-dashboard, and Open WebUI, but the host SSH backend does not depend on those
-services.
+container is still available for local use, and Compose can start its gateway
+and dashboard, but the host SSH backend does not depend on those services.
 
 ## How it works
 

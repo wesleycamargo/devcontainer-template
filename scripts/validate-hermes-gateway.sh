@@ -248,9 +248,6 @@ do_B() {
     *) skip "no 'already running' notice (services may not have been up)" ;;
   esac
 
-  "${cmp[@]}" ps --format '{{.Service}}' 2>/dev/null | grep -q open-webui \
-    && ok "open-webui service present" || skip "open-webui not reported by compose ps"
-
   "${cmp[@]}" down -v --remove-orphans >/dev/null 2>&1
 }
 

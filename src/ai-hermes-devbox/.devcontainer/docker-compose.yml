@@ -18,17 +18,13 @@ services:
     ports:
       - "127.0.0.1:${HERMES_SSH_PORT:-2222}:2222"
     environment:
-      # Start the Hermes gateway + dashboard in this container. Open WebUI
-      # below talks to the gateway, so Compose wants them; a bare `docker run`
-      # gateway leaves this unset and gets sshd only.
+      # Start the Hermes gateway + dashboard in this container; a bare
+      # `docker run` leaves this unset and gets sshd only.
       HERMES_AUTOSTART_SERVICES: "1"
       # The container cannot see its own published port -- pass it through so
       # `hermes-ssh-info` prints a host port you can actually connect to.
       HERMES_SSH_HOST_PORT: "${HERMES_SSH_PORT:-2222}"
       HERMES_PROJECT_NAME: "${COMPOSE_PROJECT_NAME:-hermes}"
-      # Shared Hermes/Open WebUI key file, on the workspace mount so both
-      # containers see it. Generated on first start if absent.
-      HERMES_OPENWEBUI_ENV: /workspaces/devcontainer-template/.devcontainer/.openwebui.env
     depends_on:
       ssh-pubkeys:
         condition: service_completed_successfully
@@ -71,36 +67,9 @@ services:
       - -c
       - cat /host-ssh/*.pub 2>/dev/null | tr -d '\r' > /keys/authorized_keys; chmod 644 /keys/authorized_keys
 
-  # Shares the devcontainer's loopback namespace so its OpenAI connection can
-  # reach Hermes at 127.0.0.1:8642 without exposing the API outside Compose.
-  open-webui:
-    # Pin a tested release. `main` is a moving development build and has
-    # shipped SSE parsing regressions that break Hermes streaming replies.
-    image: ghcr.io/open-webui/open-webui:v0.11.1
-    network_mode: service:devcontainer
-    depends_on:
-      - devcontainer
-    environment:
-      OPENAI_API_BASE_URL: http://127.0.0.1:8642/v1
-      ENABLE_OLLAMA_API: "false"
-    volumes:
-      - open-webui-data:/app/backend/data
-      - .:/openwebui-config:ro
-    command:
-      - /bin/bash
-      - -c
-      - |
-        while [ ! -s /openwebui-config/.openwebui.env ]; do sleep 1; done
-        set -a
-        . /openwebui-config/.openwebui.env
-        set +a
-        exec bash start.sh
-    restart: unless-stopped
-
 volumes:
   claude-data:
   codex-data:
   hermes-data:
-  open-webui-data:
   ssh-pubkeys:
   ssh-host-keys:

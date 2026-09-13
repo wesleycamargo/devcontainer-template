@@ -25,9 +25,9 @@
   // the image's entrypoint, so they behave identically under `docker run` and
   // `docker compose` -- there is deliberately no Dev Container startup hook here.
   "postCreateCommand": "cp /tmp/host-gitconfig ~/.gitconfig 2>/dev/null || true; cp /tmp/host-git-credentials ~/.git-credentials 2>/dev/null || true; chmod 600 ~/.git-credentials 2>/dev/null || true",
-  // Hermes dashboard and Open WebUI. Both bind loopback inside the container,
-  // so VS Code forwards them rather than Docker publishing them.
-  "forwardPorts": [9119, 8080],
+  // Hermes dashboard. Binds loopback inside the container, so VS Code
+  // forwards it rather than Docker publishing it.
+  "forwardPorts": [9119],
   "customizations": {
     "vscode": {
       "settings": {

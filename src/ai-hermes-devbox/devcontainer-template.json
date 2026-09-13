@@ -2,6 +2,6 @@
   "id": "ai-hermes-devbox",
   "version": "1.0.0",
   "name": "AI Hermes Devbox (PowerShell)",
-  "description": "AI Devbox plus the Hermes Agent (Nous Research), full browser and computer-use support, an image-owned SSH gateway for Hermes Desktop, and Open WebUI.",
+  "description": "AI Devbox plus the Hermes Agent (Nous Research), full browser and computer-use support, and an image-owned SSH gateway for Hermes Desktop.",
   "options": {}
 }

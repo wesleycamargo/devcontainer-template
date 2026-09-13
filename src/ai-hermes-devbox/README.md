@@ -126,7 +126,7 @@ Compose project, add its alias to the Windows SSH config, then confirm Hermes
 Desktop can execute a terminal action through it. See
 [SSH-BACKEND.md](SSH-BACKEND.md).
 
-## Hermes dashboard and Open WebUI
+## Hermes dashboard
 
 SSH and the optional Hermes services are owned by the image entrypoint, so they
 behave the same under `docker run`, `docker compose`, and VS Code Dev
@@ -134,28 +134,11 @@ Containers. Compose sets `HERMES_AUTOSTART_SERVICES=1`, which makes the
 entrypoint run `hermes-start-services` as `vscode` after SSH setup. A bare
 `docker run` leaves that variable unset and starts only the SSH daemon.
 
-`hermes-start-services` generates `.devcontainer/.openwebui.env` if it does not
-exist. This Git-ignored file holds randomly generated Hermes API and Open WebUI
-session keys, so credentials never enter the image or Git. The helper starts the
-Hermes gateway on `127.0.0.1:8642` and the dashboard on `127.0.0.1:9119`,
-logging to `~/.hermes/logs/gateway.out` and `~/.hermes/logs/dashboard.out`. It
-is safe to rerun; existing gateway and dashboard processes are reused.
-
-`docker-compose.yml` also starts Open WebUI as a companion container sharing the
-devcontainer's network namespace. It reaches Hermes at
-`http://127.0.0.1:8642/v1`, which means Hermes tool calls run inside this
-devcontainer while the API stays private. Its data persists in the named
-`open-webui-data` volume across normal Compose stops and rebuilds.
-
-`devcontainer.json` forwards the Hermes dashboard on `9119` and Open WebUI on
-`8080`. Open the forwarded `8080` address, create the first account (it becomes
-the local admin), and select `hermes-agent` in the model picker. The first Open
-WebUI start can take a little longer while it initializes.
-
-To rotate the generated API key, delete `.devcontainer/.openwebui.env` before
-rebuilding. Open WebUI persists its connection after first launch, so update
-that connection through Admin Settings or reset its named data volume before
-using the replacement key.
+`hermes-start-services` starts the Hermes gateway on `127.0.0.1:8642` and the
+dashboard on `127.0.0.1:9119`, logging to `~/.hermes/logs/gateway.out` and
+`~/.hermes/logs/dashboard.out`. It is safe to rerun; existing gateway and
+dashboard processes are reused. `devcontainer.json` forwards the dashboard
+port.
 
 ## Using the container as Hermes' SSH terminal backend
 
@@ -215,7 +198,7 @@ The image only covers what's baked into it. If the template's
 re-run `devcontainer templates apply` first — it overwrites your
 `.devcontainer/` files, so redo local edits such as the
 [workspace folder name](#workspace-folder-name). Named volumes (Claude, Codex,
-Hermes, Open WebUI data) survive both steps.
+Hermes data) survive both steps.
 
 For your own customizations, add a second file (e.g. `Dockerfile.local`)
 that does `FROM
