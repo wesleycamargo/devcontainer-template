@@ -106,6 +106,12 @@ Starting from a machine with no WSL at all, expect three things:
 `-Yes` answers the install prompts automatically; `-NonInteractive` never
 prompts at all and reports whatever it skipped in the summary.
 
+The script also generates an SSH key inside the target if it doesn't have one
+(WSL's `~/.ssh` is separate from Windows' own, and it's WSL's key that has to
+be there — see [`.devcontainer/SSH-BACKEND.md`](.devcontainer/SSH-BACKEND.md)),
+and copies your Windows SSH public key(s) in too, under a `windows-` prefix,
+so Hermes Desktop's own key is authorized as well.
+
 On Linux the local machine is the target: the same apt-based installers run
 directly when `apt-get` is present, and it prints install instructions for
 anything else. The repo's own devcontainer pulls the private

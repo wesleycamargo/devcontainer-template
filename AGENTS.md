@@ -71,6 +71,15 @@ template/image built from the same config.
   that stay on the Windows host. On Linux the target is just the local
   machine, so the same apt-based installers run directly. Idempotent; safe
   to re-run.
+  `Initialize-TargetSshKey` generates an ed25519 key in the target if it
+  doesn't have one (`.devcontainer/SSH-BACKEND.md`: the key Hermes
+  authorizes has to live in `~/.ssh` of the machine that starts the
+  container, i.e. the target). `Copy-HostSshPublicKeys` is Windows-only and
+  self-guards on `$OS`: it resolves the Windows user's `~/.ssh` through
+  `wslpath -u` and copies its `*.pub` files into the target under a
+  `windows-` prefix (`cp -n`, so re-runs never clobber, and the prefix
+  means it can never collide with the target's own key) — Hermes Desktop
+  authenticates with the Windows key, not the target's.
   `Install-Wsl` detects whether WSL is missing, present-but-distro-less, or
   ready (never by `wsl.exe`'s presence — it ships in System32 regardless),
   asks before installing, and elevates *only* the `wsl --install` call so
