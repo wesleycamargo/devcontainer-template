@@ -26,7 +26,7 @@ services:
       HERMES_SSH_HOST_PORT: "${HERMES_SSH_PORT:-2222}"
       # Pins `hermes-ssh-info`'s suggested terminal.cwd to the workspace mount
       # below instead of its /workspaces/*/ auto-detect glob.
-      HERMES_SSH_CWD: "/workspaces/devcontainer-template"
+      HERMES_SSH_CWD: "/workspaces"
     depends_on:
       ssh-pubkeys:
         condition: service_completed_successfully
@@ -34,7 +34,7 @@ services:
     # Code's port forwarding -- `forwardPorts` in devcontainer.json -- not a
     # Docker published port, which can't see a loopback listener.
     volumes:
-      - ..:/workspaces/devcontainer-template:cached
+      - ../..:/workspaces:cached
       # Named volumes make a fresh checkout usable on any host: Docker creates
       # them on demand and copies each image directory into it on first use.
       # They keep CLI logins across normal container rebuilds without depending

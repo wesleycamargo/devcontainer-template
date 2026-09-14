@@ -226,13 +226,12 @@ settings, so configure Git with `git config --global ...` inside the
 container when needed. Do not remove the named volumes if you need to retain
 their state.
 
-### Workspace folder name
+### Workspace location
 
-`workspaceFolder`, the compose bind mount, and `HERMES_SSH_CWD` all hardcode
-`/workspaces/devcontainer-template`. Update all three (`devcontainer.json`'s
-`workspaceFolder` and `docker-compose.yml`'s bind mount target and
-`HERMES_SSH_CWD`) to match your project's folder name after applying the
-template.
+The parent directory containing the applied repository is mounted at
+`/workspaces`. VS Code automatically opens
+`/workspaces/<your-repository-directory-name>`. For Hermes Desktop, set the
+terminal working directory to that same path; no template edits are required.
 
 ## Troubleshooting
 
