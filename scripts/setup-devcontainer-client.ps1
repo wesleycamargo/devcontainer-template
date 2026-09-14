@@ -5,24 +5,32 @@
   and their published ghcr.io images. Safe to re-run.
 
 .DESCRIPTION
-  Verifies/installs Git, GitHub CLI, VS Code, the VS Code Dev Containers and
-  Remote-WSL extensions, Docker Engine running inside WSL (never Docker
-  Desktop), and the `devcontainer` CLI (for the `devcontainer templates
-  apply` / `devcontainer up` workflow). Then authenticates `gh` with the
-  `read:packages` scope and logs Docker in to ghcr.io so the private
-  ghcr.io/wesleycamargo/devcontainer-template/* packages can be pulled.
+  Verifies/installs Git, GitHub CLI, Docker Engine and the `devcontainer`
+  CLI inside the *target* -- WSL on Windows (never Docker Desktop), or the
+  local machine on Linux -- plus VS Code and its Dev Containers/Remote-WSL
+  extensions on the host. Then authenticates `gh` with the `read:packages`
+  scope and logs Docker in to ghcr.io, both inside the target, so the
+  private ghcr.io/wesleycamargo/devcontainer-template/* packages can be
+  pulled.
 
-  Windows: installs missing tools via winget. If WSL itself is missing it
-  asks first, then installs it (one UAC prompt -- only that call is
-  elevated, so the gh/Docker credentials still land in your own profile,
-  not the Administrator one). WSL's first install usually needs a reboot;
-  the script says so and you re-run it afterwards. If no Linux distro is
-  registered it offers to install Ubuntu, whose first-run setup asks you
-  to pick a UNIX username and password interactively. Docker Engine and
-  the `devcontainer` CLI are then installed inside that distro; where sudo
-  there needs a password, the script prompts for it once.
-  Linux: checks for tools and prints install instructions for anything
-  missing (package managers vary too much to automate safely here).
+  Windows: WSL is checked and installed FIRST, before anything else --
+  every other tool lives inside it, so nothing downstream can proceed
+  without it. If WSL itself is missing the script asks first, then installs
+  it (one UAC prompt -- only that call is elevated, so the gh/Docker
+  credentials still land in your own WSL user, not the Windows
+  Administrator profile). WSL's first install usually needs a reboot; the
+  script says so and you re-run it afterwards. If no Linux distro is
+  registered it offers to install Ubuntu, whose first-run setup asks you to
+  pick a UNIX username and password interactively. Git, GitHub CLI, Docker
+  Engine and the devcontainer CLI are then all installed inside that
+  distro via apt; where sudo there needs a password, the script prompts
+  for it once. `gh auth login` also runs inside the distro -- it prints a
+  one-time code and a URL to open in a browser yourself (WSL has no way to
+  launch your Windows browser automatically).
+  Linux: the local machine as the target. Same apt-based installers run
+  directly when `apt-get` is present; otherwise the script prints install
+  instructions for anything missing (package managers vary too much to
+  automate safely beyond apt).
 
 .PARAMETER Yes
   Answer yes to every prompt (installing WSL, installing Ubuntu). Does not
@@ -84,6 +92,16 @@ $manualInstallNeeded = New-Object System.Collections.Generic.List[string]
 # never a valid target for installing anything into.
 $WslDistroDenyList = @('docker-desktop', 'docker-desktop-data')
 
+# The environment everything below installs into and authenticates: a WSL
+# distro on Windows, or $null meaning "the local machine" on Linux. Set once
+# WSL is confirmed ready, in the main flow below.
+$script:TargetDistro = $null
+
+function Get-TargetLabel {
+    if ($script:TargetDistro) { return "WSL distro '$($script:TargetDistro)'" }
+    return 'this machine'
+}
+
 function Install-Tool {
     param(
         [string]$Name,
@@ -131,7 +149,7 @@ function Get-WslOutput([string[]]$WslArgs) {
     }
 }
 
-function New-WslBashCommand([string]$Script) {
+function New-TargetBashCommand([string]$Script) {
     # Ship the script body as base64 so it survives the Windows -> WSL command
     # line intact: no quotes, newlines or $-expansions ever reach the argument
     # PowerShell hands to wsl.exe, so there is nothing for either side to
@@ -295,17 +313,73 @@ function Install-Wsl {
     return $true
 }
 
-function Test-DockerInWsl([string]$Distro) {
-    if (-not $Distro) { return $false }
-    return ((Get-WslOutput @('-d', $Distro, '--', 'bash', '-lc', 'command -v docker')).ExitCode -eq 0)
+function Invoke-TargetRaw([string[]]$CommandArgs) {
+    # The one primitive everything else in the target abstraction is built on:
+    # runs an argv either inside the WSL distro or on the local machine, and
+    # always returns @{ Text; ExitCode } instead of letting output or a
+    # non-zero exit escape -- the same contract Get-WslOutput already offers
+    # for the WSL side.
+    if ($script:TargetDistro) {
+        return Get-WslOutput (@('-d', $script:TargetDistro, '--') + $CommandArgs)
+    }
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $global:LASTEXITCODE = 0
+        $exe = $CommandArgs[0]
+        $rest = @()
+        if ($CommandArgs.Count -gt 1) { $rest = $CommandArgs[1..($CommandArgs.Count - 1)] }
+        $raw = (& $exe @rest 2>&1 | Out-String)
+        return @{ Text = $raw; ExitCode = $LASTEXITCODE }
+    } catch {
+        return @{ Text = "$_"; ExitCode = -1 }
+    } finally {
+        $ErrorActionPreference = $prev
+    }
 }
 
-function Test-PasswordlessSudo([string]$Distro) {
-    if (-not $Distro) { return $false }
+function Invoke-TargetCommand([string]$Command) {
+    # A shell command string (may use pipes/quotes/$-expansions), run as a
+    # login shell in the target so PATH matches what Test-TargetCommand sees.
+    return (Invoke-TargetRaw @('bash', '-lc', $Command))
+}
+
+function Test-TargetCommand([string]$Name) {
+    return ((Invoke-TargetCommand "command -v $Name").ExitCode -eq 0)
+}
+
+function Test-TargetIsRoot {
+    return ((Invoke-TargetCommand '[ "$(id -u)" = "0" ]').ExitCode -eq 0)
+}
+
+function Invoke-TargetInteractive([string[]]$CommandArgs) {
+    # Deliberately unredirected: an interactive gh device-code prompt, or its
+    # browser-launch-failed fallback message, has to reach this console
+    # directly -- the same shape as the unredirected `wsl --install -d
+    # Ubuntu` call in Install-Wsl. Returns the exit code only.
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $global:LASTEXITCODE = 0
+        if ($script:TargetDistro) {
+            & wsl.exe -d $script:TargetDistro -- @CommandArgs
+        } else {
+            $exe = $CommandArgs[0]
+            $rest = @()
+            if ($CommandArgs.Count -gt 1) { $rest = $CommandArgs[1..($CommandArgs.Count - 1)] }
+            & $exe @rest
+        }
+        return $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+}
+
+function Test-TargetPasswordlessSudo {
     # sudo -n never prompts: it fails immediately if a password would be
     # required, instead of hanging forever waiting for input this
-    # non-interactive `wsl.exe` invocation can never deliver.
-    return ((Get-WslOutput @('-d', $Distro, '--', 'sudo', '-n', 'true')).ExitCode -eq 0)
+    # non-interactive invocation can never deliver.
+    return ((Invoke-TargetRaw @('sudo', '-n', 'true')).ExitCode -eq 0)
 }
 
 function ConvertTo-PlainText([System.Security.SecureString]$Secure) {
@@ -314,7 +388,7 @@ function ConvertTo-PlainText([System.Security.SecureString]$Secure) {
     finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
 }
 
-function Invoke-WslSudoStdin([string]$Distro, [System.Security.SecureString]$Secure, [string]$Command) {
+function Invoke-TargetSudoStdin([System.Security.SecureString]$Secure, [string]$Command) {
     # The command rides in as a `bash -c` argument, which leaves stdin free for
     # `sudo -S` to read the password from. No `-p ''` to silence sudo's prompt:
     # Windows PowerShell 5.1 drops empty-string arguments to native commands,
@@ -325,7 +399,11 @@ function Invoke-WslSudoStdin([string]$Distro, [System.Security.SecureString]$Sec
     $ErrorActionPreference = 'Continue'
     try {
         $global:LASTEXITCODE = 0
-        $raw = ($plain | & wsl.exe -d $Distro -- sudo -S bash -c $Command 2>&1 | Out-String)
+        if ($script:TargetDistro) {
+            $raw = ($plain | & wsl.exe -d $script:TargetDistro -- sudo -S bash -c $Command 2>&1 | Out-String)
+        } else {
+            $raw = ($plain | & sudo -S bash -c $Command 2>&1 | Out-String)
+        }
         return @{ Text = ($raw -replace "`0", ''); ExitCode = $LASTEXITCODE }
     } catch {
         return @{ Text = "$_"; ExitCode = -1 }
@@ -335,17 +413,17 @@ function Invoke-WslSudoStdin([string]$Distro, [System.Security.SecureString]$Sec
     }
 }
 
-$script:WslSudoPassword = $null
+$script:TargetSudoPassword = $null
 
-function Get-WslSudoPassword([string]$Distro) {
-    if ($script:WslSudoPassword) { return $script:WslSudoPassword }
+function Get-TargetSudoPassword {
+    if ($script:TargetSudoPassword) { return $script:TargetSudoPassword }
     if ($NonInteractive) { return $null }
-    Write-Host "    sudo in WSL distro '$Distro' needs a password to install packages."
+    Write-Host "    sudo in $(Get-TargetLabel) needs a password to install packages."
     for ($attempt = 1; $attempt -le 2; $attempt++) {
-        $secure = Read-Host "    sudo password for '$Distro'" -AsSecureString
+        $secure = Read-Host "    sudo password for $(Get-TargetLabel)" -AsSecureString
         if (-not $secure -or $secure.Length -eq 0) { break }
-        if ((Invoke-WslSudoStdin $Distro $secure 'true').ExitCode -eq 0) {
-            $script:WslSudoPassword = $secure
+        if ((Invoke-TargetSudoStdin $secure 'true').ExitCode -eq 0) {
+            $script:TargetSudoPassword = $secure
             return $secure
         }
         Write-Warn2 'sudo rejected that password.'
@@ -353,15 +431,16 @@ function Get-WslSudoPassword([string]$Distro) {
     return $null
 }
 
-function Invoke-WslSudoScript([string]$Distro, [string]$Script) {
-    if (-not $Distro) { return $false }
-    $command = New-WslBashCommand $Script
-    if (Test-PasswordlessSudo $Distro) {
-        $result = Get-WslOutput @('-d', $Distro, '--', 'sudo', '-n', 'bash', '-c', $command)
+function Invoke-TargetSudoScript([string]$Script) {
+    $command = New-TargetBashCommand $Script
+    if (Test-TargetIsRoot) {
+        $result = Invoke-TargetRaw @('bash', '-c', $command)
+    } elseif (Test-TargetPasswordlessSudo) {
+        $result = Invoke-TargetRaw @('sudo', '-n', 'bash', '-c', $command)
     } else {
-        $secure = Get-WslSudoPassword $Distro
+        $secure = Get-TargetSudoPassword
         if (-not $secure) { return $false }
-        $result = Invoke-WslSudoStdin $Distro $secure $command
+        $result = Invoke-TargetSudoStdin $secure $command
     }
     if ($result.ExitCode -ne 0) {
         $text = $result.Text.Trim()
@@ -371,12 +450,67 @@ function Invoke-WslSudoScript([string]$Distro, [string]$Script) {
     return $true
 }
 
-function Install-DockerOnWsl([string]$Distro) {
-    Write-Step 'Docker Engine (inside WSL -- not Docker Desktop)'
-    if (Test-DockerInWsl $Distro) {
-        Write-Ok "Docker already installed in WSL distro '$Distro'"
+function Install-TargetGit {
+    Write-Step "Git (in $(Get-TargetLabel))"
+    if (Test-TargetCommand 'git') {
+        Write-Ok "Git already installed in $(Get-TargetLabel)"
+        return
+    }
+    if (-not (Test-TargetCommand 'apt-get')) {
+        Write-Warn2 "apt-get not found in $(Get-TargetLabel). Install Git via its package manager, e.g. ``sudo apt install git``."
+        $manualInstallNeeded.Add('Git')
+        return
+    }
+    Write-Host "    installing Git in $(Get-TargetLabel)..."
+    $installScript = @'
+set -e
+apt-get update -y
+apt-get install -y git
+'@
+    if (-not (Invoke-TargetSudoScript $installScript)) {
+        Write-Warn2 "Git install failed in $(Get-TargetLabel). Install it manually, e.g. ``sudo apt install git``, then re-run this script."
+        $manualInstallNeeded.Add('Git')
+    }
+}
+
+function Install-TargetGh {
+    Write-Step "GitHub CLI (in $(Get-TargetLabel))"
+    if (Test-TargetCommand 'gh') {
+        Write-Ok "GitHub CLI already installed in $(Get-TargetLabel)"
+        return
+    }
+    if (-not (Test-TargetCommand 'apt-get')) {
+        Write-Warn2 "apt-get not found in $(Get-TargetLabel). See https://github.com/cli/cli/blob/trunk/docs/install_linux.md"
+        $manualInstallNeeded.Add('GitHub CLI')
+        return
+    }
+    Write-Host "    installing GitHub CLI in $(Get-TargetLabel)..."
+    $installScript = @'
+set -e
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o /etc/apt/keyrings/githubcli-archive-keyring.gpg
+chmod a+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list
+apt-get update -y
+apt-get install -y gh
+'@
+    if (-not (Invoke-TargetSudoScript $installScript)) {
+        Write-Warn2 "GitHub CLI install failed in $(Get-TargetLabel). See https://github.com/cli/cli/blob/trunk/docs/install_linux.md"
+        $manualInstallNeeded.Add('GitHub CLI')
+    }
+}
+
+function Install-TargetDocker {
+    Write-Step "Docker Engine (in $(Get-TargetLabel) -- not Docker Desktop)"
+    if (Test-TargetCommand 'docker') {
+        Write-Ok "Docker already installed in $(Get-TargetLabel)"
     } else {
-        Write-Host "    installing Docker Engine in WSL distro '$Distro'..."
+        if (-not (Test-TargetCommand 'apt-get')) {
+            Write-Warn2 "apt-get not found in $(Get-TargetLabel). See https://docs.docker.com/engine/install/"
+            $manualInstallNeeded.Add('Docker Engine')
+            return
+        }
+        Write-Host "    installing Docker Engine in $(Get-TargetLabel)..."
         $installScript = @'
 set -e
 install -m 0755 -d /etc/apt/keyrings
@@ -388,9 +522,9 @@ apt-get update -y
 apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 usermod -aG docker "${SUDO_USER:-$(id -un)}"
 '@
-        if (-not (Invoke-WslSudoScript $Distro $installScript)) {
-            Write-Warn2 "Docker install failed in WSL distro '$Distro'. Open a WSL terminal (``wsl -d $Distro``) and follow https://docs.docker.com/engine/install/ubuntu/, then re-run this script."
-            $manualInstallNeeded.Add('Docker Engine in WSL')
+        if (-not (Invoke-TargetSudoScript $installScript)) {
+            Write-Warn2 "Docker install failed in $(Get-TargetLabel). Follow https://docs.docker.com/engine/install/ubuntu/, then re-run this script."
+            $manualInstallNeeded.Add('Docker Engine')
             return
         }
     }
@@ -402,38 +536,33 @@ usermod -aG docker "${SUDO_USER:-$(id -un)}"
     # distro any more, not even a shell to fix it. Just start the service for
     # this session instead; re-run this script (or `sudo service docker
     # start`) after every `wsl --shutdown` / reboot.
-    Invoke-WslSudoScript $Distro 'service docker start' | Out-Null
+    Invoke-TargetSudoScript 'service docker start' | Out-Null
 }
 
-function Test-DevcontainerCliInWsl([string]$Distro) {
-    if (-not $Distro) { return $false }
-    return ((Get-WslOutput @('-d', $Distro, '--', 'bash', '-lc', 'command -v devcontainer')).ExitCode -eq 0)
-}
-
-function Install-DevcontainerCliOnWsl([string]$Distro) {
-    Write-Step 'devcontainer CLI (inside WSL)'
-    if (Test-DevcontainerCliInWsl $Distro) {
-        Write-Ok "devcontainer CLI already installed in WSL distro '$Distro'"
+function Install-TargetDevcontainerCli {
+    Write-Step "devcontainer CLI (in $(Get-TargetLabel))"
+    if (Test-TargetCommand 'devcontainer') {
+        Write-Ok "devcontainer CLI already installed in $(Get-TargetLabel)"
         return
     }
-    Write-Host "    installing Node.js + @devcontainers/cli in WSL distro '$Distro'..."
+    if (-not (Test-TargetCommand 'npm') -and -not (Test-TargetCommand 'apt-get')) {
+        Write-Warn2 "Neither npm nor apt-get found in $(Get-TargetLabel). Install Node.js, then ``npm install -g @devcontainers/cli``."
+        $manualInstallNeeded.Add('devcontainer CLI')
+        return
+    }
+    Write-Host "    installing Node.js + @devcontainers/cli in $(Get-TargetLabel)..."
     $installScript = @'
 set -e
 command -v npm >/dev/null 2>&1 || { apt-get update -y; apt-get install -y nodejs npm; }
 npm install -g @devcontainers/cli
 '@
-    if (-not (Invoke-WslSudoScript $Distro $installScript)) {
-        Write-Warn2 "devcontainer CLI install failed in WSL distro '$Distro'. Open a WSL terminal (``wsl -d $Distro``) and run: sudo apt-get install -y nodejs npm && sudo npm install -g @devcontainers/cli"
-        $manualInstallNeeded.Add('devcontainer CLI in WSL')
+    if (-not (Invoke-TargetSudoScript $installScript)) {
+        Write-Warn2 "devcontainer CLI install failed in $(Get-TargetLabel). Run: sudo apt-get install -y nodejs npm && sudo npm install -g @devcontainers/cli"
+        $manualInstallNeeded.Add('devcontainer CLI')
     }
 }
 
-function Test-DockerAvailable {
-    if ($OS -eq 'windows') { return (Test-DockerInWsl (Get-WslDistro)) }
-    return (Test-Command 'docker')
-}
-
-function Repair-DockerCredsStore([string]$Distro) {
+function Repair-DockerCredsStore {
     # A stale/inherited ~/.docker/config.json can point `credsStore` at a
     # credential helper (e.g. secretservice, from a desktop keyring) that
     # isn't installed in a headless WSL/Linux shell. When that helper is
@@ -457,41 +586,77 @@ if store and shutil.which("docker-credential-" + store) is None:
         json.dump(cfg, f, indent=2)
 PY
 '@
-    if ($Distro) {
-        Get-WslOutput @('-d', $Distro, '--', 'bash', '-c', (New-WslBashCommand $fixScript)) | Out-Null
+    Invoke-TargetRaw @('bash', '-c', (New-TargetBashCommand $fixScript)) | Out-Null
+}
+
+function Connect-GitHubAuth {
+    Write-Step "GitHub authentication (read:packages scope, in $(Get-TargetLabel))"
+    if (-not (Test-TargetCommand 'gh')) {
+        Write-Warn2 "gh CLI unavailable in $(Get-TargetLabel); skipping GitHub auth"
+        return
+    }
+    $status = Invoke-TargetCommand 'gh auth status'
+    if ($status.ExitCode -ne 0) {
+        if ($NonInteractive) {
+            Write-Warn2 "gh is not authenticated in $(Get-TargetLabel) and -NonInteractive was passed; skipping login."
+            $manualInstallNeeded.Add("gh auth login --scopes read:packages (in $(Get-TargetLabel))")
+        } else {
+            Write-Host "    logging in to GitHub in $(Get-TargetLabel)..."
+            Write-Host '    gh will print a one-time code and a URL if it cannot open a browser itself -- open that URL yourself to continue.'
+            Invoke-TargetInteractive @('gh', 'auth', 'login', '--hostname', 'github.com', '--git-protocol', 'https', '--web', '--scopes', 'read:packages') | Out-Null
+        }
+    } elseif ($status.Text -notmatch 'read:packages') {
+        Write-Host '    refreshing token scope...'
+        Invoke-TargetInteractive @('gh', 'auth', 'refresh', '-h', 'github.com', '-s', 'read:packages') | Out-Null
     } else {
-        bash -c $fixScript *> $null
+        Write-Ok "gh already authenticated with read:packages in $(Get-TargetLabel)"
     }
 }
 
-Install-Tool -Name 'Git' -Command 'git' -WingetId 'Git.Git' `
-    -LinuxHint 'Install via your distro package manager, e.g. `sudo apt install git`.'
-
-Install-Tool -Name 'GitHub CLI' -Command 'gh' -WingetId 'GitHub.cli' `
-    -LinuxHint 'See https://github.com/cli/cli/blob/trunk/docs/install_linux.md'
-
-if ($OS -eq 'windows') {
-    if (Install-Wsl) {
-        $wslDistro = Get-WslDistro
-        Install-DockerOnWsl $wslDistro
-        Install-DevcontainerCliOnWsl $wslDistro
-    } else {
-        Write-Warn2 'No usable WSL distro; skipping the Docker Engine and devcontainer CLI installs.'
-        $manualInstallNeeded.Add('Docker Engine in WSL')
-        $manualInstallNeeded.Add('devcontainer CLI in WSL')
+function Connect-Ghcr {
+    Write-Step "Docker login to ghcr.io (in $(Get-TargetLabel))"
+    if (-not (Test-TargetCommand 'gh')) {
+        Write-Warn2 "gh CLI unavailable in $(Get-TargetLabel); cannot obtain a token for ghcr.io login"
+        return
     }
-} else {
-    Install-Tool -Name 'Docker' -Command 'docker' -WingetId 'n/a' `
-        -LinuxHint 'See https://docs.docker.com/engine/install/'
-
-    Write-Step 'devcontainer CLI'
-    if (Test-Command 'devcontainer') {
-        Write-Ok 'devcontainer CLI already installed'
-    } elseif (Test-Command 'npm') {
-        npm install -g @devcontainers/cli
+    if (-not (Test-TargetCommand 'docker')) {
+        Write-Warn2 "docker unavailable in $(Get-TargetLabel); skipping ghcr.io login"
+        return
+    }
+    if ((Invoke-TargetCommand 'gh auth status').ExitCode -ne 0) {
+        Write-Warn2 "Not logged in to gh in $(Get-TargetLabel); skipping ghcr.io login"
+        return
+    }
+    Repair-DockerCredsStore
+    $result = Invoke-TargetCommand 'gh auth token | docker login ghcr.io -u "$(gh api user -q .login)" --password-stdin'
+    if ($result.ExitCode -ne 0) {
+        Write-Warn2 "docker login failed in $(Get-TargetLabel); see output above."
+        $text = $result.Text.Trim()
+        if ($text) { Write-Host $text }
     } else {
-        Write-Warn2 'npm not found. Install Node.js, then `npm install -g @devcontainers/cli`.'
-        $manualInstallNeeded.Add('devcontainer CLI')
+        Write-Ok "docker logged in to ghcr.io in $(Get-TargetLabel)"
+    }
+}
+
+# --- Main flow --------------------------------------------------------------
+# WSL is checked FIRST on Windows: every other tool below installs and
+# authenticates inside it, so nothing downstream can proceed without it.
+if ($OS -eq 'windows') {
+    $targetReady = Install-Wsl
+    if ($targetReady) { $script:TargetDistro = Get-WslDistro }
+} else {
+    $targetReady = $true  # the target is this machine
+}
+
+if ($targetReady) {
+    Install-TargetGit
+    Install-TargetGh
+    Install-TargetDocker
+    Install-TargetDevcontainerCli
+} else {
+    Write-Warn2 'No usable WSL distro; skipping Git, GitHub CLI, Docker Engine and the devcontainer CLI installs.'
+    foreach ($tool in @('Git', 'GitHub CLI', 'Docker Engine', 'devcontainer CLI')) {
+        $manualInstallNeeded.Add($tool)
     }
 }
 
@@ -513,51 +678,11 @@ if (Test-Command 'code') {
     $manualInstallNeeded.Add('Dev Containers / Remote-WSL extensions')
 }
 
-Write-Step 'GitHub authentication (read:packages scope)'
-$ghAvailable = Test-Command 'gh'
-if (-not $ghAvailable) {
-    Write-Warn2 'gh CLI unavailable; skipping GitHub auth and ghcr.io login'
+if ($targetReady) {
+    Connect-GitHubAuth
+    Connect-Ghcr
 } else {
-    $authStatus = gh auth status 2>&1 | Out-String
-    if ($LASTEXITCODE -ne 0) {
-        if ($NonInteractive) {
-            Write-Warn2 'gh is not authenticated and -NonInteractive was passed; skipping login.'
-            $manualInstallNeeded.Add('gh auth login --scopes read:packages')
-        } else {
-            Write-Host '    logging in to GitHub...'
-            gh auth login --hostname github.com --git-protocol https --web --scopes 'read:packages'
-        }
-    } elseif ($authStatus -notmatch 'read:packages') {
-        Write-Host '    refreshing token scope...'
-        gh auth refresh -h github.com -s read:packages
-    } else {
-        Write-Ok 'gh already authenticated with read:packages'
-    }
-}
-
-Write-Step 'Docker login to ghcr.io'
-if (-not $ghAvailable) {
-    Write-Warn2 'gh CLI unavailable; cannot obtain a token for ghcr.io login'
-} elseif (-not (Test-DockerAvailable)) {
-    Write-Warn2 'docker unavailable; skipping ghcr.io login'
-} else {
-    $ghcrUser = (gh api user -q .login 2>$null)
-    if (-not $ghcrUser) {
-        Write-Warn2 'Not logged in to gh; skipping ghcr.io login'
-    } elseif ($OS -eq 'windows') {
-        $distro = Get-WslDistro
-        Repair-DockerCredsStore $distro
-        gh auth token | wsl -d $distro -- docker login ghcr.io -u $ghcrUser --password-stdin
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warn2 "docker login failed in WSL distro '$distro'; see output above."
-        }
-    } else {
-        Repair-DockerCredsStore $null
-        gh auth token | docker login ghcr.io -u $ghcrUser --password-stdin
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warn2 'docker login failed; see output above.'
-        }
-    }
+    Write-Warn2 'No usable target; skipping GitHub authentication and the ghcr.io login.'
 }
 
 Write-Step 'Summary'
@@ -567,7 +692,8 @@ if ($manualInstallNeeded.Count -gt 0) {
     Write-Ok 'All tools installed and authenticated.'
 }
 if ($OS -eq 'windows') {
-    Write-Host "`nDocker's service isn't enabled at WSL boot (see the comment in Install-DockerOnWsl for why); re-run this script after every 'wsl --shutdown' or reboot to start it again, or run 'sudo service docker start' yourself inside WSL."
+    Write-Host "`nGit, GitHub CLI, Docker and the devcontainer CLI all live inside WSL now, not on Windows -- use them from a WSL terminal (``wsl -d $($script:TargetDistro)``)."
+    Write-Host "`nDocker's service isn't enabled at WSL boot (see the comment in Install-TargetDocker for why), and a freshly-added docker group membership only takes effect in a new WSL session; run 'wsl --shutdown' once after the first install, then re-run this script (or 'sudo service docker start') after every later 'wsl --shutdown' or reboot."
     Write-Host "`nNext: open this repo from inside WSL (e.g. run 'wsl' then 'code .' from the repo's WSL path, or use 'Remote-WSL: Reopen Folder in WSL' from the command palette) so VS Code's Dev Containers extension talks to the Docker daemon running in WSL. Then run 'Dev Containers: Add Dev Container Configuration Files', or see README.md for the devcontainer CLI / raw devcontainer.json options."
 } else {
     Write-Host "`nNext: open this repo (or any project) in VS Code and run 'Dev Containers: Add Dev Container Configuration Files', or see README.md for the devcontainer CLI / raw devcontainer.json options."

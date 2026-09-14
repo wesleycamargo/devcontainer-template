@@ -43,10 +43,12 @@ gh auth token | docker login ghcr.io -u wesleycamargo --password-stdin
 ```
 
 On Windows, [`scripts/setup-devcontainer-client.ps1`](scripts/setup-devcontainer-client.ps1)
-does this plus installing everything else a consumer needs — WSL itself and an
-Ubuntu distro if they're missing, Git, GitHub CLI, VS Code + the Dev
-Containers/Remote-WSL extensions, Docker Engine inside WSL, the `devcontainer`
-CLI. It's idempotent — re-run it whenever the token expires.
+does this plus installing everything else a consumer needs. WSL is checked and
+installed first — an Ubuntu distro too, if neither is there yet — because
+everything else (Git, GitHub CLI, Docker Engine, the `devcontainer` CLI) is
+then installed and authenticated *inside* that distro, never on Windows
+itself; only VS Code and its Dev Containers/Remote-WSL extensions stay on the
+Windows host. It's idempotent — re-run it whenever the token expires.
 
 ## How the images work
 
@@ -68,10 +70,12 @@ workflows), not just consuming a published template.
 ### 1. Host prerequisites
 
 Windows + WSL2 is the supported host. One script installs everything a
-contributor needs — WSL and Ubuntu, Git, GitHub CLI, VS Code + the Dev
-Containers/Remote-WSL extensions, Docker Engine **inside WSL** (never Docker
-Desktop), the `devcontainer` CLI — and does the [ghcr.io login](#authentication).
-Run it from any Windows terminal; it works in both Windows PowerShell 5.1 and
+contributor needs. It checks and installs WSL and Ubuntu **first** — before
+anything else, since everything below it lives inside that distro: Git,
+GitHub CLI, Docker Engine **(never Docker Desktop)**, the `devcontainer`
+CLI, the `gh` login, and the [ghcr.io login](#authentication). Only VS Code
+and its Dev Containers/Remote-WSL extensions stay on Windows itself. Run it
+from any Windows terminal; it works in both Windows PowerShell 5.1 and
 PowerShell 7:
 
 ```powershell
@@ -93,14 +97,20 @@ Starting from a machine with no WSL at all, expect three things:
   and stops; reboot and run it again to pick up where it left off.
 - **Ubuntu's first-run setup.** It prompts for a UNIX username and password in
   your console. Remember that password — the script needs it for the `sudo`
-  steps that install Docker and the `devcontainer` CLI, and asks for it once.
+  steps that install Git, GitHub CLI, Docker and the `devcontainer` CLI
+  inside the distro, and asks for it once.
+- **A `gh auth login` prompt inside WSL.** It prints a one-time code and a URL
+  to open in a browser yourself — WSL has no way to launch your Windows
+  browser automatically.
 
 `-Yes` answers the install prompts automatically; `-NonInteractive` never
 prompts at all and reports whatever it skipped in the summary.
 
-On Linux it only checks and prints install instructions. The repo's own
-devcontainer pulls the private `ai-hermes-devbox-image`, so that login has to
-succeed before the container will start.
+On Linux the local machine is the target: the same apt-based installers run
+directly when `apt-get` is present, and it prints install instructions for
+anything else. The repo's own devcontainer pulls the private
+`ai-hermes-devbox-image`, so the ghcr.io login has to succeed before the
+container will start.
 
 ### 2. Clone and open the devcontainer
 
@@ -194,7 +204,7 @@ message overrides) and republishes the template and its image.
 
 | Script                                          | Where it runs        | Purpose                                                     |
 | ----------------------------------------------- | -------------------- | ----------------------------------------------------------- |
-| `scripts/setup-devcontainer-client.ps1`         | Windows host         | Install WSL/Ubuntu + prerequisites, `gh`/Docker ghcr.io login |
+| `scripts/setup-devcontainer-client.ps1`         | Windows host         | Install WSL/Ubuntu first, then Git/gh/Docker/devcontainer CLI + `gh`/ghcr.io login, all inside WSL |
 | `scripts/validate-hermes-gateway.sh`            | WSL host             | Hermes SSH gateway contract checks (`build`, `A`–`E`, `all`) |
 | `scripts/test_ai_openhands_devbox.sh`           | anywhere             | Static config checks for the OpenHands template             |
 | `scripts/setup_github_publishing.py`            | anywhere with `gh`   | One-time GitHub publishing setup                            |

@@ -59,24 +59,37 @@ template/image built from the same config.
   (workflow token permissions, package visibility check). Requires `gh`
   authenticated with `packages` scope.
 - `scripts/setup-devcontainer-client.ps1` — one-time client-side setup for
-  someone *consuming* a published template/image: installs Git/GitHub
-  CLI/VS Code + the Dev Containers/Remote-WSL extensions via winget, Docker
-  Engine inside WSL (never Docker Desktop), and the `devcontainer` CLI, then
-  authenticates `gh` with `read:packages` and logs Docker in to ghcr.io.
-  Idempotent; safe to re-run. Windows-only install automation; Linux prints
-  manual install instructions. Runs from a bare Windows box: `Install-Wsl`
-  detects whether WSL is missing, present-but-distro-less, or ready (never
-  by `wsl.exe`'s presence — it ships in System32 regardless), asks before
-  installing, and elevates *only* the `wsl --install` call so the `gh`/Docker
-  credentials don't land in the Administrator profile. WSL's first install
-  needs a reboot, so the script stops and tells the user to re-run.
-  `Invoke-WslSudoScript` runs the in-WSL installs via passwordless `sudo -n`
-  when available and otherwise prompts once for the distro's sudo password
-  (cached per run, verified before use); script bodies are base64-encoded by
-  `New-WslBashCommand` so quotes and heredocs survive the Windows→WSL command
-  line. `-Yes` auto-confirms the install prompts, `-NonInteractive` never
-  prompts. Keep it Windows PowerShell 5.1-compatible and pure ASCII — 5.1
-  decodes BOM-less files as ANSI.
+  someone *consuming* a published template/image. Built around a *target*
+  abstraction: the Linux environment everything installs and authenticates
+  into — a WSL distro on Windows, or the local machine on Linux
+  (`$script:TargetDistro`, `$null` meaning local). On Windows, WSL is
+  checked and installed FIRST, before any other step, because Git, GitHub
+  CLI, Docker Engine (never Docker Desktop) and the `devcontainer` CLI are
+  then all installed via apt *inside* that distro — never on Windows itself
+  — and `gh auth login` plus the ghcr.io `docker login` also run there. VS
+  Code and its Dev Containers/Remote-WSL extensions are the only things
+  that stay on the Windows host. On Linux the target is just the local
+  machine, so the same apt-based installers run directly. Idempotent; safe
+  to re-run.
+  `Install-Wsl` detects whether WSL is missing, present-but-distro-less, or
+  ready (never by `wsl.exe`'s presence — it ships in System32 regardless),
+  asks before installing, and elevates *only* the `wsl --install` call so
+  the `gh`/Docker credentials don't land in the Administrator profile.
+  WSL's first install needs a reboot, so the script stops and tells the
+  user to re-run. `Invoke-TargetRaw` is the one primitive both the WSL and
+  local branches run through; `Invoke-TargetSudoScript` layers already-root
+  / passwordless `sudo -n` / prompted-password (cached per run, verified
+  before use) on top of it for the apt installers. Script bodies are
+  base64-encoded by `New-TargetBashCommand` so quotes and heredocs survive
+  the Windows→WSL command line. `-Yes` auto-confirms the install prompts,
+  `-NonInteractive` never prompts. Keep it Windows PowerShell 5.1-compatible
+  and pure ASCII — 5.1 decodes BOM-less files as ANSI. Never run its real
+  installers against a live shared environment to test it — the target
+  abstraction can be exercised safely by loading its functions from the AST
+  and stubbing `Invoke-TargetRaw`/`Get-WslOutput` (see the plan file's
+  verification section for the pattern), or by asserting behavior against
+  read-only checks (`Test-TargetCommand` on things already known to
+  exist/not exist).
 
 All published packages under
 ghcr.io/wesleycamargo/devcontainer-template/` — the `ai-devbox`,
