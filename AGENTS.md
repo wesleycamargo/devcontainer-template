@@ -32,6 +32,13 @@ template/image built from the same config.
   It is independent from Hermes and uses Codex ACP with the user-supplied
   `CODEX_AUTH_JSON` OAuth secret. Published as `ai-openhands-devbox` /
   `ai-openhands-devbox-image`.
+- `docs/<id>.md` — the repo-side user-facing page for each published template
+  (`docs/ai-devbox.md`, `docs/ai-hermes-devbox.md`,
+  `docs/ai-openhands-devbox.md`), linked from the root `README.md`'s Templates
+  table. `src/<id>/README.md` is the copy that ships *inside* the template and
+  lands in a consumer's project on `devcontainer templates apply`; the `docs/`
+  page is what someone reads before applying it. They overlap, so a change to
+  one template's behavior usually needs both updated.
 - `.github/workflows/publish-<id>.yml` — one publish workflow per
   devcontainer under `src/` (`publish-ai-devbox.yml`,
   `publish-ai-hermes-devbox.yml`, `publish-ai-openhands-devbox.yml`). Each runs only when its own
