@@ -43,9 +43,10 @@ gh auth token | docker login ghcr.io -u wesleycamargo --password-stdin
 ```
 
 On Windows, [`scripts/setup-devcontainer-client.ps1`](scripts/setup-devcontainer-client.ps1)
-does this plus installing everything else a consumer needs (Git, GitHub CLI,
-VS Code + the Dev Containers/Remote-WSL extensions, Docker Engine inside WSL, the
-`devcontainer` CLI). It's idempotent — re-run it whenever the token expires.
+does this plus installing everything else a consumer needs — WSL itself and an
+Ubuntu distro if they're missing, Git, GitHub CLI, VS Code + the Dev
+Containers/Remote-WSL extensions, Docker Engine inside WSL, the `devcontainer`
+CLI. It's idempotent — re-run it whenever the token expires.
 
 ## How the images work
 
@@ -67,13 +68,35 @@ workflows), not just consuming a published template.
 ### 1. Host prerequisites
 
 Windows + WSL2 is the supported host. One script installs everything a
-contributor needs — Git, GitHub CLI, VS Code + the Dev Containers/Remote-WSL
-extensions, Docker Engine **inside WSL** (never Docker Desktop), the
-`devcontainer` CLI — and does the [ghcr.io login](#authentication):
+contributor needs — WSL and Ubuntu, Git, GitHub CLI, VS Code + the Dev
+Containers/Remote-WSL extensions, Docker Engine **inside WSL** (never Docker
+Desktop), the `devcontainer` CLI — and does the [ghcr.io login](#authentication).
+Run it from any Windows terminal; it works in both Windows PowerShell 5.1 and
+PowerShell 7:
 
 ```powershell
 ./scripts/setup-devcontainer-client.ps1
 ```
+
+If PowerShell's execution policy blocks it:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\setup-devcontainer-client.ps1
+```
+
+Starting from a machine with no WSL at all, expect three things:
+
+- **One UAC prompt.** The script asks before installing WSL, then elevates only
+  that `wsl --install` call — everything else, including the `gh` and Docker
+  logins, stays in your own user profile.
+- **A reboot.** WSL's first install almost always needs one. The script says so
+  and stops; reboot and run it again to pick up where it left off.
+- **Ubuntu's first-run setup.** It prompts for a UNIX username and password in
+  your console. Remember that password — the script needs it for the `sudo`
+  steps that install Docker and the `devcontainer` CLI, and asks for it once.
+
+`-Yes` answers the install prompts automatically; `-NonInteractive` never
+prompts at all and reports whatever it skipped in the summary.
 
 On Linux it only checks and prints install instructions. The repo's own
 devcontainer pulls the private `ai-hermes-devbox-image`, so that login has to
@@ -171,7 +194,7 @@ message overrides) and republishes the template and its image.
 
 | Script                                          | Where it runs        | Purpose                                                     |
 | ----------------------------------------------- | -------------------- | ----------------------------------------------------------- |
-| `scripts/setup-devcontainer-client.ps1`         | Windows host         | Install prerequisites + `gh`/Docker ghcr.io login           |
+| `scripts/setup-devcontainer-client.ps1`         | Windows host         | Install WSL/Ubuntu + prerequisites, `gh`/Docker ghcr.io login |
 | `scripts/validate-hermes-gateway.sh`            | WSL host             | Hermes SSH gateway contract checks (`build`, `A`–`E`, `all`) |
 | `scripts/test_ai_openhands_devbox.sh`           | anywhere             | Static config checks for the OpenHands template             |
 | `scripts/setup_github_publishing.py`            | anywhere with `gh`   | One-time GitHub publishing setup                            |
