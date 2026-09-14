@@ -42,8 +42,8 @@ is not required.
 3. During onboarding, leave `OPENAI_API_KEY` blank. For the subscription login,
    enter `CODEX_AUTH_JSON`: the complete JSON content of the Codex CLI
    `~/.codex/auth.json` file.
-4. Select **Open Workspace** and choose
-   `/projects/devcontainer-template` before starting a conversation.
+4. Select **Open Workspace** and choose `/projects` before starting a
+   conversation.
 
 Agent Canvas stores this value in its persistent state volume and materializes
 it only when starting the Codex ACP process. Do not commit `auth.json`, paste it
@@ -56,7 +56,7 @@ continues using the ChatGPT subscription while the OAuth login remains valid.
 ## Security and limitations
 
 Agent Canvas and Codex ACP can read, edit, and execute commands in the mounted
-project at `/projects/devcontainer-template`. Use this template only for
+project at `/projects`. Use this template only for
 repositories and prompts you trust.
 
 The template does not mount `/var/run/docker.sock` and does not run privileged.

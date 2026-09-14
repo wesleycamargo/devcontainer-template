@@ -11,7 +11,7 @@ services:
     # rather than relying on the image's own entrypoint to block.
     command: sleep infinity
     volumes:
-      - ..:/workspaces/devcontainer-template:cached
+      - ../..:/workspaces:cached
       # Agent CLI configs, bind-mounted from the host rather than COPYed into
       # the image -- these hold live credentials (.credentials.json, auth.json)
       # and baking them into image layers would persist them in `docker history`.

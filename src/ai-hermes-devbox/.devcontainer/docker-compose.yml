@@ -28,9 +28,8 @@ services:
       # Pins `hermes-ssh-info`'s suggested terminal.cwd to the workspace mount
       # below instead of its /workspaces/*/ auto-detect glob, which falls back
       # to /home/hermes if it ever can't find a match. Keep this in sync with
-      # workspaceFolder (devcontainer.json) and the bind mount target (below)
-      # -- see "Workspace folder name" in README.md.
-      HERMES_SSH_CWD: "/workspaces/devcontainer-template"
+      # workspaceFolder (devcontainer.json) and the bind mount target (below).
+      HERMES_SSH_CWD: "/workspaces"
     depends_on:
       ssh-pubkeys:
         condition: service_completed_successfully
@@ -38,7 +37,7 @@ services:
     # not published: VS Code forwards the dashboard (`forwardPorts` in
     # devcontainer.json), and `ssh -L` can reach either through the gateway.
     volumes:
-      - ..:/workspaces/devcontainer-template:cached
+      - ../..:/workspaces:cached
       # Named volumes make a fresh checkout usable on any host: Docker creates
       # them on demand and copies each image directory into it on first use.
       # They keep CLI logins across normal container rebuilds without depending

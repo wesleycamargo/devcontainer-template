@@ -2,7 +2,7 @@
   "name": "AI Devbox",
   "dockerComposeFile": "docker-compose.yml",
   "service": "devcontainer",
-  "workspaceFolder": "/workspaces/devcontainer-template",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
   // Compose owns container lifecycle now (see docker-compose.yml); stop the
   // service on close instead of leaving it running detached.
   "shutdownAction": "stopCompose",

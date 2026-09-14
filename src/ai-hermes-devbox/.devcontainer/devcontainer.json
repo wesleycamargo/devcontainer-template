@@ -2,7 +2,7 @@
   "name": "AI Hermes Devbox",
   "dockerComposeFile": "docker-compose.yml",
   "service": "devcontainer",
-  "workspaceFolder": "/workspaces/devcontainer-template",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
   // Leave the Compose project running when the VS Code window closes. This
   // container is an SSH gateway: `stopCompose` would tear down the SSH daemon underneath
   // a connected Hermes Desktop just because an editor window was closed. Stop

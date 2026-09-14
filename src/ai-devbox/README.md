@@ -82,11 +82,12 @@ template point at the original author's machine — edit or remove those
 `volumes` entries in `docker-compose.yml` to match your own host, or drop
 them entirely if you don't need persisted agent logins.
 
-### Workspace folder name
+### Workspace location
 
-`workspaceFolder` and the compose bind mount both hardcode
-`/workspaces/devcontainer-template`. Update both to match your project's
-folder name after applying the template.
+The parent directory containing the applied repository is mounted at
+`/workspaces`. VS Code automatically opens
+`/workspaces/<your-repository-directory-name>`, so no repository-specific path
+changes are required.
 
 ## Troubleshooting
 

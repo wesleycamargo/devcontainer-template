@@ -6,7 +6,7 @@ services:
     init: true
     command: sleep infinity
     volumes:
-      - ..:/workspaces/devcontainer-template:cached
+      - ../..:/workspaces:cached
       # Docker creates these named volumes on demand and populates them from
       # the image once, so in-container Claude/Codex logins survive rebuilds
       # without requiring host credential paths.
@@ -28,7 +28,7 @@ services:
       - agent-canvas-data:/home/openhands/.openhands
       # Agent Canvas may read and modify only this project directory. Select it
       # in Canvas with Open Workspace before starting a conversation.
-      - ..:/projects/devcontainer-template:rw
+      - ..:/projects:rw
     restart: unless-stopped
 
 volumes:

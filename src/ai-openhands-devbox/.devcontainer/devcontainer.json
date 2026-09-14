@@ -2,7 +2,7 @@
   "name": "AI OpenHands Devbox",
   "dockerComposeFile": "docker-compose.yml",
   "service": "devcontainer",
-  "workspaceFolder": "/workspaces/devcontainer-template",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
   "shutdownAction": "stopCompose",
   "remoteUser": "vscode",
   "features": {
