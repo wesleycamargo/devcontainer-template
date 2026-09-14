@@ -8,10 +8,15 @@
   Verifies/installs Git, GitHub CLI, Docker Engine and the `devcontainer`
   CLI inside the *target* -- WSL on Windows (never Docker Desktop), or the
   local machine on Linux -- plus VS Code and its Dev Containers/Remote-WSL
-  extensions on the host. Then authenticates `gh` with the `read:packages`
-  scope and logs Docker in to ghcr.io, both inside the target, so the
-  private ghcr.io/wesleycamargo/devcontainer-template/* packages can be
-  pulled.
+  extensions on the host. Generates an ed25519 SSH key in the target if it
+  doesn't have one yet (the key SSH-BACKEND.md's Hermes gateway authorizes
+  has to live in `~/.ssh` of the machine that starts the container, i.e.
+  the target). On Windows, also copies the Windows user's own SSH public
+  key(s) into the target under a `windows-` prefix, since Hermes Desktop
+  authenticates with that key, not the target's. Then authenticates `gh`
+  with the `read:packages` scope and logs Docker in to ghcr.io, both inside
+  the target, so the private ghcr.io/wesleycamargo/devcontainer-template/*
+  packages can be pulled.
 
   Windows: WSL is checked and installed FIRST, before anything else --
   every other tool lives inside it, so nothing downstream can proceed
@@ -562,6 +567,68 @@ npm install -g @devcontainers/cli
     }
 }
 
+function Initialize-TargetSshKey {
+    # SSH-BACKEND.md: Hermes authorizes every `*.pub` in `~/.ssh` of the
+    # machine that starts the container -- which, since everything above this
+    # installs Docker and the devcontainer CLI into the target, is the target,
+    # not the Windows host. No sudo: the key belongs to the target user, the
+    # same one Docker/devcontainer run as.
+    Write-Step "SSH key (in $(Get-TargetLabel))"
+    if ((Invoke-TargetCommand 'test -f "$HOME/.ssh/id_ed25519"').ExitCode -eq 0) {
+        Write-Ok "SSH key already exists in $(Get-TargetLabel)"
+        return
+    }
+    if (-not (Test-TargetCommand 'ssh-keygen')) {
+        Write-Warn2 "ssh-keygen not found in $(Get-TargetLabel). Install the OpenSSH client, then run: ssh-keygen -t ed25519"
+        $manualInstallNeeded.Add('SSH key')
+        return
+    }
+    Write-Host "    generating an ed25519 SSH key in $(Get-TargetLabel)..."
+    # ssh-keygen doesn't create ~/.ssh itself -- it fails with "No such file or
+    # directory" if the directory isn't already there.
+    $result = Invoke-TargetCommand 'mkdir -p -m 700 "$HOME/.ssh" && ssh-keygen -t ed25519 -N "" -f "$HOME/.ssh/id_ed25519"'
+    if ($result.ExitCode -ne 0) {
+        Write-Warn2 "SSH key generation failed in $(Get-TargetLabel). Run: ssh-keygen -t ed25519"
+        $manualInstallNeeded.Add('SSH key')
+    } else {
+        Write-Ok "SSH key created in $(Get-TargetLabel)"
+    }
+}
+
+function Copy-HostSshPublicKeys {
+    # Windows only. SSH-BACKEND.md: "Docker in WSL, Hermes on Windows: those
+    # are two different ~/.ssh folders" -- Hermes Desktop and other
+    # Windows-side tools authenticate with the *Windows* user's own SSH key,
+    # not the one Initialize-TargetSshKey just generated in the target. Copy
+    # its public key(s) in too, under a `windows-` prefix so they can never
+    # collide with the target's own, so ssh-pubkeys authorizes both.
+    if ($OS -ne 'windows') { return }
+    $winSshDir = Join-Path $env:USERPROFILE '.ssh'
+    if (-not (Get-ChildItem -Path $winSshDir -Filter '*.pub' -ErrorAction SilentlyContinue)) { return }
+
+    Write-Step "Windows SSH public key(s) -> $(Get-TargetLabel)"
+    $pathResult = Get-WslOutput @('-d', $script:TargetDistro, '--', 'wslpath', '-u', $winSshDir)
+    if ($pathResult.ExitCode -ne 0) {
+        Write-Warn2 "Could not resolve '$winSshDir' as a WSL path. Copy it in manually: cp -n /mnt/c/Users/<you>/.ssh/*.pub ~/.ssh/windows-<name>.pub"
+        return
+    }
+    $wslSshDir = $pathResult.Text.Trim()
+    $copyScript = @"
+set -e
+mkdir -p -m 700 "`$HOME/.ssh"
+for f in "$wslSshDir"/*.pub; do
+    [ -f "`$f" ] || continue
+    cp -n "`$f" "`$HOME/.ssh/windows-`$(basename "`$f")"
+done
+"@
+    $result = Invoke-TargetRaw @('bash', '-c', (New-TargetBashCommand $copyScript))
+    if ($result.ExitCode -ne 0) {
+        Write-Warn2 "Copying Windows SSH public key(s) into $(Get-TargetLabel) failed. Copy them in manually: cp -n '$wslSshDir'/*.pub ~/.ssh/"
+    } else {
+        Write-Ok "Windows SSH public key(s) copied into $(Get-TargetLabel)"
+    }
+}
+
 function Repair-DockerCredsStore {
     # A stale/inherited ~/.docker/config.json can point `credsStore` at a
     # credential helper (e.g. secretservice, from a desktop keyring) that
@@ -653,9 +720,11 @@ if ($targetReady) {
     Install-TargetGh
     Install-TargetDocker
     Install-TargetDevcontainerCli
+    Initialize-TargetSshKey
+    Copy-HostSshPublicKeys
 } else {
-    Write-Warn2 'No usable WSL distro; skipping Git, GitHub CLI, Docker Engine and the devcontainer CLI installs.'
-    foreach ($tool in @('Git', 'GitHub CLI', 'Docker Engine', 'devcontainer CLI')) {
+    Write-Warn2 'No usable WSL distro; skipping Git, GitHub CLI, Docker Engine, the devcontainer CLI and SSH key setup.'
+    foreach ($tool in @('Git', 'GitHub CLI', 'Docker Engine', 'devcontainer CLI', 'SSH key')) {
         $manualInstallNeeded.Add($tool)
     }
 }
