@@ -58,6 +58,12 @@ template/image built from the same config.
 - `scripts/setup_github_publishing.py` — one-time GitHub-side setup helper
   (workflow token permissions, package visibility check). Requires `gh`
   authenticated with `packages` scope.
+- `scripts/sync-template-agents.sh` — maintainer-only: mirrors the canonical
+  root `.agents/` into `src/ai-devbox/.agents/` and `src/ai-hermes-devbox/.agents/`,
+  repairs their `.claude/skills`/`.hermes/skills` symlinks, and keeps the Hermes
+  hook copy identical. Run it (`--check` to only report) after any change under
+  `.agents/`. It does not ship; the `sync-agent-skills` skill inside `.agents/`
+  does, and only manages the symlinks at a repo root.
 - `scripts/setup-devcontainer-client.ps1` — one-time client-side setup for
   someone *consuming* a published template/image: installs Git/GitHub
   CLI/VS Code + the Dev Containers/Remote-WSL extensions via winget, Docker
@@ -112,4 +118,4 @@ automatically through its `FROM`.
 
 ## Cross-agent skill discovery
 
-Create reusable project skills only in .agents/skills/<skill-name>/. The native discovery directories .agents/skills, .claude/skills, and .hermes/skills are directory symlinks to that location; never create or copy skills directly into those aliases. Codex and Claude writes through their native paths therefore land in .agents/skills automatically. Hermes is configured during Hermes Devbox creation with .agents/skills as both its external discovery directory and default creation directory, while its personal skills remain in ~/.hermes/skills.
+Create reusable project skills only in .agents/skills/<skill-name>/. The discovery aliases .claude/skills and .hermes/skills are directory symlinks to that location; never create or copy skills directly into those aliases. Writes through those aliases therefore land in .agents/skills automatically. Hermes is configured during Hermes Devbox creation with .agents/skills as both its external discovery directory and default creation directory, while its personal skills remain in ~/.hermes/skills.

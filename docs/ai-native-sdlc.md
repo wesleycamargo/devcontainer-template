@@ -160,4 +160,4 @@ This is conceptual rather than one-to-one. A large intent can later be split, bu
 
 ## Cross-agent skill discovery
 
-Create reusable skills in .agents/skills/<skill-name>/. The AI Devbox template exposes that same tree to Codex through .agents/skills and to Claude Code through .claude/skills; both are symlinks, so additions are available immediately without copying or a watcher. AI Hermes Devbox also exposes .hermes/skills and configures Hermes to discover and create skills in .agents/skills, while preserving the user profile at ~/.hermes/skills.
+Create reusable skills in .agents/skills/<skill-name>/. The AI Devbox template exposes that same tree to Claude Code through .claude/skills, a symlink, so additions are available immediately without copying or a watcher. AI Hermes Devbox also exposes .hermes/skills and configures Hermes to discover and create skills in .agents/skills, while preserving the user profile at ~/.hermes/skills.

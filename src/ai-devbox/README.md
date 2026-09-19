@@ -98,4 +98,4 @@ changes are required.
 ## AI-native SDLC framework
 
 This template includes a vendor-neutral AI-native SDLC framework in .agents/. Use its five sdlc-* skills to create intent.md, spec.md, and plan.md in sdlc/<work-item>/ only when work begins. See .agents/README.md for the internal conventions and the repository [framework guide](../../docs/ai-native-sdlc.md) before applying the template.
-The .agents/skills and .claude/skills directories are symlinks to .agents/skills. Create skills only in .agents/skills; Codex and Claude Code discover them through their native paths without copies.
+The .claude/skills directory is a symlink to .agents/skills. Create skills only in .agents/skills; Claude Code discovers them through its native path without copies.
