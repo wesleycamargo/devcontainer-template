@@ -63,3 +63,7 @@ Source: [`src/ai-devbox/`](../src/ai-devbox/) ·
 [`Dockerfile`](../src/ai-devbox/.devcontainer/Dockerfile) ·
 [`publish-ai-devbox.yml`](../.github/workflows/publish-ai-devbox.yml) ·
 [in-template README](../src/ai-devbox/README.md)
+
+## AI-native SDLC framework
+
+AI Devbox includes the portable .agents/ SDLC skills. They guide an agent from intent through specification, planning, implementation, and independent validation while storing real work items only in sdlc/<work-item>/. Read the [AI-native SDLC framework guide](ai-native-sdlc.md) for the workflow and invocation examples.

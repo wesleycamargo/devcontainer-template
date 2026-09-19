@@ -2,6 +2,6 @@
   "id": "ai-devbox",
   "version": "1.0.0",
   "name": "AI Devbox (PowerShell)",
-  "description": "PowerShell devcontainer with Claude Code / Codex agent CLIs and Azure Bicep preconfigured.",
+  "description": "PowerShell devcontainer with Claude Code / Codex agent CLIs, Azure Bicep, and vendor-neutral AI-native SDLC skills.",
   "options": {}
 }

@@ -243,3 +243,7 @@ terminal working directory to that same path; no template edits are required.
 - **Agent CLI asks you to log in again every rebuild**: check that the
   `claude-data` and `codex-data` named volumes still exist. Removing volumes
   removes CLI login state.
+
+## AI-native SDLC framework
+
+This template includes the AI-native SDLC framework in .agents/. Create reusable skills in .agents/skills. Codex, Claude Code, and Hermes native skill paths are symlinks to that directory. Hermes is configured at container creation to discover and create project skills there while preserving personal skills in ~/.hermes/skills.

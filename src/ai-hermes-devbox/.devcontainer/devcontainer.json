@@ -21,10 +21,8 @@
     },
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
-  // Editor/development concerns only. SSH and the Hermes services are owned by
-  // the image's entrypoint, so they behave identically under `docker run` and
-  // `docker compose` -- there is deliberately no Dev Container startup hook here.
-  "postCreateCommand": "cp /tmp/host-gitconfig ~/.gitconfig 2>/dev/null || true; cp /tmp/host-git-credentials ~/.git-credentials 2>/dev/null || true; chmod 600 ~/.git-credentials 2>/dev/null || true",
+  // Hermes services are image-owned. The post-create hook only configures
+  // the current workspace as the Hermes project skill source.
   // Hermes dashboard. Binds loopback inside the container, so VS Code
   // forwards it rather than Docker publishing it.
   "forwardPorts": [9119],

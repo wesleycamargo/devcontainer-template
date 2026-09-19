@@ -109,3 +109,7 @@ automatically through its `FROM`.
 - `thecloudexplorers/devcontainer-template` (git remote `tce`) — a similar
   devcontainer-template repo this repo's publishing workflow was originally
   modeled on.
+
+## Cross-agent skill discovery
+
+Create reusable project skills only in .agents/skills/<skill-name>/. The native discovery directories .agents/skills, .claude/skills, and .hermes/skills are directory symlinks to that location; never create or copy skills directly into those aliases. Codex and Claude writes through their native paths therefore land in .agents/skills automatically. Hermes is configured during Hermes Devbox creation with .agents/skills as both its external discovery directory and default creation directory, while its personal skills remain in ~/.hermes/skills.

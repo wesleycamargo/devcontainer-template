@@ -1,5 +1,7 @@
 # devcontainer-template
 
+See the [AI-native SDLC framework guide](docs/ai-native-sdlc.md) included with the AI Devbox template.
+
 Three published dev container templates built from one shared image recipe: a
 PowerShell-first devbox with the Claude Code / Codex agent CLIs and Azure
 tooling, on its own or paired with an agent stack.

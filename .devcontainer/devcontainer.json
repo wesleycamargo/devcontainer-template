@@ -19,10 +19,9 @@
     },
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
-  // Editor/development concerns only. Hermes' gateway and dashboard are
-  // started by the image's entrypoint (HERMES_AUTOSTART_SERVICES in
-  // docker-compose.yml), so no Dev Container startup hook is needed.
-  "postCreateCommand": "cp /tmp/host-gitconfig ~/.gitconfig 2>/dev/null || true; cp /tmp/host-git-credentials ~/.git-credentials 2>/dev/null || true; chmod 600 ~/.git-credentials 2>/dev/null || true",
+  // Hermes services are image-owned. The post-create hook only configures
+  // the current workspace as the Hermes project skill source.
+  "postCreateCommand": "cp /tmp/host-gitconfig ~/.gitconfig 2>/dev/null || true; cp /tmp/host-git-credentials ~/.git-credentials 2>/dev/null || true; chmod 600 ~/.git-credentials 2>/dev/null || true; bash .devcontainer/scripts/configure-project-skills.sh "$PWD"",
   "forwardPorts": [9119],
   "customizations": {
     "vscode": {
