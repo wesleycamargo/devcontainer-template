@@ -24,7 +24,6 @@ services:
       # The container cannot see its own published port -- pass it through so
       # `hermes-ssh-info` prints a host port you can actually connect to.
       HERMES_SSH_HOST_PORT: "${HERMES_SSH_PORT:-2222}"
-      HERMES_PROJECT_NAME: "${COMPOSE_PROJECT_NAME:-hermes}"
       # Pins `hermes-ssh-info`'s suggested terminal.cwd to the workspace mount
       # below instead of its /workspaces/*/ auto-detect glob, which falls back
       # to /home/hermes if it ever can't find a match. Keep this in sync with

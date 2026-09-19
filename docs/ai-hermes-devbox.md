@@ -16,7 +16,7 @@ gh auth token | docker login ghcr.io -u wesleycamargo --password-stdin
 # 2. apply into your project
 devcontainer templates apply -w . -t ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox
 
-# 3. pick a stable SSH port and project name
+# 3. pick a stable SSH port
 cp .devcontainer/.env.example .devcontainer/.env
 ```
 
@@ -28,7 +28,6 @@ connection:
 
 ```dotenv
 HERMES_SSH_PORT=2222
-COMPOSE_PROJECT_NAME=my-project
 ```
 
 ## VS Code UI

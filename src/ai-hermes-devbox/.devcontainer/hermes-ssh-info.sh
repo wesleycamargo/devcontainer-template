@@ -13,7 +13,16 @@ host="${HERMES_SSH_HOST:-127.0.0.1}"
 port="${HERMES_SSH_HOST_PORT:-2222}"
 user="hermes"
 hermes_path="/usr/local/bin/hermes"
-project="${HERMES_PROJECT_NAME:-$(hostname)}"
+# Name the alias after the project folder. Compose cannot pass the folder name
+# in, but a terminal opened by VS Code starts in /workspaces/<folder>. At
+# container start (no such cwd) fall back to the hostname.
+project="${HERMES_PROJECT_NAME:-}"
+if [ -z "$project" ]; then
+  case "$PWD" in
+    /workspaces/*) project="${PWD#/workspaces/}"; project="${project%%/*}" ;;
+    *) project="$(hostname)" ;;
+  esac
+fi
 alias_name="hermes-${project}"
 # Suggest the workspace as the remote working directory when there is one --
 # this script also runs from / at container start, which would be a poor
