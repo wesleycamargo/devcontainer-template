@@ -35,7 +35,7 @@ flowchart TD
     plan -. resume from handover .-> executeSkill
 `
 
-Review an artifact before treating it as approved, and reuse valid approved artifacts rather than repeating a stage. Skills ask only material questions and record noncritical unknowns as assumptions.
+Review an artifact before treating it as approved, and reuse valid approved artifacts rather than repeating a stage. Skills ask only material questions, through the agent's interactive question tool (buttons with suggested options, recommended first) when it has one, and record noncritical unknowns as assumptions.
 
 ### Skill reference
 

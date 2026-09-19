@@ -34,7 +34,7 @@ Use only relevant sections, typically:
 ## Open Questions
 `
 
-Ask one focused question only when it materially changes intent. Record a reasonable noncritical assumption instead of blocking. Do not choose a technology or architecture unless it is a confirmed constraint.
+Ask a question only when the answer materially changes intent. Ask through the agent's interactive question tool (Claude Code: AskUserQuestion), grouping related questions in one call, with 2-4 suggested options each, the recommended one first and labeled "(Recommended)", so the user answers with buttons; use plain text only when no such tool exists. Record a reasonable noncritical assumption instead of blocking. Do not choose a technology or architecture unless it is a confirmed constraint.
 
 ## Handoff
 

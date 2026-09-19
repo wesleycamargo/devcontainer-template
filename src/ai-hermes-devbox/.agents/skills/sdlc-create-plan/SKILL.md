@@ -46,7 +46,7 @@ Next: Task 1
 Blockers: None
 `
 
-If planning exposes a genuine specification gap, report it for specification revision rather than silently changing requirements. Do not add unrelated refactoring, new functionality, or 	asks.md, and do not edit code.
+If planning exposes a genuine specification gap, report it for specification revision rather than silently changing requirements. Do not add unrelated refactoring, new functionality, or tasks.md, and do not edit code. Ask only about a material approach choice the specification leaves open, otherwise record an assumption. Ask through the agent's interactive question tool (Claude Code: AskUserQuestion), grouping related questions in one call, with 2-4 suggested options each, the recommended one first and labeled "(Recommended)", so the user answers with buttons; use plain text only when no such tool exists.
 
 ## Handoff
 

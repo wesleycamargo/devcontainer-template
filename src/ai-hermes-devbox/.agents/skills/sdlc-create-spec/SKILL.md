@@ -37,7 +37,7 @@ Use only useful sections, typically:
 ## Assumptions and Open Questions
 `
 
-If the intent cannot support a reliable specification, ask the focused question needed or return the intent for revision. Do not generate tasks, prescribe implementation sequence, modify production code, expand scope, or create plan.md.
+If the intent cannot support a reliable specification, ask the question needed or return the intent for revision. Ask through the agent's interactive question tool (Claude Code: AskUserQuestion), grouping related questions in one call, with 2-4 suggested options each, the recommended one first and labeled "(Recommended)", so the user answers with buttons; use plain text only when no such tool exists. Do not generate tasks, prescribe implementation sequence, modify production code, expand scope, or create plan.md.
 
 ## Handoff
 
