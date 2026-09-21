@@ -246,4 +246,4 @@ terminal working directory to that same path; no template edits are required.
 
 ## AI-native SDLC framework
 
-This template includes the AI-native SDLC framework in .agents/. Create reusable skills in .agents/skills. The Claude Code and Hermes native skill paths are symlinks to that directory. Hermes is configured at container creation to discover and create project skills there while preserving personal skills in ~/.hermes/skills.
+This template includes the AI-native SDLC framework in .agents/. Create reusable skills in .agents/skills — it's the single source of truth. On every container start, `sync-project-skills` (via the `skills` CLI, already installed in the image) pulls the latest upstream skills into it, then exposes the merged set to Claude Code, Codex, and Hermes, both inside the project and at each agent's global level so they work from any directory. Hermes is additionally configured at container start to discover and create project skills in .agents/skills directly, while its personal skills remain in ~/.hermes/skills.

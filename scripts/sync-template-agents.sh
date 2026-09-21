@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Maintainer script for this repo: mirror the canonical root .agents/ into the
-# published template payloads (src/<id>/.agents/) and repair their skill
-# symlinks, and keep the Hermes hook copy identical to the root one.
+# published template payloads (src/<id>/.agents/), and keep the Hermes hook
+# copy identical to the root one. Skill exposure to individual agents
+# (Claude Code, Codex, Hermes) is handled at container-start time by the
+# `skills` CLI (see src/ai-devbox/.devcontainer/scripts/sync-project-skills.sh),
+# not by this script.
 #
 # Usage: scripts/sync-template-agents.sh [--check] [--force]
 set -euo pipefail
@@ -16,16 +19,10 @@ for arg in "$@"; do
 done
 
 repo=$(cd -P "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
-skill_sync=$repo/.agents/skills/sync-agent-skills/scripts/sync.sh
 templates=(ai-devbox ai-hermes-devbox)
 hook_rel=.devcontainer/scripts/configure-project-skills.sh
-flags=(--hermes)
-((check)) && flags+=(--check)
-((force)) && flags+=(--force)
 
 drift=0
-
-"$skill_sync" "${flags[@]}" "$repo" >/dev/null || drift=1
 
 for t in "${templates[@]}"; do
   dest=$repo/src/$t
@@ -35,11 +32,6 @@ for t in "${templates[@]}"; do
     echo "tree: src/$t/.agents out of date"
     echo "$out" | sed 's/^/  /'
     ((check)) || { mkdir -p "$dest/.agents"; rsync -ac --delete "$repo/.agents/" "$dest/.agents/"; }
-  fi
-  out=$("$skill_sync" "${flags[@]}" "$dest" | grep -v '^\(synced\|already in sync\|out of sync.*\)$' || true)
-  if [[ -n $out ]]; then
-    drift=1
-    echo "$out" | sed "s|^|src/$t: |"
   fi
 done
 

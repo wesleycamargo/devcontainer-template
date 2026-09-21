@@ -67,3 +67,15 @@ Source: [`src/ai-devbox/`](../src/ai-devbox/) ·
 ## AI-native SDLC framework
 
 AI Devbox includes the portable .agents/ SDLC skills. They guide an agent from intent through specification, planning, implementation, and independent validation while storing real work items only in sdlc/<work-item>/. Read the [AI-native SDLC framework guide](ai-native-sdlc.md) for the workflow and invocation examples.
+
+## Skills stay in sync automatically
+
+`.agents/skills` is the single source of truth. On every container start,
+`sync-project-skills` pulls the latest skills from the upstream template repo
+into your project (custom skills you've added under `.agents/skills` are
+preserved), then installs the merged set for Claude Code and Codex — both
+inside the project and, so they work from any directory, at each agent's
+global/home-directory level too. It's driven by `SYNC_SKILLS_USER` /
+`SYNC_SKILLS_AGENTS` / `SYNC_SKILLS_UPSTREAM` in `docker-compose.yml`; run
+`sync-project-skills` by hand inside the container to force a refresh
+mid-session.

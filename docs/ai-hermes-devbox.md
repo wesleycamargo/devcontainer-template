@@ -88,6 +88,14 @@ The container reads no host credentials — run `claude`, `codex` and
 
 ## Notes
 
+- **Skills**: on every start, `entrypoint.sh` pulls the latest
+  `.agents/skills` from the upstream template repo into your project (custom
+  skills you've added are preserved), then installs the merged set for
+  Claude Code, Codex, and Hermes — both inside the project and, so they work
+  from any directory, at each agent's global/home-directory level too.
+  Configurable via `SYNC_SKILLS_USER`/`SYNC_SKILLS_AGENTS`/`SYNC_SKILLS_UPSTREAM`
+  in `docker-compose.yml`; run `sync-project-skills` by hand inside the
+  container to refresh mid-session.
 - **Codex/ChatGPT shortcut**: on start, a valid `~/.codex/auth.json` seeds
   Hermes with `model.provider: openai-codex` / `gpt-5.6-terra`. Runs once,
   guarded by `~/.hermes/.codex-default-seeded`; delete that plus

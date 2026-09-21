@@ -27,6 +27,12 @@ services:
       # Pins `hermes-ssh-info`'s suggested terminal.cwd to the workspace mount
       # below instead of its /workspaces/*/ auto-detect glob.
       HERMES_SSH_CWD: "/workspaces"
+      # Consumed by /usr/local/bin/sync-project-skills (called from
+      # entrypoint.sh on every start): keeps .agents/skills current with
+      # upstream and installs it for every agent it detects installed, at
+      # project and global scope. See that script for what each var does.
+      SYNC_SKILLS_USER: hermes
+      SYNC_SKILLS_AGENTS: "*"
     depends_on:
       ssh-pubkeys:
         condition: service_completed_successfully

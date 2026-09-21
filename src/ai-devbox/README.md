@@ -98,4 +98,5 @@ changes are required.
 ## AI-native SDLC framework
 
 This template includes a vendor-neutral AI-native SDLC framework in .agents/. Use its five sdlc-* skills to create intent.md, spec.md, and plan.md in sdlc/<work-item>/ only when work begins. See .agents/README.md for the internal conventions and the repository [framework guide](../../docs/ai-native-sdlc.md) before applying the template.
-The .claude/skills directory is a symlink to .agents/skills. Create skills only in .agents/skills; Claude Code discovers them through its native path without copies.
+
+`.agents/skills` is the single source of truth for skills — create them only there. On every container start, `sync-project-skills` (via the `skills` CLI, already installed in the image) pulls the latest upstream skills into it, then exposes the merged set to Claude Code and Codex, both inside the project and at each agent's global level so they work from any directory. Configurable via `SYNC_SKILLS_USER`/`SYNC_SKILLS_AGENTS`/`SYNC_SKILLS_UPSTREAM` in `docker-compose.yml`; run `sync-project-skills` by hand to refresh mid-session.

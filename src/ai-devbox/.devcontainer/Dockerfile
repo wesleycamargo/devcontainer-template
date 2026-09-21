@@ -47,6 +47,13 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
 RUN npm install -g @anthropic-ai/claude-code @openai/codex
 RUN echo 'export PATH="$HOME/.local/bin:$PATH"' >> /root/.bashrc
 
+# Skills CLI, plus the shared startup script (both templates' docker-compose.yml
+# run this on every container start) that pulls .agents/skills from upstream and
+# exposes it to every configured agent via the CLI, at project and global scope.
+RUN npm install -g skills
+COPY scripts/sync-project-skills.sh /usr/local/bin/sync-project-skills
+RUN chmod +x /usr/local/bin/sync-project-skills
+
 # Pre-install Claude Code's self-managed native build into vscode's home.
 # The CLI's own self-check expects ~/.local/bin/claude to exist alongside the
 # npm-installed copy; without this it nags "missing or broken" on every start.

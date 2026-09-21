@@ -7,9 +7,17 @@ services:
     # ghcr.io` (private package).
     image: ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image:latest
     init: true
-    # Keeps the container running; VS Code/the devcontainer CLI exec into it
-    # rather than relying on the image's own entrypoint to block.
-    command: sleep infinity
+    environment:
+      # Consumed by /usr/local/bin/sync-project-skills (run below, on every
+      # start): keeps .agents/skills current with upstream and installs it
+      # for every agent it detects installed, at project and global scope.
+      # See that script for what each var does.
+      SYNC_SKILLS_USER: vscode
+      SYNC_SKILLS_AGENTS: "*"
+    # Runs the skills sync once per start, then keeps the container running;
+    # VS Code/the devcontainer CLI exec into it rather than relying on the
+    # image's own entrypoint to block.
+    command: ["/bin/sh", "-c", "sync-project-skills || true; sleep infinity"]
     volumes:
       - ../..:/workspaces:cached
       # Agent CLI configs, bind-mounted from the host rather than COPYed into

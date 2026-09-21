@@ -93,6 +93,17 @@ for legacy in hermes-agent node; do
   fi
 done
 
+# --- project skills sync ----------------------------------------------------
+# Keeps .agents/skills current with upstream and exposes it to every
+# configured agent (SYNC_SKILLS_USER/_AGENTS/_UPSTREAM, set in
+# docker-compose.yml) at both project and global scope. Runs here rather
+# than a Dev Container hook so it also covers a bare `docker run`/`docker
+# compose up` and a pure SSH/Hermes Desktop session that never attaches VS
+# Code. Best-effort: must never block sshd from starting.
+if command -v sync-project-skills >/dev/null 2>&1; then
+  sync-project-skills || log "sync-project-skills reported a problem; continuing"
+fi
+
 # --- optional Hermes services ---------------------------------------------
 # Off unless asked for. With terminal.backend=ssh the agent runs on the
 # operator's machine and only shells in here, so a gateway/dashboard pair would

@@ -29,6 +29,12 @@ services:
       # to /home/hermes if it ever can't find a match. Keep this in sync with
       # workspaceFolder (devcontainer.json) and the bind mount target (below).
       HERMES_SSH_CWD: "/workspaces"
+      # Consumed by /usr/local/bin/sync-project-skills (called from
+      # entrypoint.sh on every start): keeps .agents/skills current with
+      # upstream and installs it for every agent it detects installed, at
+      # project and global scope. See that script for what each var does.
+      SYNC_SKILLS_USER: hermes
+      SYNC_SKILLS_AGENTS: "*"
     depends_on:
       ssh-pubkeys:
         condition: service_completed_successfully

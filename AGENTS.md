@@ -60,10 +60,12 @@ template/image built from the same config.
   authenticated with `packages` scope.
 - `scripts/sync-template-agents.sh` — maintainer-only: mirrors the canonical
   root `.agents/` into `src/ai-devbox/.agents/` and `src/ai-hermes-devbox/.agents/`,
-  repairs their `.claude/skills`/`.hermes/skills` symlinks, and keeps the Hermes
-  hook copy identical. Run it (`--check` to only report) after any change under
-  `.agents/`. It does not ship; the `sync-agent-skills` skill inside `.agents/`
-  does, and only manages the symlinks at a repo root.
+  and keeps the Hermes hook (`configure-project-skills.sh`) copy identical. Run
+  it (`--check` to only report) after any change under `.agents/`. It does not
+  ship. Exposing `.agents/skills` to individual agents at container-start time
+  is handled separately, by `sync-project-skills` (see "Cross-agent skill
+  discovery" below) — this script only mirrors files between the maintainer's
+  repo and the template payloads.
 - `scripts/setup-devcontainer-client.ps1` — one-time client-side setup for
   someone *consuming* a published template/image: installs Git/GitHub
   CLI/VS Code + the Dev Containers/Remote-WSL extensions via winget, Docker
@@ -118,4 +120,4 @@ automatically through its `FROM`.
 
 ## Cross-agent skill discovery
 
-Create reusable project skills only in .agents/skills/<skill-name>/. The discovery aliases .claude/skills and .hermes/skills are directory symlinks to that location; never create or copy skills directly into those aliases. Writes through those aliases therefore land in .agents/skills automatically. Hermes is configured during Hermes Devbox creation with .agents/skills as both its external discovery directory and default creation directory, while its personal skills remain in ~/.hermes/skills.
+Create reusable project skills only in .agents/skills/<skill-name>/ — it is the single source of truth. Exposing it to individual agents (Claude Code, Codex, Hermes) is handled automatically, at container start, by the `skills` CLI (https://github.com/vercel-labs/skills, already installed in the devbox image) via `/usr/local/bin/sync-project-skills` (see src/ai-devbox/.devcontainer/scripts/sync-project-skills.sh, invoked from each template's docker-compose.yml/entrypoint.sh, not a Dev Container hook). It pulls the latest upstream skills into .agents/skills, then symlinks the merged set into every configured agent's project directory (.claude/skills, .hermes/skills; Codex's own project path is .agents/skills itself) and, for agents that need it, into their global (home-directory) skill directory too, so they work outside the project as well. Hermes is additionally configured (`hermes config set skills.external_dirs`) to read .agents/skills directly, while its personal skills remain in ~/.hermes/skills. Run `sync-project-skills` by hand inside a container to force a refresh mid-session instead of waiting for the next restart.
