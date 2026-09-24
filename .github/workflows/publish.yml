@@ -1,0 +1,106 @@
+name: Publish package
+
+on:
+  push:
+    branches:
+      - main
+      - feature/*
+  workflow_dispatch:
+    inputs:
+      registry:
+        description: Registry to publish
+        required: true
+        default: github
+        type: choice
+        options:
+          - github
+          - npm
+          - both
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+concurrency:
+  group: publish-package-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish-github:
+    if: github.event_name != 'workflow_dispatch' || inputs.registry == 'github' || inputs.registry == 'both'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.20.0'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@wesleycamargo'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Validate source
+        run: npm run check
+
+      - name: Prepare the scoped GitHub Packages metadata
+        run: npm pkg set name='@wesleycamargo/devcontainer-setup-cli'
+
+      - name: Check GitHub Packages version
+        id: check
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PKG_NAME=$(node -p "require('./package.json').name")
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if npm view "$PKG_NAME@$PKG_VERSION" version --registry=https://npm.pkg.github.com >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish to GitHub Packages
+        if: steps.check.outputs.exists == 'false'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm publish --registry=https://npm.pkg.github.com
+
+  publish-npm:
+    if: github.event_name == 'workflow_dispatch' && (inputs.registry == 'npm' || inputs.registry == 'both')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.20.0'
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+
+      - name: Install npm with trusted-publishing support
+        run: npm install --global npm@11.5.1
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Validate source
+        run: npm run check
+
+      - name: Confirm package contents
+        run: npm pack --dry-run
+
+      - name: Publish to npmjs
+        run: bash scripts/publish-npm.sh

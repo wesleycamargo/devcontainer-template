@@ -181,3 +181,29 @@ message overrides) and republishes the template and its image.
 | `.devcontainer/scripts/find-devcontainer.sh`    | WSL host             | Exec a command in this project's running devcontainer       |
 
 [github.com/wesleycamargo/devcontainer-template](https://github.com/wesleycamargo/devcontainer-template)
+
+## Interactive npm setup
+
+[`devcontainer-setup-cli`](https://www.npmjs.com/package/devcontainer-setup-cli)
+uses `@clack/prompts` to install Docker Engine and `@devcontainers/cli`, select
+one of the published images, perform the GHCR login, and write a safe minimal
+`.devcontainer/devcontainer.json` for a project:
+
+```bash
+npx devcontainer-setup-cli
+```
+
+The first prompt is a checklist: choose any combination of Docker Engine, the
+Dev Container CLI, GHCR sign-in, and devcontainer configuration. Leave an item
+unchecked to skip it; the default selects all four.
+
+On Debian/Ubuntu it can install Docker directly. On Windows it installs and
+runs Docker and the Dev Container CLI inside a selected WSL distribution; it
+never installs or requires Docker Desktop. Existing devcontainer configuration
+is only replaced after explicit confirmation. See the [package README](https://www.npmjs.com/package/devcontainer-setup-cli) for details.
+
+The [`Publish package`](.github/workflows/publish.yml) workflow publishes a
+scoped `@wesleycamargo/devcontainer-setup-cli` copy to GitHub Packages on
+`main` and `feature/*` pushes when that version is new. A manual dispatch lets
+a maintainer publish to GitHub Packages, npm, or both. Its npm path uses trusted
+publishing through GitHub OIDC and provenance; it needs no `NPM_TOKEN` secret.

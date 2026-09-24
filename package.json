@@ -1,0 +1,47 @@
+{
+  "name": "devcontainer-setup-cli",
+  "version": "0.1.1",
+  "description": "Interactive setup for the Wesley Camargo AI Devbox devcontainer images.",
+  "type": "module",
+  "bin": {
+    "devcontainer-setup": "bin/devcontainer-setup.js"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "start": "node ./bin/devcontainer-setup.js",
+    "test": "node --test",
+    "check": "node --check ./bin/devcontainer-setup.js && node --check ./lib/*.js"
+  },
+  "keywords": [
+    "devcontainer",
+    "docker",
+    "wsl",
+    "cli",
+    "ai-devbox"
+  ],
+  "author": "Wesley Camargo",
+  "license": "GPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wesleycamargo/devcontainer-template.git"
+  },
+  "bugs": {
+    "url": "https://github.com/wesleycamargo/devcontainer-template/issues"
+  },
+  "homepage": "https://github.com/wesleycamargo/devcontainer-template#readme",
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.11.0"
+  }
+}

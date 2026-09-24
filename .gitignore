@@ -52,6 +52,8 @@ bld/
 # Uncomment if you have tasks that rely on *.refresh files to move binaries
 # (https://github.com/github/gitignore/pull/3736)
 #!**/[Bb]in/*.refresh
+# devcontainer-setup-cli npm package entry point (not a build artifact)
+!/bin/devcontainer-setup.js
 
 # Visual Studio 2015/2017 cache/options directory
 .vs/
