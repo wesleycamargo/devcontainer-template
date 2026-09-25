@@ -1,6 +1,6 @@
 {
   "name": "devcontainer-setup-cli",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Interactive setup for the Wesley Camargo AI Devbox devcontainer images.",
   "type": "module",
   "bin": {

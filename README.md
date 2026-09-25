@@ -195,7 +195,9 @@ npx devcontainer-setup-cli
 
 The first prompt is a checklist: choose any combination of Docker Engine, the
 Dev Container CLI, GHCR sign-in, and devcontainer configuration. Leave an item
-unchecked to skip it; the default selects all four.
+unchecked to skip it; the default selects all four. Each selected prerequisite
+is checked against the host (or the chosen WSL distribution on Windows)
+before anything runs, so items already installed are reported and left alone.
 
 On Debian/Ubuntu it can install Docker directly. On Windows it installs and
 runs Docker and the Dev Container CLI inside a selected WSL distribution; it
