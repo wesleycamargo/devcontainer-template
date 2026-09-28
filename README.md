@@ -2,7 +2,7 @@
 
 See the [AI-native SDLC framework guide](docs/ai-native-sdlc.md) included with the AI Devbox template.
 
-Three published dev container templates built from one shared image recipe: a
+Four published dev container templates built from one shared image recipe: a
 PowerShell-first devbox with the Claude Code / Codex agent CLIs and Azure
 tooling, on its own or paired with an agent stack.
 
@@ -12,6 +12,7 @@ tooling, on its own or paired with an agent stack.
 | --- | --- | --- |
 | **AI Devbox** | The base: PowerShell 7, Oh My Posh, Node.js, Claude Code + Codex CLIs, Azure Bicep, GitHub CLI, esptool/mpremote | [docs/ai-devbox.md](docs/ai-devbox.md) |
 | **AI Hermes Devbox** | AI Devbox + the [Hermes Agent](https://hermes-agent.nousresearch.com/) (full browser + computer-use) and an SSH gateway for Hermes Desktop | [docs/ai-hermes-devbox.md](docs/ai-hermes-devbox.md) |
+| **AI Hermes Devbox v1** | AI Devbox + the [Hermes Agent](https://hermes-agent.nousresearch.com/), gateway and dashboard only — the pre-gateway generation, no SSH, no Open WebUI | [docs/ai-hermes-devbox-v1.md](docs/ai-hermes-devbox-v1.md) |
 | **AI OpenHands Devbox** | AI Devbox + [OpenHands Agent Canvas](https://www.openhands.dev/) via Codex ACP / ChatGPT OAuth | [docs/ai-openhands-devbox.md](docs/ai-openhands-devbox.md) |
 
 Each page covers both install paths — command line and VS Code UI — plus first
@@ -30,12 +31,13 @@ required, or the template isn't found):
 ```
 ghcr.io/wesleycamargo/devcontainer-template/ai-devbox
 ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox
+ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox-v1
 ghcr.io/wesleycamargo/devcontainer-template/ai-openhands-devbox
 ```
 
 ## Authentication
 
-All packages under `ghcr.io/wesleycamargo/devcontainer-template/` — the three
+All packages under `ghcr.io/wesleycamargo/devcontainer-template/` — the four
 templates and their matching images — are **private**, so Docker has to be
 logged in to `ghcr.io` before any of them will pull:
 

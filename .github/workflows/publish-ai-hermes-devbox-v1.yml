@@ -1,27 +1,14 @@
-name: Publish ai-hermes-devbox
+name: Publish ai-hermes-devbox-v1
 
-# One publish workflow per devcontainer under src/. This one owns the
-# `ai-hermes-devbox` template and the `ai-hermes-devbox-image` image, and
-# publishes only when `src/ai-hermes-devbox/**` changes. Pull requests that
-# affect the template or its gateway validation script run the contract check
-# without publishing.
-#
-# ai-hermes-devbox-image is `FROM ai-devbox-image:latest` but the two
-# publishes are independent -- a base rebuild does NOT retrigger this. Push a
-# change under src/ai-hermes-devbox/ (or dispatch manually) to pick up a new
-# base.
-
+# This workflow owns only the ai-hermes-devbox-v1 template and image (the
+# pre-gateway Hermes generation). It runs independently of ai-devbox,
+# ai-hermes-devbox and ai-openhands-devbox.
 on:
-  pull_request:
-    paths:
-      - 'src/ai-hermes-devbox/**'
-      - 'scripts/validate-hermes-gateway.sh'
-      - '.github/workflows/publish-ai-hermes-devbox.yml'
   push:
     branches:
       - main
     paths:
-      - 'src/ai-hermes-devbox/**'
+      - 'src/ai-hermes-devbox-v1/**'
   workflow_dispatch:
     inputs:
       bump_type:
@@ -35,50 +22,14 @@ on:
           - patch
 
 jobs:
-  validate:
-    name: Validate Hermes SSH gateway
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: read
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Install Dev Container CLI
-        run: npm install --global @devcontainers/cli
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # TODO: drop continue-on-error once the Open WebUI removal is confirmed
-      # stable -- these checks are temporarily non-blocking.
-      - name: Build validation image
-        continue-on-error: true
-        run: ./scripts/validate-hermes-gateway.sh build
-
-      - name: Run gateway checkpoints A through E
-        continue-on-error: true
-        run: ./scripts/validate-hermes-gateway.sh all
-
   deploy:
-    if: github.event_name != 'pull_request'
-    needs: validate
     runs-on: ubuntu-latest
     permissions:
       contents: write
       packages: write
     env:
-      TEMPLATE_ID: ai-hermes-devbox
-      TAG_PREFIX: ai-hermes-devbox-v
+      TEMPLATE_ID: ai-hermes-devbox-v1
+      TAG_PREFIX: ai-hermes-devbox-v1-
     steps:
       - uses: actions/checkout@v4
         with:
@@ -90,9 +41,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # The glob is fnmatch, so `${TAG_PREFIX}[0-9]*.[0-9]*.[0-9]*` also
-          # matches ai-hermes-devbox-v1-*, the sibling template whose prefix
-          # extends this one. Post-filter with a real regex so only this
-          # template's own tags are considered.
+          # matches tags of sibling templates whose prefix extends this one
+          # (ai-hermes-devbox-v vs ai-hermes-devbox-v1-). Post-filter with a
+          # real regex so only this template's own tags are considered.
           LAST_TAG=$(git tag --list "${TAG_PREFIX}[0-9]*.[0-9]*.[0-9]*" --sort=-v:refname \
             | grep -E "^${TAG_PREFIX}[0-9]+\.[0-9]+\.[0-9]+$" | head -1)
           if [ -z "$LAST_TAG" ]; then LAST_TAG="${TAG_PREFIX}0.0.0"; fi
@@ -154,9 +105,6 @@ jobs:
           FILE="src/${TEMPLATE_ID}/devcontainer-template.json"
           jq --arg v "${{ steps.version.outputs.version }}" '.version = $v' "$FILE" > tmp.json && mv tmp.json "$FILE"
 
-      # devcontainers/action publishes every template dir under
-      # base-path-to-templates. Stage just this one so the workflow doesn't
-      # touch the other devcontainers' published templates.
       - name: Stage template
         run: |
           mkdir -p _publish

@@ -19,19 +19,25 @@ for arg in "$@"; do
 done
 
 repo=$(cd -P "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
-templates=(ai-devbox ai-hermes-devbox)
+# Never mirror the skills CLI's per-skill OpenAI/Codex metadata. `skills add
+# --agent universal` (run by sync-project-skills inside a container) writes
+# .agents/skills/<skill>/agents/openai.yaml into whatever project is mounted,
+# including this repo's own checkout. They are generated display metadata, not
+# source, so they stay out of both git and the published template payloads.
+rsync_excludes=(--exclude='agents/openai.yaml' --exclude='agents/openai.yml')
+templates=(ai-devbox ai-hermes-devbox ai-hermes-devbox-v1)
 hook_rel=.devcontainer/scripts/configure-project-skills.sh
 
 drift=0
 
 for t in "${templates[@]}"; do
   dest=$repo/src/$t
-  out=$(rsync -ac --delete --itemize-changes --dry-run "$repo/.agents/" "$dest/.agents/" | grep -v '/$' || true)
+  out=$(rsync -ac --delete "${rsync_excludes[@]}" --itemize-changes --dry-run "$repo/.agents/" "$dest/.agents/" | grep -v '/$' || true)
   if [[ -n $out ]]; then
     drift=1
     echo "tree: src/$t/.agents out of date"
     echo "$out" | sed 's/^/  /'
-    ((check)) || { mkdir -p "$dest/.agents"; rsync -ac --delete "$repo/.agents/" "$dest/.agents/"; }
+    ((check)) || { mkdir -p "$dest/.agents"; rsync -ac --delete "${rsync_excludes[@]}" "$repo/.agents/" "$dest/.agents/"; }
   fi
 done
 

@@ -6,6 +6,7 @@ test('offers every published devcontainer image', () => {
   assert.deepEqual(templates.map((template) => template.id), [
     'ai-devbox',
     'ai-hermes-devbox',
+    'ai-hermes-devbox-v1',
     'ai-openhands-devbox',
   ]);
   for (const template of templates) {

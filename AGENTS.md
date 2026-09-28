@@ -27,21 +27,31 @@ template/image built from the same config.
   step, so it doesn't duplicate the base recipe. Published as
   `ai-hermes-devbox` / `ai-hermes-devbox-image`. The root `.devcontainer/`
   tracks this one.
-- `src/ai-openhands-devbox/` — a third published template: the `ai-devbox`
+- `src/ai-hermes-devbox-v1/` — a third published template: the pre-gateway
+  generation of `ai-hermes-devbox`, frozen from `ai-hermes-devbox-v0.12.0`.
+  Same `FROM ai-devbox-image` + Hermes step, but no sshd, no SSH gateway and
+  no Open WebUI — just Hermes' own gateway and dashboard on container
+  loopback, started by `start-hermes.sh`. Published as `ai-hermes-devbox-v1` /
+  `ai-hermes-devbox-v1-image`. Its publish workflow's tag prefix
+  (`ai-hermes-devbox-v1-`) extends the older template's (`ai-hermes-devbox-v`),
+  so both workflows post-filter `git tag --list` with a regex; do not drop
+  that `grep -E` from either.
+- `src/ai-openhands-devbox/` — a fourth published template: the `ai-devbox`
   development shell plus OpenHands Agent Canvas as a companion service.
   It is independent from Hermes and uses Codex ACP with the user-supplied
   `CODEX_AUTH_JSON` OAuth secret. Published as `ai-openhands-devbox` /
   `ai-openhands-devbox-image`.
 - `docs/<id>.md` — the repo-side user-facing page for each published template
   (`docs/ai-devbox.md`, `docs/ai-hermes-devbox.md`,
-  `docs/ai-openhands-devbox.md`), linked from the root `README.md`'s Templates
+  `docs/ai-hermes-devbox-v1.md`, `docs/ai-openhands-devbox.md`), linked from the root `README.md`'s Templates
   table. `src/<id>/README.md` is the copy that ships *inside* the template and
   lands in a consumer's project on `devcontainer templates apply`; the `docs/`
   page is what someone reads before applying it. They overlap, so a change to
   one template's behavior usually needs both updated.
 - `.github/workflows/publish-<id>.yml` — one publish workflow per
   devcontainer under `src/` (`publish-ai-devbox.yml`,
-  `publish-ai-hermes-devbox.yml`, `publish-ai-openhands-devbox.yml`). Each runs only when its own
+  `publish-ai-hermes-devbox.yml`, `publish-ai-hermes-devbox-v1.yml`,
+  `publish-ai-openhands-devbox.yml`). Each runs only when its own
   `src/<id>/**` changes, on `push` to `main`, or via `workflow_dispatch`. It
   bumps its own `<id>-vX.Y.Z` git tag (minor by
   default; `[major]`/`[minor]`/`[patch]` in the commit message overrides),
@@ -59,8 +69,8 @@ template/image built from the same config.
   (workflow token permissions, package visibility check). Requires `gh`
   authenticated with `packages` scope.
 - `scripts/sync-template-agents.sh` — maintainer-only: mirrors the canonical
-  root `.agents/` into `src/ai-devbox/.agents/` and `src/ai-hermes-devbox/.agents/`,
-  and keeps the Hermes hook (`configure-project-skills.sh`) copy identical. Run
+  root `.agents/` into `src/ai-devbox/.agents/`, `src/ai-hermes-devbox/.agents/`
+  and `src/ai-hermes-devbox-v1/.agents/`, and keeps the Hermes hook (`configure-project-skills.sh`) copy identical. Run
   it (`--check` to only report) after any change under `.agents/`. It does not
   ship. Exposing `.agents/skills` to individual agents at container-start time
   is handled separately, by `sync-project-skills` (see "Cross-agent skill
@@ -76,8 +86,8 @@ template/image built from the same config.
 
 All published packages under
 ghcr.io/wesleycamargo/devcontainer-template/` — the `ai-devbox`,
-`ai-hermes-devbox`, and `ai-openhands-devbox` templates and their matching
-images — are **private**.
+`ai-hermes-devbox`, `ai-hermes-devbox-v1`, and `ai-openhands-devbox` templates
+and their matching images — are **private**.
 
 ## The devcontainer image
 

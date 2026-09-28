@@ -14,7 +14,7 @@ Provide a publicly installable npm command-line package with an approachable, in
 - Use `@clack/prompts` for platform-appropriate status, confirmation, selection, progress, and error interaction.
 - Detect the host platform and provide a Linux setup path that installs or verifies Docker Engine and the Dev Container CLI.
 - Provide a Windows path that detects or helps install WSL, then performs the Docker and Dev Container CLI setup inside the selected WSL distribution rather than using Docker Desktop.
-- Offer the currently published images/templates: `ai-devbox`, `ai-hermes-devbox`, and `ai-openhands-devbox`.
+- Offer the currently published images/templates: `ai-devbox`, `ai-hermes-devbox`, `ai-hermes-devbox-v1`, and `ai-openhands-devbox`.
 - Produce the selected devcontainer configuration in the user-selected target project without overwriting files without explicit confirmation.
 - Document installation, supported platforms, prerequisites, image choices, security expectations, and npm publication/release procedure.
 - Add automated tests for platform detection, command planning, template selection/configuration generation, and safe file behavior.

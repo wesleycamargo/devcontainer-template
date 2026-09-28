@@ -1,0 +1,7 @@
+{
+  "id": "ai-hermes-devbox-v1",
+  "version": "1.0.0",
+  "name": "AI Hermes Devbox v1 (PowerShell)",
+  "description": "AI Devbox plus Hermes Agent (gateway + dashboard only, no SSH) and vendor-neutral AI-native SDLC skills.",
+  "options": {}
+}
