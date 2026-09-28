@@ -1,16 +1,16 @@
 {
-  "name": "AI Hermes Devbox",
+  "name": "AI Hermes Devbox v1",
   "dockerComposeFile": "docker-compose.yml",
   "service": "devcontainer",
   "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
   // Compose owns container lifecycle now (see docker-compose.yml); stop the
   // service on close instead of leaving it running detached.
   "shutdownAction": "stopCompose",
-  "remoteUser": "hermes",
+  "remoteUser": "vscode",
   "features": {
     "ghcr.io/devcontainers/features/common-utils:2": {
       "installZsh": "true",
-      "username": "hermes",
+      "username": "vscode",
       "upgradePackages": "false",
       "nonFreePackages": "true"
     },
@@ -19,9 +19,11 @@
     },
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
-  // Hermes services are image-owned. The post-create hook only configures
-  // the current workspace as the Hermes project skill source.
-  "postCreateCommand": "cp /tmp/host-gitconfig ~/.gitconfig 2>/dev/null || true; cp /tmp/host-git-credentials ~/.git-credentials 2>/dev/null || true; chmod 600 ~/.git-credentials 2>/dev/null || true; bash .devcontainer/scripts/configure-project-skills.sh "$PWD"",
+  "postCreateCommand": "cp /tmp/host-gitconfig ~/.gitconfig 2>/dev/null || true; cp /tmp/host-git-credentials ~/.git-credentials 2>/dev/null || true; chmod 600 ~/.git-credentials 2>/dev/null || true",
+  // Bring up the Hermes gateway and dashboard on every container start. Both
+  // bind loopback only; VS Code forwards the dashboard port. See
+  // start-hermes.sh.
+  "postStartCommand": "bash .devcontainer/start-hermes.sh",
   "forwardPorts": [9119],
   "customizations": {
     "vscode": {
