@@ -90,6 +90,9 @@ The `hermes-data` Docker named volume persists that entire directory,
 including credentials, sessions, memory, skills, and logs, across normal
 devcontainer rebuilds. Do not remove Docker volumes (for example with
 `docker compose down -v`) if you need to retain Hermes data.
+If a newer V1 image updates its `hermes` shim while this volume still has the
+older V1 runtime layout, `start-hermes.sh` restores a compatibility launcher
+at the next container start. It keeps the saved runtime and all Hermes data.
 After completing setup, restart the devcontainer or run
 `bash .devcontainer/start-hermes.sh` to start the gateway and dashboard.
 
