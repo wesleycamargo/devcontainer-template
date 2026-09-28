@@ -17,6 +17,28 @@
 #
 set -u
 
+# V1 keeps the complete Hermes install in the hermes-data volume. Older
+# volumes have the CLI source at hermes-agent/hermes and its Python virtual
+# environment at hermes-agent/venv. A newer image can replace ~/.local/bin/hermes
+# with a shim that instead expects hermes-agent/.hermes/bin/hermes. Restore only
+# that missing bridge, so the persisted V1 runtime and all user data stay intact.
+legacy_runtime="$HOME/.hermes/hermes-agent"
+legacy_launcher="$legacy_runtime/.hermes/bin/hermes"
+if [ ! -x "$legacy_launcher" ] \
+  && [ -x "$legacy_runtime/venv/bin/python" ] \
+  && [ -f "$legacy_runtime/hermes" ]; then
+  mkdir -p "$(dirname "$legacy_launcher")"
+  cat > "$legacy_launcher" <<'EOF'
+#!/bin/sh
+set -eu
+runtime_dir=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
+cd "$runtime_dir"
+exec "$runtime_dir/venv/bin/python" "$runtime_dir/hermes" "$@"
+EOF
+  chmod 755 "$legacy_launcher"
+  echo "start-hermes: restored the V1 compatibility launcher for the saved Hermes runtime"
+fi
+
 command -v hermes >/dev/null 2>&1 || exit 0
 
 # One-time: point Hermes' default model at the persisted Codex / ChatGPT login.
