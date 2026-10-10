@@ -64,10 +64,11 @@ RUN su vscode -c 'claude install'
 # rename. Just the `hermes` binary so it's available like the other agent
 # CLIs above; run `hermes` once to set up API keys and connectors.
 #
-# Installed as ROOT (not su vscode, unlike `claude install` above), which
-# selects the installer's FHS layout: launchers in /usr/local/bin/{hermes,
-# hermes-agent,hermes-acp}, code in /usr/local/lib/hermes-agent. That layout
-# is load-bearing: src/ai-hermes-devbox/.devcontainer/Dockerfile (FROM this
+# Installed as ROOT (not su vscode, unlike `claude install` above), so the
+# install lives in image layers under --hermes-home rather than in one user's
+# home: checkout at /opt/hermes/hermes-agent, its real launchers at
+# /opt/hermes/hermes-agent/.hermes/bin/{hermes,hermes-acp}. That is
+# load-bearing: src/ai-hermes-devbox/.devcontainer/Dockerfile (FROM this
 # image) re-runs this same installer as root, to the same --hermes-home, to
 # add the full browser/computer-use install -- it upgrades these exact paths
 # in place rather than installing a second, conflicting copy. Keep
@@ -86,7 +87,28 @@ RUN for d in /opt/hermes /usr/local/lib/hermes-agent /usr/local/share/uv; do \
       if [ -e "$d" ]; then chmod -R a+rX "$d"; fi; \
     done
 
+# Put the commands on every user's PATH. The installer does not do this for a
+# root install: it publishes its launchers inside the checkout (above) and then
+# only *repairs* an existing /usr/local/bin/hermes -- hermes_cli/_launchers.py's
+# expose_cli never creates a new global entry -- so the only conveniences it
+# writes are in /root/.local/bin, which mode-700 /root hides from vscode.
+# Symlinks to the checkout launchers fix that, and because they resolve back
+# into the install root (what expose_cli's _owns_launcher looks for), later
+# installer runs -- including ai-hermes-devbox's re-install -- now recognise
+# /usr/local/bin as theirs and keep it current.
+# HERMES_HOME is not baked into the launchers: each user's run defaults it to
+# their own ~/.hermes, so vscode gets a writable data dir without write access
+# to the install tree.
+RUN set -eu; \
+    for n in hermes hermes-acp; do \
+      test -x "/opt/hermes/hermes-agent/.hermes/bin/$n"; \
+      ln -sfn "/opt/hermes/hermes-agent/.hermes/bin/$n" "/usr/local/bin/$n"; \
+    done
+
 # Build-time proof the CLI actually works for the image's default user.
+# Diagnostics first (never fails the build) so a regression in the step above
+# shows up as "which hermes" in the log instead of just a non-zero exit.
+RUN su vscode -s /bin/sh -c 'command -v hermes hermes-acp' </dev/null 2>&1 | sed 's/^/build-check: /' || true
 RUN timeout 180 su vscode -c 'hermes --version' </dev/null
 
 # Codex's config dir, created here (owned by vscode) so the auth.json bind mount
