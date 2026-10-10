@@ -80,7 +80,7 @@ extensions, Docker Engine **inside WSL** (never Docker Desktop), the
 ```
 
 On Linux it only checks and prints install instructions. The repo's own
-devcontainer pulls the private `ai-hermes-devbox-image`, so that login has to
+devcontainer pulls the private `ai-devbox-image`, so that login has to
 succeed before the container will start.
 
 ### 2. Clone and open the devcontainer
@@ -90,61 +90,36 @@ git clone https://github.com/wesleycamargo/devcontainer-template.git
 cd devcontainer-template
 ```
 
-Optionally pick a stable host port for the Hermes SSH gateway — create
-`.devcontainer/.env` (gitignored; the container-side port is always 2222, only
-the host side varies, and Hermes Desktop stores whatever you pick):
-
-```dotenv
-HERMES_SSH_PORT=2222
-```
-
 Then start it any of these ways:
 
 - VS Code: **Dev Containers: Reopen in Container**
 - `devcontainer up --workspace-folder .`
 - `docker compose -f .devcontainer/docker-compose.yml up -d`
 
-There is no build step — `docker-compose.yml` pulls the prebuilt image. A
-one-shot `ssh-pubkeys` service copies `~/.ssh/*.pub` from the host into a
-volume before the devcontainer starts.
+There is no build step — `docker-compose.yml` pulls the prebuilt image.
 
 ### 3. Configure credentials inside the container
 
-The container deliberately reads no host credentials; `~/.claude`, `~/.codex`
-and `~/.hermes` are named volumes that survive normal rebuilds. Run once,
-inside the container:
+`docker-compose.yml` bind-mounts `~/.claude` and `~/.codex/auth.json` from
+the host, so Claude Code / Codex logins survive a rebuild — edit those
+`volumes` entries to point at your own host paths (the committed ones are the
+original author's). Run once, inside the container:
 
 ```bash
 git config --global user.name "..." && git config --global user.email "..."
-claude     # sign in
-codex      # sign in
-hermes     # API keys / connectors
+claude     # sign in, if the host doesn't already have a login
+codex      # sign in, if the host doesn't already have a login
+hermes     # optional: API keys / connectors for the plain `hermes` CLI
 ```
 
-Don't `docker compose down -v` (or delete the `claude-data`, `codex-data`,
-`hermes-data` volumes) unless you mean to lose those logins. The Hermes gateway
-(`127.0.0.1:8642`) and dashboard (`127.0.0.1:9119`, forwarded by VS Code) are
-started automatically by the image entrypoint.
+`hermes` here is the lean install the base `ai-devbox` image carries (no
+browser/computer-use, no gateway, no dashboard); its `~/.hermes` isn't bind-
+mounted or volumed, so it doesn't survive a rebuild. For a persistent Hermes
+agent with a gateway/dashboard or SSH access from Hermes Desktop, use the
+[`ai-hermes-devbox`](docs/ai-hermes-devbox.md) or
+[`ai-hermes-devbox-v1`](docs/ai-hermes-devbox-v1.md) template instead.
 
-### 4. Optional: point Hermes Desktop at the container
-
-On Windows, from the host:
-
-```powershell
-./.devcontainer/scripts/connect-hermes-desktop.ps1
-```
-
-It reads the live connection details from the running container, updates
-`~/.ssh/config` and Hermes' `config.yaml`/`.env`, and verifies with a real SSH
-connection. To read the details by hand:
-
-```bash
-bash .devcontainer/scripts/find-devcontainer.sh "$(pwd)" hermes-ssh-info
-```
-
-Full details and troubleshooting: [`.devcontainer/SSH-BACKEND.md`](.devcontainer/SSH-BACKEND.md).
-
-### 5. Validation and tests
+### 4. Validation and tests
 
 Run these on the **WSL host** where Docker runs, not inside the devcontainer:
 
@@ -159,7 +134,7 @@ Container, and an image upgrade over an existing volume; F (a real Hermes
 Desktop connection) is manual. CI runs the same checks via
 `.github/workflows/validate-hermes-gateway.yml`.
 
-### 6. One-time publishing setup (maintainer only)
+### 5. One-time publishing setup (maintainer only)
 
 ```bash
 python scripts/setup_github_publishing.py --template-id ai-devbox
@@ -179,8 +154,6 @@ message overrides) and republishes the template and its image.
 | `scripts/validate-hermes-gateway.sh`            | WSL host             | Hermes SSH gateway contract checks (`build`, `A`–`E`, `all`) |
 | `scripts/test_ai_openhands_devbox.sh`           | anywhere             | Static config checks for the OpenHands template             |
 | `scripts/setup_github_publishing.py`            | anywhere with `gh`   | One-time GitHub publishing setup                            |
-| `.devcontainer/scripts/connect-hermes-desktop.ps1` | Windows host      | Wire Hermes Desktop to the container's SSH gateway          |
-| `.devcontainer/scripts/find-devcontainer.sh`    | WSL host             | Exec a command in this project's running devcontainer       |
 
 [github.com/wesleycamargo/devcontainer-template](https://github.com/wesleycamargo/devcontainer-template)
 

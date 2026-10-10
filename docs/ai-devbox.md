@@ -2,8 +2,11 @@
 
 `ghcr.io/wesleycamargo/devcontainer-template/ai-devbox`
 
-The base template: PowerShell 7, the Claude Code and Codex CLIs, Azure Bicep,
-GitHub CLI, Node.js 20, esptool/mpremote. The other two templates build on it.
+The base template: PowerShell 7, the Claude Code, Codex, and Hermes CLIs
+(Hermes here is lean — no browser/computer-use, no SSH gateway, no
+dashboard; see [`ai-hermes-devbox`](ai-hermes-devbox.md) for the full
+install), Azure Bicep, GitHub CLI, Node.js 20, esptool/mpremote. The other
+three templates build on it.
 
 ## Command line
 
@@ -56,6 +59,10 @@ edit.)
   pointed at by a `build:` block instead of `image:`.
 - **Shared agent config**: Codex's `AGENTS.md` is symlinked to
   `~/.claude/CLAUDE.md`, so both CLIs read one set of global instructions.
+- **Hermes data**: `~/.hermes` (API keys, connectors, sessions) isn't backed
+  by a volume or bind mount here, so it doesn't survive a container rebuild —
+  add one yourself in `docker-compose.yml` if you need it to. `ai-hermes-devbox`
+  does this for you via its `hermes-data` named volume.
 - **Just the image**, no Compose wiring:
   `{ "image": "ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image:latest" }`
 

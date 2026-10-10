@@ -25,4 +25,11 @@ FROM ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image:latest
 # wizard so the build doesn't block on it. Chromium's system libraries are
 # pulled in by the installer through the vscode user's passwordless sudo
 # (provided by the devcontainers base image).
+#
+# ai-devbox-image (this Dockerfile's FROM) already carries its own lean
+# (--skip-browser --skip-computer-use), root-installed `hermes` at
+# /usr/local/bin/hermes. This per-user install does not touch or conflict with
+# it -- ~/.local/bin is prepended ahead of /usr/local/bin on PATH, so this
+# full, user-owned copy is always what actually runs; the root one underneath
+# just goes unused here.
 RUN su vscode -c 'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- --non-interactive --skip-setup'

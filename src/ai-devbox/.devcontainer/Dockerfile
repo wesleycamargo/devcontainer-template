@@ -59,6 +59,36 @@ RUN chmod +x /usr/local/bin/sync-project-skills
 # npm-installed copy; without this it nags "missing or broken" on every start.
 RUN su vscode -c 'claude install'
 
+# Hermes Agent CLI (Nous Research, https://hermes-agent.nousresearch.com/) --
+# lean install: no browser/computer-use, no SSH gateway, no dashboard, no user
+# rename. Just the `hermes` binary so it's available like the other agent
+# CLIs above; run `hermes` once to set up API keys and connectors.
+#
+# Installed as ROOT (not su vscode, unlike `claude install` above), which
+# selects the installer's FHS layout: launchers in /usr/local/bin/{hermes,
+# hermes-agent,hermes-acp}, code in /usr/local/lib/hermes-agent. That layout
+# is load-bearing: src/ai-hermes-devbox/.devcontainer/Dockerfile (FROM this
+# image) re-runs this same installer as root, to the same --hermes-home, to
+# add the full browser/computer-use install -- it upgrades these exact paths
+# in place rather than installing a second, conflicting copy. Keep
+# --hermes-home in sync between the two Dockerfiles if it ever changes.
+# --skip-browser --skip-computer-use keeps this layer lean (see that
+# Dockerfile's own full install for what gets added back). --skip-setup skips
+# the interactive API-key wizard so the build doesn't block on it.
+RUN curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- \
+      --non-interactive --skip-setup --skip-browser --skip-computer-use \
+      --hermes-home /opt/hermes
+
+# Make the root-owned install readable/traversable by vscode (and by `hermes`,
+# after ai-hermes-devbox's own user rename). Mirrors that Dockerfile's
+# identical permission fix over the same paths.
+RUN for d in /opt/hermes /usr/local/lib/hermes-agent /usr/local/share/uv; do \
+      if [ -e "$d" ]; then chmod -R a+rX "$d"; fi; \
+    done
+
+# Build-time proof the CLI actually works for the image's default user.
+RUN timeout 180 su vscode -c 'hermes --version' </dev/null
+
 # Codex's config dir, created here (owned by vscode) so the auth.json bind mount
 # in devcontainer.json doesn't make Docker create the parent as root -- that
 # would leave Codex unable to write its own session state.

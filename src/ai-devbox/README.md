@@ -13,6 +13,13 @@ preconfigured, plus Azure tooling.
 - Codex's `AGENTS.md` symlinked to the same global agent instructions Claude
   Code reads (`~/.claude/CLAUDE.md`), so both CLIs start from one shared set
   of global guidelines instead of two copies that drift.
+- The `hermes` CLI ([Hermes Agent](https://hermes-agent.nousresearch.com/),
+  Nous Research) — a lean install: no browser/computer-use, no SSH gateway,
+  no dashboard. Run `hermes` once to set up API keys and connectors; data
+  lives in `~/.hermes` and isn't persisted across a rebuild unless you add a
+  bind mount or volume for it yourself. For the full install (browser +
+  computer-use, SSH gateway, dashboard) see the
+  [`ai-hermes-devbox`](../../docs/ai-hermes-devbox.md) template.
 
 ## Prerequisites
 
@@ -59,7 +66,7 @@ Then **Reopen in Container**.
 `docker-compose.yml` sets `image:` to
 `ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image` — the
 prebuilt image with the full recipe (PowerShell, Oh My Posh,
-Terminal-Icons, Node, the Claude Code/Codex CLIs) already installed.
+Terminal-Icons, Node, the Claude Code/Codex/Hermes CLIs) already installed.
 `.github/workflows/publish-ai-devbox.yml` builds it from the `Dockerfile`
 in this directory and pushes it there. `docker-compose.yml` doesn't build
 that `Dockerfile` — it's kept as the reference recipe for what's in the

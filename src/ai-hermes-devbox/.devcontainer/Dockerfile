@@ -76,6 +76,13 @@ RUN printf 'PLAYWRIGHT_BROWSERS_PATH=/opt/playwright\n' >> /etc/environment
 # Full install: Playwright/Chromium and the computer-use driver are included
 # (no --skip-browser / --skip-computer-use). --skip-setup skips the API-key
 # wizard so the build does not block on it.
+#
+# ai-devbox-image (this Dockerfile's FROM) already ran this installer as root
+# to this same --hermes-home with --skip-browser --skip-computer-use, so the
+# FHS paths above already exist. This re-run upgrades them in place to add
+# the browser/computer-use pieces rather than installing a second, competing
+# copy -- keep --hermes-home identical to src/ai-devbox/.devcontainer/Dockerfile's
+# install if either changes.
 RUN curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- \
       --non-interactive --skip-setup --hermes-home /opt/hermes
 

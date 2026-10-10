@@ -7,24 +7,23 @@ template/image built from the same config.
 
 - `.devcontainer/` — the devcontainer used to develop this repo itself.
   Personal, host-specific (bind-mounts Windows host paths for Claude/Codex
-  credentials and git config — see `.devcontainer/README.md`). Pulls
-  `ai-hermes-devbox-image`; its `devcontainer.json` and `docker-compose.yml`
-  track `src/ai-hermes-devbox/.devcontainer/`, including the published
-  template's host SSH port and public-key collection service (see
-  `.devcontainer/SSH-BACKEND.md`). The image-owned scripts (`entrypoint.sh`,
-  `start-services.sh`, `hermes-ssh-info.sh`, and the SSH drop-in) live only
-  under `src/ai-hermes-devbox/.devcontainer/`; `.devcontainer/scripts/connect-hermes-desktop.ps1`
-  and `.devcontainer/SSH-BACKEND.md` are plain copies of their
-  `src/ai-hermes-devbox/.devcontainer/` counterparts (the latter trimmed of
-  the template-apply steps), kept in sync by hand. Mirror Compose/devcontainer
-  behavior across both directories when it applies.
+  credentials and git config). `devcontainer.json`, `docker-compose.yml`,
+  `Dockerfile`, `devcontainer-lock.json`, and `scripts/sync-project-skills.sh`
+  are plain copies of their `src/ai-devbox/.devcontainer/` counterparts, kept
+  in sync by hand — mirror any change there into this directory too. Pulls
+  `ai-devbox-image`; no gateway, dashboard, or SSH service runs here, so
+  `hermes` is just a plain CLI (see that Dockerfile's Hermes step), same as
+  any other `ai-devbox` consumer.
 - `src/ai-devbox/.devcontainer/` — the base template, published via CI. The
   build recipe (`Dockerfile`) lives only here; nothing else consumes this
   directory directly.
 - `src/ai-hermes-devbox/` — a second published template: the `ai-devbox`
   config plus the Hermes Agent (Nous Research), full browser + computer-use
   install. Its `Dockerfile` is `FROM ai-devbox-image` + the Hermes
-  step, so it doesn't duplicate the base recipe. Published as
+  step, so it doesn't duplicate the base recipe — `ai-devbox-image` already
+  carries a lean (`--skip-browser --skip-computer-use`) root install of
+  `hermes` at the same FHS paths, so this step upgrades it in place rather
+  than installing a second, competing copy. Published as
   `ai-hermes-devbox` / `ai-hermes-devbox-image`. The root `.devcontainer/`
   tracks this one.
 - `src/ai-hermes-devbox-v1/` — a third published template: the pre-gateway

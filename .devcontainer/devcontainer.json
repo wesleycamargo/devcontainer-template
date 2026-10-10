@@ -1,5 +1,5 @@
 {
-  "name": "AI Hermes Devbox v1",
+  "name": "AI Devbox",
   "dockerComposeFile": "docker-compose.yml",
   "service": "devcontainer",
   "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
@@ -20,11 +20,6 @@
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
   "postCreateCommand": "cp /tmp/host-gitconfig ~/.gitconfig 2>/dev/null || true; cp /tmp/host-git-credentials ~/.git-credentials 2>/dev/null || true; chmod 600 ~/.git-credentials 2>/dev/null || true",
-  // Bring up the Hermes gateway and dashboard on every container start. Both
-  // bind loopback only; VS Code forwards the dashboard port. See
-  // start-hermes.sh.
-  "postStartCommand": "bash .devcontainer/start-hermes.sh",
-  "forwardPorts": [9119],
   "customizations": {
     "vscode": {
       "settings": {
