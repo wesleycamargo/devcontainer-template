@@ -50,7 +50,10 @@ points to the host's `.claude/CLAUDE.md`, if that file exists.
 Hermes configuration stays on the host, while a separate `hermes-runtime` volume
 stores its Linux dependency environments under `.hermes/installs`. Docker seeds
 this volume from the prepared image, so an empty host directory does not hide the
-installed dependencies or trigger a fresh download on first start.
+installed dependencies or trigger a fresh download on first start. On startup, the
+image repairs ownership of this separate runtime volume for `vscode`, including
+volumes left owned by `root`. It preserves the shared host configuration. An old
+empty volume is populated by the existing bounded `hermes pm repair` startup check.
 
 VS Code Dev Containers [shares Git configuration and authentication](https://code.visualstudio.com/remote/advancedcontainers/sharing-git-credentials)
 through the host credential helper or SSH agent. With plain Compose, configure

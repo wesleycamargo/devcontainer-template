@@ -105,3 +105,8 @@ RUN timeout 600 runuser -u vscode -- hermes pm repair </dev/null \
     && runuser -u vscode -- gh --version \
     && pwsh -NoLogo -NoProfile -NonInteractive -Command '$ErrorActionPreference = "Stop"; Import-Module Terminal-Icons' \
     && node --version
+
+# Repair ownership on reused runtime volumes before Compose initializes Hermes.
+COPY --chmod=755 entrypoint.sh /usr/local/bin/devbox-entrypoint
+ENTRYPOINT ["/usr/local/bin/devbox-entrypoint"]
+CMD ["python3"]
