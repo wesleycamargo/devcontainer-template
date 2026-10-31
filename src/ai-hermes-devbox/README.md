@@ -47,9 +47,9 @@ Then **Reopen in Container**.
 
 ## First run
 
-Hermes is prebuilt but not configured. Run `hermes`
-inside the container once to set up API keys and connectors; it writes
-`~/.hermes/.env` and `~/.hermes/config.yaml`.
+The Webapp starts automatically. Run `hermes-webapp-open` in the devcontainer's
+VS Code terminal to open it already signed in. Model credentials and connectors
+still need your account setup; run `hermes` when ready to configure them.
 
 The `hermes-data` Docker named volume persists that directory across normal
 rebuilds. It holds credentials, config, sessions, logs, memories, skills, and
@@ -94,7 +94,8 @@ also waits for the same checks to pass. Checkpoint G covers the prebuilt Webapp,
 local isolation and optional remote password login. CI shares a Buildx layer
 cache between validation and publication.
 
-Checkpoint F is intentionally manual: run `hermes-ssh-info` against the real
+Checkpoint F is optional for browser users and intentionally manual: enable
+`docker-compose.ssh.yml`, run `hermes-ssh-info` against the real
 Compose project, add its alias to the Windows SSH config, then confirm Hermes
 Desktop can execute a terminal action through it. See
 [SSH-BACKEND.md](.devcontainer/SSH-BACKEND.md).
@@ -126,24 +127,33 @@ Back up existing Hermes data before upgrading. Update Hermes by changing the
 pinned image digest and publishing/pulling a new devbox image, keeping backend
 and browser assets together. The separate AI Devbox template is unchanged.
 
-After running `hermes` once to configure it, run in the container terminal:
+On a fresh volume, startup creates the local Webapp configuration and starts
+the service automatically. Model credentials can be configured separately;
+they are not required to open the interface. After **Reopen in Container**,
+run one command in that project's VS Code terminal (PowerShell or Bash):
 
 ```bash
-hermes-start-services
-hermes webapp --status
-hermes webapp --no-open
+hermes-webapp-open
 ```
 
-Open the last command's one-use link within 60 seconds. A bare URL does not sign
-you in. VS Code forwards **9120** to localhost; if its Ports panel assigns a
-different local port, replace only the port in the link. No Webapp port is
-published by Compose. The existing SSH mapping remains localhost-only.
+The image command waits for the Webapp, obtains a one-use sign-in link and
+sends it privately to the current VS Code window's browser opener. VS Code
+forwards **9120** to an available localhost port, preserving the sign-in link.
+Run the same command in each project's window: no SSH keys, manual tunnel,
+password, link copying or port editing is needed. The command does not print
+the sign-in link or put it in process arguments. No host ports are published
+by the default Compose configuration.
+
+This command requires an attached VS Code window. For standalone Docker use,
+the image still supports `hermes webapp --no-open` and authenticated remote
+access below. The opener uses VS Code's
+[remote CLI browser protocol](https://github.com/microsoft/vscode/blob/main/src/vs/workbench/api/browser/mainThreadCLICommands.ts).
 
 Startup fills only missing `webapp.enabled`, `webapp.host` and `webapp.port`
 with `true`, `127.0.0.1` and `9120`. Existing settings, including an explicit
 `enabled: false`, are preserved. If an older gateway was already running,
-restart the container after chats finish. Custom Webapp ports need a matching
-VS Code forward. To disable the Webapp, set `webapp.enabled` to `false` and
+restart the container after chats finish. The opener also forwards custom
+Webapp ports. To disable the Webapp, set `webapp.enabled` to `false` and
 restart the container. Logs are in `~/.hermes/logs/gateway.out`.
 
 ### Optional remote access using the image
@@ -199,9 +209,12 @@ See [Hermes Webapp documentation](https://hermes-agent.nousresearch.com/docs/use
 
 ## Using the container as Hermes' SSH terminal backend
 
-A Hermes running on the host (for example Hermes Desktop) can use this
-container as its sandbox, sending its terminal commands to `127.0.0.1` on
-`${HERMES_SSH_PORT:-2222}`. Your host's `~/.ssh/*.pub` keys are authorized
+A Hermes running on the host (for example Hermes Desktop) can optionally use
+this container as its sandbox. Add `docker-compose.ssh.yml` after
+`docker-compose.yml` in `devcontainer.json`'s `dockerComposeFile` array to
+publish SSH on `127.0.0.1:${HERMES_SSH_PORT:-2222}`. Choose a distinct stable
+`HERMES_SSH_PORT` in `.devcontainer/.env` per project and recreate the container.
+Your host's `~/.ssh/*.pub` keys are authorized
 automatically. See [SSH-BACKEND.md](.devcontainer/SSH-BACKEND.md) for setup and
 troubleshooting.
 

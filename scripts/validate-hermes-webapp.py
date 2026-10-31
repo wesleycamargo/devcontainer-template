@@ -111,7 +111,14 @@ def validate(image):
 
         # The unprivileged user cannot rebuild /opt. This must reuse the bundle.
         assert "up to date" in user("hermes", "webapp", "--build-only")
+        user("test", "-x", "/usr/local/bin/hermes-webapp-open")
         print("PASS baked bundle is current and reusable by hermes", flush=True)
+
+        # No config/model setup command precedes this: a fresh volume must serve.
+        wait_status("Serving at")
+        fresh = settings()
+        assert fresh["enabled"] is True and fresh["host"] == "127.0.0.1" and fresh["port"] == 9120
+        print("PASS fresh container starts Webapp without manual configuration", flush=True)
 
         write_file("/home/hermes/.hermes/config.yaml",
                    '# keep this comment\nterminal:\n  cwd: /home/hermes\n')

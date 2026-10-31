@@ -68,14 +68,10 @@ PY
 fi
 
 # --- gateway + dashboard ---------------------------------------------------
-if [ ! -f "$HOME/.hermes/config.yaml" ]; then
-  echo "hermes-start-services: Hermes not configured yet (run 'hermes'); skipping auto-start"
-  exit 0
-fi
-
 # Read the raw config: merged defaults would hide whether the user explicitly
 # disabled Webapp. Hermes' atomic writer preserves other settings and comments.
 # Never replace a malformed config/section with a working but unintended one.
+# A missing config reads as an empty mapping, so first boot needs no CLI setup.
 if ! ( cd "$hermes_src" && timeout 30 "$hermes_python" - <<'PY'
 from hermes_cli.config import (
     atomic_config_write, get_config_path, require_readable_config_before_write,

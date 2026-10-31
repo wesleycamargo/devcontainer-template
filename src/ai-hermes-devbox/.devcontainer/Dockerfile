@@ -115,6 +115,7 @@ RUN --network=none timeout 60 runuser -u hermes -- hermes --version </dev/null \
 COPY --chmod=755 entrypoint.sh /usr/local/bin/hermes-entrypoint
 COPY --chmod=755 start-services.sh /usr/local/bin/hermes-start-services
 COPY --chmod=755 hermes-ssh-info.sh /usr/local/bin/hermes-ssh-info
+COPY --chmod=755 webapp-open.py /usr/local/bin/hermes-webapp-open
 RUN bash -n /usr/local/bin/hermes-entrypoint \
     && bash -n /usr/local/bin/hermes-start-services \
     && bash -n /usr/local/bin/hermes-ssh-info \

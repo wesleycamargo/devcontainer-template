@@ -31,7 +31,8 @@ head_() { printf '\n%s== %s%s\n' "$bld" "$*" "$off"; }
 cleanup() {
   docker rm -f hermes-test-a hermes-test-nokey hermes-test-e >/dev/null 2>&1
   for p in hermes-test-b hermes-test-c1 hermes-test-c2; do
-    docker compose -p "$p" -f "$CTX/docker-compose.yml" -f "$WORK/override.yml" \
+    docker compose -p "$p" -f "$CTX/docker-compose.yml" -f "$CTX/docker-compose.ssh.yml" \
+      -f "$WORK/override.yml" -f "$WORK/ssh-keys.yml" \
       down -v --remove-orphans >/dev/null 2>&1
   done
   docker volume rm -f hermes-test-hostkeys hermes-test-data >/dev/null 2>&1
@@ -67,6 +68,9 @@ setup() {
 services:
   devcontainer:
     image: $IMAGE
+YML
+  cat >"$WORK/ssh-keys.yml" <<YML
+services:
   ssh-pubkeys:
     volumes:
       - $WORK:/host-ssh:ro
@@ -231,7 +235,7 @@ do_A() {
 # --- B: docker compose -----------------------------------------------------
 do_B() {
   head_ "B. docker compose"
-  local cmp=(docker compose -p hermes-test-b -f "$CTX/docker-compose.yml" -f "$WORK/override.yml")
+  local cmp=(docker compose -p hermes-test-b -f "$CTX/docker-compose.yml" -f "$CTX/docker-compose.ssh.yml" -f "$WORK/override.yml" -f "$WORK/ssh-keys.yml")
   HERMES_SSH_PORT=22230 "${cmp[@]}" up -d >/dev/null 2>&1 || { bad "compose up"; return 1; }
 
   wait_ssh 22230 || { bad "SSH not reachable on the compose port"; "${cmp[@]}" logs devcontainer | tail -30; return 1; }
@@ -256,9 +260,9 @@ do_B() {
   d="$(sshc 22230 'pgrep -fc "[h]ermes dashboard" 2>/dev/null | head -1')"
   g="${g:-0}"; d="${d:-0}"
   [ "$g" -gt 0 ] 2>/dev/null && ok "gateway running ($g procs)" \
-    || skip "gateway not running (expected until Hermes is configured: ~/.hermes/config.yaml)"
+    || bad "gateway did not start on a fresh volume"
   [ "$d" -gt 0 ] 2>/dev/null && ok "dashboard running ($d procs)" \
-    || skip "dashboard not running (expected until Hermes is configured)"
+    || bad "dashboard did not start on a fresh volume"
 
   # Re-running the starter must never duplicate.
   local again msg
@@ -285,35 +289,32 @@ do_C() {
   head_ "C. two compose projects simultaneously"
   local c1=(docker compose -p hermes-test-c1 -f "$CTX/docker-compose.yml" -f "$WORK/override.yml")
   local c2=(docker compose -p hermes-test-c2 -f "$CTX/docker-compose.yml" -f "$WORK/override.yml")
-  HERMES_SSH_PORT=22231 COMPOSE_PROJECT_NAME=hermes-test-c1 "${c1[@]}" up -d >/dev/null 2>&1
-  HERMES_SSH_PORT=22232 COMPOSE_PROJECT_NAME=hermes-test-c2 "${c2[@]}" up -d >/dev/null 2>&1
+  "${c1[@]}" up -d >/dev/null 2>&1 || { bad "project 1 startup"; return 1; }
+  "${c2[@]}" up -d >/dev/null 2>&1 || { bad "project 2 startup"; return 1; }
 
-  wait_ssh 22231 && ok "project 1 reachable on 22231" || bad "project 1 unreachable"
-  wait_ssh 22232 && ok "project 2 reachable on 22232" || bad "project 2 unreachable"
-
-  [ -n "$(sshc 22231 'hermes --version')" ] && [ -n "$(sshc 22232 'hermes --version')" ] \
-    && ok "hermes works in both simultaneously" || bad "hermes failed in one of them"
-
-  # Each container can use the same loopback Webapp port without a host bind.
-  local port attempt status
-  for port in 22231 22232; do
-    sshc "$port" 'hermes config set terminal.cwd /workspaces >/dev/null && hermes-start-services' >/dev/null
-    for attempt in {1..30}; do
-      status="$(sshc "$port" 'hermes webapp --status' || true)"
+  # No per-project port configuration or manual Hermes setup.
+  local id1 id2 cid attempt status
+  id1="$("${c1[@]}" ps -q devcontainer)"
+  id2="$("${c2[@]}" ps -q devcontainer)"
+  for cid in "$id1" "$id2"; do
+    [ -z "$(docker port "$cid")" ] && ok "project $cid publishes no host ports" \
+      || bad "project $cid publishes a host port"
+    docker exec -u hermes "$cid" hermes --version >/dev/null \
+      && ok "hermes works in project $cid" || bad "hermes failed in project $cid"
+    for attempt in {1..45}; do
+      status="$(docker exec -u hermes "$cid" hermes webapp --status 2>&1 || true)"
       [[ "$status" == *"Serving at http://127.0.0.1:9120"* ]] && break
       sleep 2
     done
     [[ "$status" == *"Serving at http://127.0.0.1:9120"* ]] \
-      && ok "project on SSH $port serves its own local Webapp" \
-      || bad "project on SSH $port did not serve Webapp: $status"
+      && ok "project $cid serves its own local Webapp on first boot" \
+      || bad "project $cid did not serve Webapp: $status"
   done
 
-  # Internal port identical, host ports distinct.
-  [ "$(sshc 22231 'ss -ltn 2>/dev/null | grep -c ":2222"')" != "0" ] \
-    && ok "internal port stays 2222 in both" || skip "could not inspect listeners (ss missing)"
-
   # Distinct host identities: a shared key would be a cross-project collision.
-  local f1 f2; f1="$(host_fp 22231)"; f2="$(host_fp 22232)"
+  local f1 f2
+  f1="$(docker exec "$id1" ssh-keygen -lf /var/lib/hermes-ssh/host_keys/ssh_host_ed25519_key.pub)"
+  f2="$(docker exec "$id2" ssh-keygen -lf /var/lib/hermes-ssh/host_keys/ssh_host_ed25519_key.pub)"
   [ -n "$f1" ] && [ "$f1" != "$f2" ] && ok "each project has its own host key" \
     || bad "projects share a host key ($f1 / $f2)"
 
@@ -392,7 +393,7 @@ do_E() {
 
 do_G() {
   head_ "G. Webapp local defaults and optional remote login"
-  if python3 -m unittest discover -s "$REPO_ROOT/scripts" -p test_validate_hermes_webapp.py \
+  if python3 -m unittest discover -s "$REPO_ROOT/scripts" -p 'test_*webapp*.py' \
       && python3 "$REPO_ROOT/scripts/validate-hermes-webapp.py" "$IMAGE"; then
     ok "Webapp contract"
   else
@@ -409,7 +410,8 @@ main() {
     *) echo "usage: $0 [build|A|B|C|D|E|G|all]"; exit 2 ;;
   esac
   printf '\n%s%d passed, %d failed, %d skipped%s\n' "$bld" "$PASS" "$FAIL" "$SKIP" "$off"
-  printf 'Checkpoint F (real Hermes Desktop connection) requires a running ai-hermes-devbox project.\n'
+  printf 'Checkpoint F is optional for Webapp users; it tests a real Hermes Desktop connection.\n'
+  printf 'It requires a running ai-hermes-devbox project with docker-compose.ssh.yml enabled.\n'
   printf 'Validation containers are disposable and removed when this script exits.\n'
   printf 'Replace /path/to/hermes-project with the project where the Hermes template is applied:\n'
   printf '  bash %q /path/to/hermes-project hermes-ssh-info\n' "$CTX/scripts/find-devcontainer.sh"

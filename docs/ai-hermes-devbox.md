@@ -11,20 +11,13 @@ from [AI Devbox](ai-devbox.md) and an SSH gateway a host-side Hermes Desktop can
 ```powershell
 # Apply the public template (no registry login required)
 devcontainer templates apply -w . -t ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox
-
-# Pick a stable SSH port
-cp .devcontainer/.env.example .devcontainer/.env
 ```
 
-Then **Reopen in Container** and run `hermes` once inside it to set up API keys
-and connectors.
+Then **Reopen in Container** and run `hermes-webapp-open` in its terminal.
+Run `hermes` separately when ready to set up model credentials and connectors.
 
-Keep `HERMES_SSH_PORT` fixed once chosen — Hermes Desktop saves it in its
-connection:
-
-```dotenv
-HERMES_SSH_PORT=2222
-```
+The default devcontainer publishes no host ports. VS Code forwards the Webapp
+locally, choosing an available port for each project.
 
 ## VS Code UI
 
@@ -37,10 +30,14 @@ HERMES_SSH_PORT=2222
    ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox
    ```
 
-3. Copy `.devcontainer/.env.example` to `.devcontainer/.env` as above, then
-   **Reopen in Container** and run `hermes` once inside it.
+3. **Reopen in Container**, then run `hermes-webapp-open` in its VS Code terminal.
 
 ## Connect Hermes Desktop
+
+Optional; browser users do not need this. Add `docker-compose.ssh.yml` after
+`docker-compose.yml` in `devcontainer.json`'s `dockerComposeFile` array and
+recreate the container. Copy `.devcontainer/.env.example` to `.devcontainer/.env`
+and choose a different `HERMES_SSH_PORT` for each project before recreating it.
 
 ```powershell
 # Windows: reads the running container, writes ~/.ssh/config + Hermes config, verifies
@@ -66,7 +63,7 @@ enter the container. Details and troubleshooting:
 
 | Service | Address | Notes |
 | --- | --- | --- |
-| SSH gateway | `127.0.0.1:${HERMES_SSH_PORT:-2222}` | Container side is always 2222, so several projects run at once |
+| SSH gateway | Container port 2222 | Host publication is opt-in with `docker-compose.ssh.yml` |
 | Hermes gateway / Webapp | `127.0.0.1:9120` by default | Started by `hermes-start-services`; forwarded locally by VS Code |
 | Hermes dashboard | `127.0.0.1:9119` | Forwarded by VS Code; logs in `~/.hermes/logs/` |
 
@@ -82,24 +79,33 @@ Back up existing Hermes data before upgrading. Update Hermes by changing the
 pinned image digest and publishing/pulling a new devbox image, keeping backend
 and browser assets together. The separate AI Devbox template is unchanged.
 
-After running `hermes` once to configure it, run in the container terminal:
+On a fresh volume, startup creates the local Webapp configuration and starts
+the service automatically. Model credentials can be configured separately;
+they are not required to open the interface. After **Reopen in Container**,
+run one command in that project's VS Code terminal (PowerShell or Bash):
 
 ```bash
-hermes-start-services
-hermes webapp --status
-hermes webapp --no-open
+hermes-webapp-open
 ```
 
-Open the last command's one-use link within 60 seconds. A bare URL does not sign
-you in. VS Code forwards **9120** to localhost; if its Ports panel assigns a
-different local port, replace only the port in the link. No Webapp port is
-published by Compose. The existing SSH mapping remains localhost-only.
+The image command waits for the Webapp, obtains a one-use sign-in link and
+sends it privately to the current VS Code window's browser opener. VS Code
+forwards **9120** to an available localhost port, preserving the sign-in link.
+Run the same command in each project's window: no SSH keys, manual tunnel,
+password, link copying or port editing is needed. The command does not print
+the sign-in link or put it in process arguments. No host ports are published
+by the default Compose configuration.
+
+This command requires an attached VS Code window. For standalone Docker use,
+the image still supports `hermes webapp --no-open` and authenticated remote
+access below. The opener uses VS Code's
+[remote CLI browser protocol](https://github.com/microsoft/vscode/blob/main/src/vs/workbench/api/browser/mainThreadCLICommands.ts).
 
 Startup fills only missing `webapp.enabled`, `webapp.host` and `webapp.port`
 with `true`, `127.0.0.1` and `9120`. Existing settings, including an explicit
 `enabled: false`, are preserved. If an older gateway was already running,
-restart the container after chats finish. Custom Webapp ports need a matching
-VS Code forward. To disable the Webapp, set `webapp.enabled` to `false` and
+restart the container after chats finish. The opener also forwards custom
+Webapp ports. To disable the Webapp, set `webapp.enabled` to `false` and
 restart the container. Logs are in `~/.hermes/logs/gateway.out`.
 
 ### Optional remote access using the image

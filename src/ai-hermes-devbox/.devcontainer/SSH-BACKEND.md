@@ -24,7 +24,7 @@ Host (Windows)                          Docker (e.g. in WSL)
 ```
 
 - **SSH server** — OpenSSH is installed in the image and started by the image
-  entrypoint. The internal port is always `2222`; `docker-compose.yml` publishes
+  entrypoint. The internal port is always `2222`; optional `docker-compose.ssh.yml` publishes
   it on the host's loopback only using `${HERMES_SSH_PORT:-2222}`, so nothing
   outside your machine can reach it.
 - **Stable host identity** — host keys are generated on first start into the
@@ -35,7 +35,7 @@ Host (Windows)                          Docker (e.g. in WSL)
   Hermes keeps a `bash -l` session open and runs one-shot commands through the
   login shell, which would break under the base image's pwsh. VS Code terminals
   still open pwsh.
-- **Keys** — every `*.pub` in `~/.ssh` of the machine that starts the container
+- **Keys** — when the SSH override is enabled, every `*.pub` in `~/.ssh` of the machine that starts the container
   (`$HOME`, or `%USERPROFILE%` on Windows) is authorized. The one-shot
   `ssh-pubkeys` service copies only public keys into a volume and exits; the
   entrypoint turns them into `authorized_keys` on start. Private keys never enter
@@ -62,6 +62,18 @@ The template and image are public; registry login is not required.
    compose wiring, public-key collector, host-key volume, and helper scripts.
 
 ## Setup
+
+The default devcontainer publishes no host ports; Webapp users need only
+`hermes-webapp-open` in VS Code. To opt into the SSH workflow below, copy
+`.devcontainer/.env.example` to `.devcontainer/.env`, set a distinct
+`HERMES_SSH_PORT` for this project, and use:
+
+```json
+"dockerComposeFile": ["docker-compose.yml", "docker-compose.ssh.yml"]
+```
+
+Recreate the devcontainer after this change. For plain Compose, include both
+files: `docker compose -f .devcontainer/docker-compose.yml -f .devcontainer/docker-compose.ssh.yml up -d`.
 
 ### 1. Make sure the host has the key Hermes will use
 
