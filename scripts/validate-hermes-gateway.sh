@@ -152,7 +152,7 @@ do_A() {
     && ok "~/.hermes holds no runtime" || bad "~/.hermes still contains a runtime"
 
   # Services must NOT run here: HERMES_AUTOSTART_SERVICES is unset.
-  [ -z "$(sshc 22222 'pgrep -f "[h]ermes gateway" || true')" ] \
+  [ -z "$(sshc 22222 'pgrep -f "[h]ermes gateway([[:space:]]|$)|[h]ermes_cli[.]main.* gateway([[:space:]]|$)" || true')" ] \
     && ok "no gateway process (autostart off)" || bad "gateway started without being asked"
 
   # Security assertions.
@@ -268,8 +268,8 @@ do_B() {
   # `pgrep -c` already prints 0 when nothing matches (and exits 1), so a
   # trailing `|| echo 0` would append a second zero and corrupt the value.
   local g d
-  g="$(sshc 22230 'pgrep -fc "[h]ermes gateway" 2>/dev/null | head -1')"
-  d="$(sshc 22230 'pgrep -fc "[h]ermes dashboard" 2>/dev/null | head -1')"
+  g="$(sshc 22230 'pgrep -fc "[h]ermes gateway([[:space:]]|$)|[h]ermes_cli[.]main.* gateway([[:space:]]|$)" 2>/dev/null | head -1')"
+  d="$(sshc 22230 'pgrep -fc "[h]ermes dashboard([[:space:]]|$)|[h]ermes_cli[.]main.* dashboard([[:space:]]|$)" 2>/dev/null | head -1')"
   g="${g:-0}"; d="${d:-0}"
   [ "$g" -gt 0 ] 2>/dev/null && ok "gateway running ($g procs)" \
     || bad "gateway did not start on a fresh volume"
@@ -279,7 +279,7 @@ do_B() {
   # Re-running the starter must never duplicate.
   local again msg
   msg="$(sshc 22230 'hermes-start-services 2>&1' || true)"
-  again="$(sshc 22230 'pgrep -fc "[h]ermes gateway" 2>/dev/null | head -1')"
+  again="$(sshc 22230 'pgrep -fc "[h]ermes gateway([[:space:]]|$)|[h]ermes_cli[.]main.* gateway([[:space:]]|$)" 2>/dev/null | head -1')"
   again="${again:-0}"
   if [ "$g" -eq 0 ] 2>/dev/null; then
     skip "duplicate guard untested (services not running yet)"

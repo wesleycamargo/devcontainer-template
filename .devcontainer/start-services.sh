@@ -102,14 +102,16 @@ PY
   exit 1
 fi
 
-if pgrep -f "hermes gateway" >/dev/null 2>&1; then
+# The official launcher execs Python with an inline hermes_cli.main import,
+# not a literal `hermes gateway` argv. Match both official and legacy launchers.
+if pgrep -f "[h]ermes gateway([[:space:]]|$)|[h]ermes_cli[.]main.* gateway([[:space:]]|$)" >/dev/null 2>&1; then
   echo "hermes-start-services: gateway already running"
 else
   echo "hermes-start-services: starting gateway (Webapp address comes from config.yaml)"
   nohup hermes gateway >"$HOME/.hermes/logs/gateway.out" 2>&1 &
 fi
 
-if pgrep -f "hermes dashboard" >/dev/null 2>&1; then
+if pgrep -f "[h]ermes dashboard([[:space:]]|$)|[h]ermes_cli[.]main.* dashboard([[:space:]]|$)" >/dev/null 2>&1; then
   echo "hermes-start-services: dashboard already running"
 else
   echo "hermes-start-services: starting dashboard on 127.0.0.1:9119"
