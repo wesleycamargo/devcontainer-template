@@ -46,6 +46,10 @@ def validate(image):
     )
 
     def request(path, data=None):
+        # Docker may allocate a different host port when this container restarts.
+        # Resolve it for every request, including the fail-closed checks.
+        port = docker("port", name, "9120/tcp").stdout.strip().rsplit(":", 1)[1]
+        url = "http://127.0.0.1:" + port
         body = json.dumps(data).encode() if data is not None else None
         req = urllib.request.Request(url + path, data=body,
                                      headers={"Content-Type": "application/json"})
@@ -54,6 +58,22 @@ def validate(image):
                 return response.status, response.read()
         except urllib.error.HTTPError as exc:
             return exc.code, exc.read()
+
+    def wait_http(expected):
+        # Internal status can become ready before the published socket is usable.
+        # Retry transport failures only; unexpected auth responses fail immediately.
+        deadline = time.monotonic() + 30
+        last_error = None
+        while time.monotonic() < deadline:
+            try:
+                status, _ = request("/api/sessions")
+            except (urllib.error.URLError, ConnectionError, TimeoutError) as exc:
+                last_error = exc
+            else:
+                assert status in expected, f"Expected HTTP {expected}, got {status}"
+                return
+            time.sleep(1)
+        raise AssertionError(f"Webapp HTTP did not become reachable after restart: {last_error}")
 
     def login(password):
         return request("/auth/password-login", {
@@ -88,8 +108,6 @@ def validate(image):
         user("hermes-start-services")
         assert user("cat", "/home/hermes/.hermes/config.yaml") == before
 
-        port = docker("port", name, "9120/tcp").stdout.strip().rsplit(":", 1)[1]
-        url = "http://127.0.0.1:" + port
         try:
             request("/")
         except (urllib.error.URLError, ConnectionError, TimeoutError):
@@ -118,14 +136,14 @@ def validate(image):
         docker("restart", name)
         wait_status("Serving at")
         assert settings()["host"] == "0.0.0.0"
-        assert request("/api/sessions")[0] in (401, 403)
+        wait_http((401, 403))
         assert login("wrong-password") == 401
         assert login(password) == 200
         assert request("/api/sessions")[0] == 200
         assert request("/")[0] == 200
         docker("restart", name)
         wait_status("Serving at")
-        assert request("/api/sessions")[0] == 200
+        wait_http((200,))
         print("PASS remote password login and browser session survive restart", flush=True)
 
         user("hermes", "config", "set", "webapp.enabled", "false")

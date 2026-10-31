@@ -9,6 +9,7 @@ on:
       - 'src/ai-hermes-devbox/**'
       - 'scripts/validate-hermes-gateway.sh'
       - 'scripts/validate-hermes-webapp.py'
+      - 'scripts/test_validate_hermes_webapp.py'
       - '.github/workflows/validate-hermes-gateway.yml'
       - '.github/workflows/publish-ai-hermes-devbox.yml'
   push:
@@ -18,6 +19,7 @@ on:
       - 'src/ai-hermes-devbox/**'
       - 'scripts/validate-hermes-gateway.sh'
       - 'scripts/validate-hermes-webapp.py'
+      - 'scripts/test_validate_hermes_webapp.py'
       - '.github/workflows/validate-hermes-gateway.yml'
       - '.github/workflows/publish-ai-hermes-devbox.yml'
   workflow_dispatch:

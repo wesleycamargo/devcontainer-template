@@ -392,7 +392,8 @@ do_E() {
 
 do_G() {
   head_ "G. Webapp local defaults and optional remote login"
-  if python3 "$REPO_ROOT/scripts/validate-hermes-webapp.py" "$IMAGE"; then
+  if python3 -m unittest discover -s "$REPO_ROOT/scripts" -p test_validate_hermes_webapp.py \
+      && python3 "$REPO_ROOT/scripts/validate-hermes-webapp.py" "$IMAGE"; then
     ok "Webapp contract"
   else
     bad "Webapp contract"
