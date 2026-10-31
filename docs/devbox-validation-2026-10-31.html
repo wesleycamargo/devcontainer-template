@@ -10,7 +10,7 @@ body{font:17px/1.6 system-ui,sans-serif;max-width:960px;margin:40px auto;padding
 <p>31 de outubro de 2026. A base passou a usar a configuração testada em
 <code>devcontainer-tests-ai-devbox</code>. O Compose consome a imagem publicada.
 A instalação e atualização automática de skills foi removida; os arquivos locais
-<code>.agents/</code> continuam incluídos. A variante ESP32 acrescenta MicroPython.</p>
+<code>.agents/</code> continuam incluídos. A variante ESP32 acrescenta ferramentas para MicroPython.</p>
 <table>
 <tr><th>Template e imagem</th><th>Versão</th><th>Resultado</th></tr>
 <tr><td>ai-devbox / ai-devbox-image</td><td>0.22.0</td><td class="ok"><a href="https://github.com/wesleycamargo/devcontainer-template/actions/runs/41220493736">Aprovado no GitHub Actions</a></td></tr>
@@ -47,4 +47,13 @@ sha256:fa515f7e701f82d9196d359cd1e49806db89fa6405bfe613a4c6e7bc37f43be4</code></
 <p>O log de construção da ESP32 confirma que ela herdou exatamente o identificador
 da base acima. As tags <code>latest</code> e de versão apontavam para a mesma imagem
 em cada teste.</p>
+<h2>Visibilidade: decisão pendente</h2>
+<p>A checagem final conseguiu ler os manifestos dos quatro pacotes AI Devbox e
+ESP32 sem autenticação, e a página do pacote ESP32 exibe <strong>Public</strong>.
+Isso diverge da regra de pacotes privados registrada no AGENTS.md.
+A validação funcional passou; a conformidade da visibilidade permanece pendente.</p>
+<p>Segundo a <a href="https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility">documentação do GitHub</a>,
+um pacote público não pode voltar a ser privado. A decisão solicitada ao mantenedor
+é manter os nomes públicos e corrigir a documentação, ou publicar novos pacotes
+privados com outros nomes.</p>
 </html>
