@@ -247,3 +247,11 @@ terminal working directory to that same path; no template edits are required.
 ## AI-native SDLC framework
 
 Project skills are included in `.agents/skills`. Container startup does not install or update them.
+### Existing Hermes data volumes
+
+Hermes source stays in the image at `/opt/hermes/hermes-agent`. The package
+manager keeps per-user dependency environments under `~/.hermes/installs`.
+An existing volume can hide the environment prepared by the image; startup runs
+a bounded `hermes pm repair` when the version check fails, retaining user
+configuration, credentials, plugins and sessions. If repair cannot finish,
+SSH remains available and startup logs explain the failure.

@@ -110,3 +110,12 @@ Source: [`src/ai-hermes-devbox/`](../src/ai-hermes-devbox/) ·
 [`Dockerfile`](../src/ai-hermes-devbox/.devcontainer/Dockerfile) ·
 [`publish-ai-hermes-devbox.yml`](../.github/workflows/publish-ai-hermes-devbox.yml) ·
 [in-template README](../src/ai-hermes-devbox/README.md)
+
+### Existing Hermes data volumes
+
+Hermes source stays in the image at `/opt/hermes/hermes-agent`. The package
+manager keeps per-user dependency environments under `~/.hermes/installs`.
+An existing volume can hide the environment prepared by the image; startup runs
+a bounded `hermes pm repair` when the version check fails, retaining user
+configuration, credentials, plugins and sessions. If repair cannot finish,
+SSH remains available and startup logs explain the failure.

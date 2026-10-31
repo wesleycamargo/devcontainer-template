@@ -93,6 +93,15 @@ for legacy in hermes-agent node; do
   fi
 done
 
+# An existing data volume can hide the image's prepared dependency environment.
+# Repair through Hermes' package manager; user config, sessions and plugins stay
+# in place. Bound the work so unavailable downloads cannot prevent SSH forever.
+if ! timeout 30 runuser -u hermes -- env HOME=/home/hermes /usr/local/bin/hermes --version >/dev/null 2>&1; then
+  if ! timeout 180 runuser -u hermes -- env HOME=/home/hermes /usr/local/bin/hermes pm repair </dev/null; then
+    log "WARNING: Hermes dependency initialization failed; SSH remains available"
+  fi
+fi
+
 # --- optional Hermes services ---------------------------------------------
 # Off unless asked for. With terminal.backend=ssh the agent runs on the
 # operator's machine and only shells in here, so a gateway/dashboard pair would

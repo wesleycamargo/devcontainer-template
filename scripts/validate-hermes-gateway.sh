@@ -111,9 +111,9 @@ do_A() {
     && ok "login shell is bash" || bad "login shell is not bash"
 
   # The runtime must come from the image, not from ~/.hermes.
-  sshc 22222 'test -x /usr/local/lib/hermes-agent/venv/bin/python' \
-    && ok "runtime lives in the image (/usr/local/lib/hermes-agent)" \
-    || bad "image runtime missing"
+  sshc 22222 'test -f /opt/hermes/hermes-agent/pyproject.toml && test ! -w /opt/hermes/hermes-agent' \
+    && ok "Hermes source is image-owned at /opt/hermes/hermes-agent" \
+    || bad "image-owned Hermes source missing"
 
   sshc 22222 'test ! -e ~/.hermes/hermes-agent' \
     && ok "~/.hermes holds no runtime" || bad "~/.hermes still contains a runtime"
@@ -319,8 +319,12 @@ do_E() {
   # The new runtime must win.
   [ "$(sshc 22233 "bash -c 'command -v hermes'")" = "/usr/local/bin/hermes" ] \
     && ok "uses the image's hermes, not the volume's" || bad "resolved hermes outside the image"
-  [ -n "$(sshc 22233 'hermes --version')" ] \
-    && ok "hermes --version works with the legacy volume mounted" || bad "hermes failed"
+  local version
+  if version="$(sshc 22233 'hermes --version 2>&1')"; then
+    ok "hermes --version works with the legacy volume mounted: $version"
+  else
+    bad "hermes failed with the legacy volume mounted: $version"
+  fi
 
   # User data must survive untouched.
   local lost=""
