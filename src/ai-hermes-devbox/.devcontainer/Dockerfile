@@ -50,9 +50,11 @@ curl -fsSL 'https://gist.githubusercontent.com/wesleycamargo/06b58b472fe0cded2e6
 BASH
 
 ARG TERMINAL_ICONS_VERSION=0.11.0
-# PowerShell creates ~/.local/share even with -NoProfile. Keep root's setup
-# files out of the development user's home so Claude can install there later.
-RUN HOME=/root pwsh -NoLogo -NoProfile -NonInteractive -File /dev/stdin <<'PWSH'
+# PowerShell writes both ~/.local/share and $XDG_RUNTIME_DIR/.dotnet even
+# without a profile. Isolate root's setup so Claude and PSReadLine can run as hermes.
+RUN install -d -m 700 /root/.cache/powershell-runtime \
+    && HOME=/root XDG_RUNTIME_DIR=/root/.cache/powershell-runtime \
+       pwsh -NoLogo -NoProfile -NonInteractive -File /dev/stdin <<'PWSH'
 $ErrorActionPreference = 'Stop'
 Install-Module -Name Terminal-Icons -RequiredVersion $env:TERMINAL_ICONS_VERSION -Force -Scope AllUsers
 @'
@@ -108,7 +110,7 @@ RUN --network=none timeout 60 runuser -u hermes -- hermes --version </dev/null \
     && timeout 30 runuser -u hermes -- claude --version </dev/null \
     && timeout 30 runuser -u hermes -- codex --version </dev/null \
     && runuser -u hermes -- gh --version \
-    && HOME=/root pwsh -NoLogo -NoProfile -NonInteractive -Command '$ErrorActionPreference = "Stop"; Import-Module Terminal-Icons' \
+    && runuser -u hermes -- pwsh -NoLogo -NoProfile -NonInteractive -Command '$ErrorActionPreference = "Stop"; Import-Module Terminal-Icons; $mutex = [System.Threading.Mutex]::new($false, "HermesPSReadLineSmoke"); $mutex.Dispose()' \
     && node --version
 
 # Keep the existing SSH contract and Compose init, not the upstream s6 entrypoint.

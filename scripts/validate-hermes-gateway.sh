@@ -131,6 +131,12 @@ do_A() {
     && ok "development tools and Hermes ACP remain available" \
     || bad "development tool missing"
 
+  # Module imports alone do not exercise the .NET named mutex used by PSReadLine.
+  docker exec -u hermes hermes-test-a pwsh -NoLogo -NoProfile -NonInteractive \
+    -Command '$ErrorActionPreference = "Stop"; $mutex = [System.Threading.Mutex]::new($false, "HermesPSReadLineSmoke"); $mutex.Dispose()' \
+    && ok "PowerShell can create PSReadLine-style mutexes as hermes" \
+    || bad "PowerShell runtime directory is not usable by hermes"
+
   docker exec hermes-test-a hermes config set webapp.enabled false >/dev/null \
     && sshc 22222 'test "$(stat -c %u ~/.hermes/config.yaml)" = "$(id -u)"' \
     && ok "root docker exec writes config as hermes in the existing data path" \

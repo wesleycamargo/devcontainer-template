@@ -15,6 +15,10 @@ log() { printf 'hermes-entrypoint: %s\n' "$*"; }
 # /run is tmpfs in many setups, so this cannot be a build-time-only mkdir.
 mkdir -p /run/sshd
 
+# /tmp can also be mounted fresh at runtime. .NET/PSReadLine need a private,
+# writable runtime directory owned by the development user, not root.
+install -d -o hermes -g hermes -m 700 /tmp/hermes-runtime
+
 # --- host keys -------------------------------------------------------------
 # Generated on first start into a directory that Compose backs with a named
 # volume, so the container keeps one SSH identity per project across restarts,
