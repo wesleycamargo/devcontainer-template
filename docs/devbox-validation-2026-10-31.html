@@ -85,4 +85,34 @@ hermes</code></pre>
 <p>Essas correções foram aplicadas ao container e à configuração do usuário.
 Os testes anteriores de <code>hermes --version</code> não cobriam a abertura
 da interface com as integrações configuradas no host.</p>
+<h2>Correção permanente do volume de dependências</h2>
+<p>O erro de permissão foi reproduzido com <code>hermes pm repair</code>
+em um diretório descartável cujo <code>installs</code> pertencia ao root:</p>
+<pre><code>✗ install state is not writable by this user (.../installs/bceb66d11c12ceaa)
+repro_exit=1</code></pre>
+<p>A imagem agora executa <a href="../src/ai-devbox/.devcontainer/entrypoint.sh">devbox-entrypoint</a>
+antes do comando do Compose. Quando o usuário é <code>vscode</code> e
+<code>/home/vscode/.hermes/installs</code> é um ponto de montagem separado,
+ajusta os donos divergentes para o UID/GID atual. O comando usado é:</p>
+<pre><code>sudo -n find "$runtime" -xdev \
+    \( ! -uid "$uid" -o ! -gid "$gid" \) \
+    -exec chown -h "$uid:$gid" {} +</code></pre>
+<p>O script não segue links simbólicos. A preparação das dependências continua
+no comando do Compose, com tempo limitado. A configuração das integrações do
+Hermes permanece no host.</p>
+<p class="ok">Publicação e regressão aprovadas:
+<a href="https://github.com/wesleycamargo/devcontainer-template/actions/runs/41233439836">AI Devbox 0.22.1</a>,
+commit <code>7dfb4e0</code>. As tags <code>0.22.1</code> e <code>latest</code>
+apontam para:</p>
+<pre><code>sha256:e767c1ceae619d1d85991038f38f3aaea7dd295072e0ab7878c2c8ce2df4b544</code></pre>
+<p>O teste aplicou o template publicado em um diretório novo. Com a inicialização
+ignorada, reproduziu o erro exato de gravação. Com a inicialização normal,
+recuperou um volume root sem dependências e depois o mesmo volume preenchido,
+novamente pertencente ao root. Hermes respondeu após cada recuperação;
+os marcadores de persistência sobreviveram e um arquivo de controle no host
+manteve seu conteúdo e dono.</p>
+<pre><code>bash scripts/validate-published-devbox.sh ai-devbox 0.22.1</code></pre>
+<p>Para atualizar um container existente, baixe a imagem no host e execute
+<strong>Dev Containers: Rebuild Container</strong> no VS Code. Mantenha os volumes:</p>
+<pre><code>docker pull ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image:latest</code></pre>
 </html>

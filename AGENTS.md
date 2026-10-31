@@ -6,7 +6,7 @@ template/image built from the same config.
 ## Layout
 
 - `.devcontainer/` — the repo's development container. Keep its Dockerfile,
-  devcontainer.json, docker-compose.yml and README.md identical to
+  devcontainer.json, docker-compose.yml, entrypoint.sh and README.md identical to
   `src/ai-devbox/.devcontainer/`. Compose pulls the public ai-devbox image;
   CI builds the Dockerfile. Host mounts use DEVBOX_HOST_HOME.
 - `src/ai-devbox/.devcontainer/` — the base template, published via CI. The
