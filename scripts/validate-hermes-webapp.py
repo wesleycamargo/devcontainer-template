@@ -41,6 +41,7 @@ def validate(image):
 
     # Ignore HTTP proxy variables for requests to this disposable localhost port.
     cookies = http.cookiejar.CookieJar()
+    test_secrets = []
     browser = urllib.request.build_opener(
         urllib.request.ProxyHandler({}), urllib.request.HTTPCookieProcessor(cookies),
     )
@@ -66,11 +67,18 @@ def validate(image):
         last_error = None
         while time.monotonic() < deadline:
             try:
-                status, _ = request("/api/sessions")
+                status, body = request("/api/sessions")
             except (urllib.error.URLError, ConnectionError, TimeoutError) as exc:
                 last_error = exc
             else:
-                assert status in expected, f"Expected HTTP {expected}, got {status}"
+                if status not in expected:
+                    detail = body.decode("utf-8", errors="replace")
+                    for secret in [*test_secrets, *(cookie.value for cookie in cookies)]:
+                        if secret:
+                            detail = detail.replace(secret, "<REDACTED>")
+                    raise AssertionError(
+                        f"GET /api/sessions: expected HTTP {expected}, got {status}; "
+                        f"response body: {detail[:2048]!r}")
                 return
             time.sleep(1)
         raise AssertionError(f"Webapp HTTP did not become reachable after restart: {last_error}")
@@ -129,10 +137,12 @@ def validate(image):
         print("PASS remote Webapp refuses access without credentials", flush=True)
 
         password = secrets.token_urlsafe(24)
+        auth_secret = secrets.token_hex(32)
+        test_secrets.extend((password, auth_secret))
         write_file("/home/hermes/.hermes/.env",
                    "HERMES_DASHBOARD_BASIC_AUTH_USERNAME=webapp-test\n"
                    f"HERMES_DASHBOARD_BASIC_AUTH_PASSWORD={password}\n"
-                   f"HERMES_DASHBOARD_BASIC_AUTH_SECRET={secrets.token_hex(32)}\n")
+                   f"HERMES_DASHBOARD_BASIC_AUTH_SECRET={auth_secret}\n")
         docker("restart", name)
         wait_status("Serving at")
         assert settings()["host"] == "0.0.0.0"

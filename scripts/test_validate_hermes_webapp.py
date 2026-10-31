@@ -23,11 +23,13 @@ class ReachedLogin(Exception):
 
 
 class RestartReplay:
-    def __init__(self, *, change_port=False, refused_attempts=0, anonymous_status=401):
+    def __init__(self, *, change_port=False, refused_attempts=0, anonymous_status=401,
+                 response_body=b"{}"):
         self.port = 32000
         self.change_port = change_port
         self.refused_attempts = refused_attempts
         self.anonymous_status = anonymous_status
+        self.response_body = response_body
         self.credentials = False
         self.config = ""
         self.webapp = {"enabled": True, "host": "127.0.0.1", "port": 9120}
@@ -71,7 +73,7 @@ class RestartReplay:
         if request.full_url.endswith("/auth/password-login"):
             raise ReachedLogin()
         raise urllib.error.HTTPError(request.full_url, self.anonymous_status,
-                                     "test response", {}, io.BytesIO(b"{}"))
+                                     "test response", {}, io.BytesIO(self.response_body))
 
 
 class WebappRestartTests(unittest.TestCase):
@@ -99,6 +101,19 @@ class WebappRestartTests(unittest.TestCase):
     def test_unreachable_endpoint_still_fails_after_timeout(self):
         with self.assertRaisesRegex(AssertionError, "HTTP did not become reachable"):
             self.replay(RestartReplay(refused_attempts=1000))
+
+    def test_service_unavailable_reports_response_body(self):
+        with self.assertRaisesRegex(AssertionError, 'got 503; response body:.*backend unavailable'):
+            self.replay(RestartReplay(
+                anonymous_status=503, response_body=b'{"detail":"backend unavailable"}'))
+
+    def test_response_diagnostic_redacts_test_credentials(self):
+        with patch.object(validation.secrets, "token_urlsafe", return_value="test-password"):
+            with self.assertRaises(AssertionError) as failure:
+                self.replay(RestartReplay(
+                    anonymous_status=503, response_body=b'{"detail":"test-password"}'))
+        self.assertNotIn("test-password", str(failure.exception))
+        self.assertIn("<REDACTED>", str(failure.exception))
 
 
 if __name__ == "__main__":
