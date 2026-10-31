@@ -80,10 +80,9 @@ inside the container once to set up API keys and connectors; it writes
 `~/.hermes/.env` and `~/.hermes/config.yaml`.
 
 The `hermes-data` Docker named volume persists that directory across normal
-rebuilds. It holds user data only: credentials, config, sessions, logs,
-memories, and skills. Hermes' runtime lives in the image under
-`/usr/local/lib/hermes-agent` and `/opt/hermes`, so pulling a newer image really
-updates Hermes. Do not remove Docker volumes, for example with
+rebuilds. It holds credentials, config, sessions, logs, memories, skills, and
+per-user dependency environments. Hermes source lives in the image under
+`/opt/hermes/hermes-agent`, so pulling a newer image updates the source. Do not remove Docker volumes, for example with
 `docker compose down -v`, if you need to retain Hermes data.
 
 If an existing volume came from an older image, it may still contain

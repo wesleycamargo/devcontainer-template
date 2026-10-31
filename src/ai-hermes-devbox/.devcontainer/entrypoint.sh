@@ -65,17 +65,17 @@ else
 fi
 
 # --- Hermes data directory -------------------------------------------------
-# The image installs Hermes' code and runtime under /usr/local/lib and /opt,
-# so ~/.hermes holds user data only and an image upgrade actually takes effect.
+# The image installs Hermes source under /opt. ~/.hermes holds user data
+# and per-user dependency environments.
 # The install-time data dirs were created under the build user's home, so make
 # sure hermes's own copy exists (the volume mounts in empty and root-owned).
 install -d -o hermes -g hermes /home/hermes/.hermes
 for d in cron sessions logs pairing hooks image_cache audio_cache memories skills; do
   install -d -o hermes -g hermes "/home/hermes/.hermes/$d"
 done
-if [ ! -f /home/hermes/.hermes/.env ] && [ -f /usr/local/lib/hermes-agent/.env.example ]; then
+if [ ! -f /home/hermes/.hermes/.env ] && [ -f /opt/hermes/hermes-agent/.env.example ]; then
   install -o hermes -g hermes -m 600 \
-    /usr/local/lib/hermes-agent/.env.example /home/hermes/.hermes/.env
+    /opt/hermes/hermes-agent/.env.example /home/hermes/.hermes/.env
   log "seeded ~/.hermes/.env from the installed template"
 fi
 
@@ -88,7 +88,7 @@ for legacy in hermes-agent node; do
   if [ -e "/home/hermes/.hermes/$legacy" ]; then
     log "legacy Hermes data notice: found leftover from an older image at ~/.hermes/$legacy"
     log "note: ~/.hermes/$legacy is a leftover from an older image and is no longer used."
-    log "      the active runtime is /usr/local/lib/hermes-agent. to reclaim the space:"
+    log "      the active source is /opt/hermes/hermes-agent. to reclaim the space:"
     log "      rm -rf ~/.hermes/$legacy"
   fi
 done

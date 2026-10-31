@@ -110,7 +110,10 @@ do_A() {
   [ "$(sshc 22222 'echo $SHELL')" = "/bin/bash" ] \
     && ok "login shell is bash" || bad "login shell is not bash"
 
-  # The runtime must come from the image, not from ~/.hermes.
+  sshc 22222 'claude --version && codex --version' \
+    && ok "Claude and Codex run over SSH" || bad "agent CLI missing from SSH PATH"
+
+  # Source must come from the image; dependencies are managed per user.
   sshc 22222 'test -f /opt/hermes/hermes-agent/pyproject.toml && test ! -w /opt/hermes/hermes-agent' \
     && ok "Hermes source is image-owned at /opt/hermes/hermes-agent" \
     || bad "image-owned Hermes source missing"
@@ -193,13 +196,20 @@ do_A() {
   # Graceful behaviour with no keys supplied at all.
   docker rm -f hermes-test-nokey >/dev/null 2>&1
   docker run -d --init --name hermes-test-nokey -p 127.0.0.1:22229:2222 "$IMAGE" >/dev/null
-  sleep 6
-  if [ "$(docker inspect -f '{{.State.Running}}' hermes-test-nokey 2>/dev/null)" = "true" ]; then
+  # Key generation can outlast a fixed sleep on a busy runner. Wait for the
+  # SSH host key before checking startup messages; no authorized key is needed.
+  local ready=0 attempt
+  for attempt in {1..40}; do
+    if [ -n "$(host_fp 22229)" ]; then ready=1; break; fi
+    sleep 1
+  done
+  if [ "$ready" -eq 1 ] && [ "$(docker inspect -f '{{.State.Running}}' hermes-test-nokey 2>/dev/null)" = "true" ]; then
     ok "starts and stays up with no authorized keys"
-    docker logs hermes-test-nokey 2>&1 | grep -q 'WARNING: no keys' \
+    docker logs hermes-test-nokey 2>&1 | grep -F 'WARNING: no keys' >/dev/null \
       && ok "warns clearly about missing keys" || bad "no warning about missing keys"
   else
-    bad "container exited when no keys were supplied"
+    bad "SSH did not become ready when no keys were supplied"
+    docker logs hermes-test-nokey 2>&1 | tail -30
   fi
   docker rm -f hermes-test-nokey >/dev/null 2>&1
 }

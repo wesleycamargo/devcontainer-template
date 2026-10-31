@@ -43,11 +43,8 @@ services:
       # on personal host paths or baking credentials into the image.
       - claude-data:/home/hermes/.claude
       - codex-data:/home/hermes/.codex
-      # Hermes USER DATA only -- credentials, config, sessions, memories,
-      # skills, logs. Hermes' code and runtime now live in the image
-      # (/usr/local/lib/hermes-agent, /opt/hermes), so pulling a newer image
-      # actually upgrades Hermes. When this volume held the runtime too, Docker
-      # seeded it once and every later upgrade was invisible.
+      # Persist Hermes configuration, sessions, plugins and dependency state.
+      # Source code remains in the image at /opt/hermes/hermes-agent.
       - hermes-data:/home/hermes/.hermes
       # Host public keys collected by ssh-pubkeys, at the contract path the
       # image reads. Read-only: the entrypoint copies them to hermes's

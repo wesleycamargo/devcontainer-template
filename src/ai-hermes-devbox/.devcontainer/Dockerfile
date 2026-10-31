@@ -80,16 +80,9 @@ RUN chmod 644 /etc/ssh/sshd_config.d/10-hermes-gateway.conf \
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright
 RUN printf 'PLAYWRIGHT_BROWSERS_PATH=/opt/playwright\n' >> /etc/environment
 
-# Installed as ROOT, which selects the installer's FHS layout:
-#   code + venv   /usr/local/lib/hermes-agent
-#   launchers     /usr/local/bin/{hermes,hermes-agent,hermes-acp}
-#   uv python     /usr/local/share/uv/python
-#   node runtime  $HERMES_HOME/node
-# That last one is why --hermes-home is passed: the default would be
-# /root/.hermes/node, unreadable by hermes. Everything above lives in image
-# layers, so ~/.hermes holds user data only and pulling a newer image actually
-# upgrades Hermes -- previously the whole runtime sat inside the hermes-data
-# volume, which Docker seeds once and never refreshes.
+# Installed as root at the same /opt/hermes location as the base image.
+# Hermes prepares per-user dependency environments under ~/.hermes/installs;
+# source and bootstrap tools remain in the image.
 #
 # Full install: Playwright/Chromium and the computer-use driver are included
 # (no --skip-browser / --skip-computer-use). --skip-setup skips the API-key
@@ -97,7 +90,7 @@ RUN printf 'PLAYWRIGHT_BROWSERS_PATH=/opt/playwright\n' >> /etc/environment
 #
 # ai-devbox-image (this Dockerfile's FROM) already ran this installer as root
 # to this same --hermes-home with --skip-browser --skip-computer-use, so the
-# FHS paths above already exist. This re-run upgrades them in place to add
+# source paths above already exist. This re-run upgrades them in place to add
 # the browser/computer-use pieces rather than installing a second, competing
 # copy -- keep --hermes-home identical to src/ai-devbox/.devcontainer/Dockerfile's
 # install if either changes.
@@ -133,7 +126,7 @@ RUN timeout 600 runuser -u hermes -- /usr/local/bin/hermes pm repair </dev/null 
     && timeout 30 runuser -u hermes -- claude --version </dev/null \
     && timeout 30 runuser -u hermes -- codex --version </dev/null
 # Diagnostics only: surfaces whether Hermes' Node shadows the base image's
-# Node 20 for the agent CLIs. Never fails the build.
+# Node 24 for the agent CLIs. Never fails the build.
 RUN su hermes -c 'command -v node npm hermes claude codex; claude --version; codex --version' </dev/null 2>&1 | sed 's/^/build-check: /' || true
 
 # --- container-owned runtime ----------------------------------------------
