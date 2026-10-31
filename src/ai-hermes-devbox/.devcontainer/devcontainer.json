@@ -23,12 +23,19 @@
   },
   // Hermes services are image-owned. The post-create hook only configures
   // the current workspace as the Hermes project skill source.
-  // Hermes dashboard. Binds loopback inside the container, so VS Code
-  // forwards it rather than Docker publishing it.
-  "forwardPorts": [9119],
+  // Dashboard and Webapp default to container loopback. Only VS Code forwards
+  // them to the local computer; Compose does not publish either on the network.
+  "forwardPorts": [9119, 9120],
+  "portsAttributes": {
+    "9120": {
+      "label": "Hermes Webapp",
+      "onAutoForward": "silent"
+    }
+  },
   "customizations": {
     "vscode": {
       "settings": {
+        "remote.localPortHost": "localhost",
         "terminal.integrated.defaultProfile.linux": "pwsh",
         "terminal.integrated.profiles.linux": {
           "pwsh": {

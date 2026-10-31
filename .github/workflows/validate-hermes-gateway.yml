@@ -2,12 +2,13 @@ name: Validate Hermes SSH gateway
 
 # Run the gateway contract checks for every relevant pull request and main
 # branch update. The publish workflow also runs these checks as its deploy
-# gate, so no Hermes image is published before A-E pass.
+# gate, so no Hermes image is published before A-E and G pass.
 on:
   pull_request:
     paths:
       - 'src/ai-hermes-devbox/**'
       - 'scripts/validate-hermes-gateway.sh'
+      - 'scripts/validate-hermes-webapp.py'
       - '.github/workflows/validate-hermes-gateway.yml'
       - '.github/workflows/publish-ai-hermes-devbox.yml'
   push:
@@ -16,6 +17,7 @@ on:
     paths:
       - 'src/ai-hermes-devbox/**'
       - 'scripts/validate-hermes-gateway.sh'
+      - 'scripts/validate-hermes-webapp.py'
       - '.github/workflows/validate-hermes-gateway.yml'
       - '.github/workflows/publish-ai-hermes-devbox.yml'
   workflow_dispatch:
@@ -48,5 +50,5 @@ jobs:
       - name: Build validation image
         run: ./scripts/validate-hermes-gateway.sh build
 
-      - name: Run gateway checkpoints A through E
+      - name: Run gateway checkpoints A through E and Webapp checkpoint G
         run: ./scripts/validate-hermes-gateway.sh all

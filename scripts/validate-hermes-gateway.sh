@@ -8,6 +8,7 @@
 #
 # Checkpoints: A raw docker run · B compose · C two projects at once
 #              D Dev Container · E image upgrade over an existing volume
+#              G Webapp local defaults + optional remote authentication
 # (F, a real Hermes Desktop connection, is manual.)
 #
 # Uses a throwaway keypair under a temp dir. It never reads, writes or
@@ -223,6 +224,11 @@ do_B() {
   wait_ssh 22230 || { bad "SSH not reachable on the compose port"; "${cmp[@]}" logs devcontainer | tail -30; return 1; }
   ok "SSH reachable on HERMES_SSH_PORT=22230"
 
+  local webapp_port
+  webapp_port="$("${cmp[@]}" port devcontainer 9120 2>/dev/null || true)"
+  [ -z "$webapp_port" ] && ok "Compose does not publish Webapp" \
+    || bad "Compose publishes Webapp: $webapp_port"
+
   [ -n "$(sshc 22230 'hermes --version')" ] && ok "hermes runs over SSH" || bad "hermes failed over SSH"
 
   # Autostart is on for compose, and must be singleton.
@@ -274,6 +280,20 @@ do_C() {
 
   [ -n "$(sshc 22231 'hermes --version')" ] && [ -n "$(sshc 22232 'hermes --version')" ] \
     && ok "hermes works in both simultaneously" || bad "hermes failed in one of them"
+
+  # Each container can use the same loopback Webapp port without a host bind.
+  local port attempt status
+  for port in 22231 22232; do
+    sshc "$port" 'hermes config set terminal.cwd /workspaces >/dev/null && hermes-start-services' >/dev/null
+    for attempt in {1..30}; do
+      status="$(sshc "$port" 'hermes webapp --status' || true)"
+      [[ "$status" == *"Serving at http://127.0.0.1:9120"* ]] && break
+      sleep 2
+    done
+    [[ "$status" == *"Serving at http://127.0.0.1:9120"* ]] \
+      && ok "project on SSH $port serves its own local Webapp" \
+      || bad "project on SSH $port did not serve Webapp: $status"
+  done
 
   # Internal port identical, host ports distinct.
   [ "$(sshc 22231 'ss -ltn 2>/dev/null | grep -c ":2222"')" != "0" ] \
@@ -357,13 +377,22 @@ do_E() {
   docker volume rm -f hermes-test-data >/dev/null 2>&1
 }
 
+do_G() {
+  head_ "G. Webapp local defaults and optional remote login"
+  if python3 "$REPO_ROOT/scripts/validate-hermes-webapp.py" "$IMAGE"; then
+    ok "Webapp contract"
+  else
+    bad "Webapp contract"
+  fi
+}
+
 main() {
   setup
   case "${1:-all}" in
     build) do_build ;;
-    A) do_A ;; B) do_B ;; C) do_C ;; D) do_D ;; E) do_E ;;
-    all) do_A; do_B; do_C; do_D; do_E ;;
-    *) echo "usage: $0 [build|A|B|C|D|E|all]"; exit 2 ;;
+    A) do_A ;; B) do_B ;; C) do_C ;; D) do_D ;; E) do_E ;; G) do_G ;;
+    all) do_A; do_B; do_C; do_D; do_E; do_G ;;
+    *) echo "usage: $0 [build|A|B|C|D|E|G|all]"; exit 2 ;;
   esac
   printf '\n%s%d passed, %d failed, %d skipped%s\n' "$bld" "$PASS" "$FAIL" "$SKIP" "$off"
   printf 'Checkpoint F (real Hermes Desktop connection) is manual: run\n'

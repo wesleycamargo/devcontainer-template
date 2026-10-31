@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Start the Hermes gateway and web dashboard. Installed as
+# Start the Hermes gateway (including Webapp) and web dashboard. Installed as
 # /usr/local/bin/hermes-start-services and run as hermes by hermes-entrypoint
 # when HERMES_AUTOSTART_SERVICES=1. Safe to re-run by hand: every service is
 # guarded, so a second run never produces a duplicate process.
 #
-# Both services bind loopback only; VS Code forwards the dashboard port.
-# Neither is published by Docker. Output goes to ~/.hermes/logs/<service>.out.
+# Defaults bind loopback only; VS Code forwards ports 9119 and 9120.
+# Compose publishes neither. Image users may explicitly configure remote Webapp
+# access with authentication. Output goes to ~/.hermes/logs/<service>.out.
 #
 # This used to be a Dev Container lifecycle helper, which meant `docker run`
 # and `docker compose` never started Hermes at all.
@@ -72,10 +73,36 @@ if [ ! -f "$HOME/.hermes/config.yaml" ]; then
   exit 0
 fi
 
+# Read the raw config: merged defaults would hide whether the user explicitly
+# disabled Webapp. Hermes' atomic writer preserves other settings and comments.
+# Never replace a malformed config/section with a working but unintended one.
+if ! ( cd "$hermes_src" && timeout 30 "$hermes_python" - <<'PY'
+from hermes_cli.config import (
+    atomic_config_write, get_config_path, require_readable_config_before_write,
+)
+
+path = get_config_path()
+config = require_readable_config_before_write(path)
+webapp = config.get("webapp", {})
+if not isinstance(webapp, dict):
+    raise ValueError("webapp must be a mapping; configuration left unchanged")
+missing = {key: value for key, value in
+           {"enabled": True, "host": "127.0.0.1", "port": 9120}.items()
+           if key not in webapp}
+if missing:
+    config["webapp"] = {**webapp, **missing}
+    atomic_config_write(path, config)
+    print("hermes-start-services: filled missing local Webapp defaults")
+PY
+); then
+  echo "hermes-start-services: could not configure Webapp; check config.yaml and Hermes dependencies"
+  exit 1
+fi
+
 if pgrep -f "hermes gateway" >/dev/null 2>&1; then
   echo "hermes-start-services: gateway already running"
 else
-  echo "hermes-start-services: starting gateway on 127.0.0.1:8642"
+  echo "hermes-start-services: starting gateway (Webapp address comes from config.yaml)"
   nohup hermes gateway >"$HOME/.hermes/logs/gateway.out" 2>&1 &
 fi
 

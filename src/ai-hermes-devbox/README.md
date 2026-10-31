@@ -109,11 +109,91 @@ Containers. Compose sets `HERMES_AUTOSTART_SERVICES=1`, which makes the
 entrypoint run `hermes-start-services` as `hermes` after SSH setup. A bare
 `docker run` leaves that variable unset and starts only the SSH daemon.
 
-`hermes-start-services` starts the Hermes gateway on `127.0.0.1:8642` and the
+`hermes-start-services` starts the Hermes gateway with its Webapp on
+`127.0.0.1:9120` by default and the
 dashboard on `127.0.0.1:9119`, logging to `~/.hermes/logs/gateway.out` and
 `~/.hermes/logs/dashboard.out`. It is safe to rerun; existing gateway and
-dashboard processes are reused. `devcontainer.json` forwards the dashboard
-port.
+dashboard processes are reused. `devcontainer.json` forwards both ports locally;
+Compose publishes neither.
+
+## Webapp in VS Code
+
+The image includes the prebuilt Desktop workspace for browsers. Hermes is pinned
+to commit `c419cf7c864ac0ee511dbd9f7091a8bba0b567ee` (after v0.22.5, before the
+next stable release); the base AI Devbox stays on v0.22.5. Back up existing
+Hermes data before upgrading. Update Hermes by rebuilding/pulling this image,
+so the backend and browser bundle stay together.
+
+After running `hermes` once to configure it, run in the container terminal:
+
+```bash
+hermes-start-services
+hermes webapp --status
+hermes webapp --no-open
+```
+
+Open the last command's one-use link within 60 seconds. A bare URL does not sign
+you in. VS Code forwards **9120** to localhost; if its Ports panel assigns a
+different local port, replace only the port in the link. No Webapp port is
+published by Compose. The existing SSH mapping remains localhost-only.
+
+Startup fills only missing `webapp.enabled`, `webapp.host` and `webapp.port`
+with `true`, `127.0.0.1` and `9120`. Existing settings, including an explicit
+`enabled: false`, are preserved. If an older gateway was already running,
+restart the container after chats finish. Custom Webapp ports need a matching
+VS Code forward. To disable the Webapp, set `webapp.enabled` to `false` and
+restart the container. Logs are in `~/.hermes/logs/gateway.out`.
+
+### Optional remote access using the image
+
+This is a separate image deployment; the devcontainer does not enable LAN/VPN
+access. Prepare a dedicated persistent volume and configuration first:
+
+```bash
+docker run -d --init --name hermes-webapp \
+  -v hermes-webapp-data:/home/hermes/.hermes \
+  ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox-image:latest
+docker exec -it -u hermes hermes-webapp hermes
+docker exec -u hermes hermes-webapp hermes config set webapp.enabled true
+docker exec -u hermes hermes-webapp hermes config set webapp.host 0.0.0.0
+docker exec -u hermes hermes-webapp hermes config set webapp.port 9120
+docker exec -it -u hermes hermes-webapp bash
+```
+
+In that shell, edit `~/.hermes/.env` and set these native login settings, using
+your own username, password and the **output** of `openssl rand -hex 32` as the
+secret (not the command text):
+
+```dotenv
+HERMES_DASHBOARD_BASIC_AUTH_USERNAME=<your-username>
+HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=<your-password>
+HERMES_DASHBOARD_BASIC_AUTH_SECRET=<generated-secret>
+```
+
+Keep the file private (`chmod 600 ~/.hermes/.env`), then `exit`. Recreate only
+the container, retaining its data volume. On the Docker host, set `PRIVATE_IP`
+to its LAN/VPN interface address:
+
+```bash
+docker rm -f hermes-webapp
+docker run -d --init --name hermes-webapp \
+  -e HERMES_AUTOSTART_SERVICES=1 \
+  -p "${PRIVATE_IP:?Set PRIVATE_IP to the Docker host LAN/VPN address}:9120:9120" \
+  -v hermes-webapp-data:/home/hermes/.hermes \
+  ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox-image:latest
+```
+
+Open `http://<private-ip>:9120` and sign in. Without a configured auth provider,
+Hermes refuses remote Webapp access; inspect `hermes webapp --status` inside
+the container for the reason. Keep the signing secret to retain browser logins
+across restarts. The dashboard stays on container loopback.
+
+HTTP is for a trusted private network/VPN: it is unencrypted and browsers limit
+microphone, clipboard and bot-screen features. Public HTTPS hosting is a
+separate setup. With Docker Engine inside WSL2, the bind address belongs to
+WSL; Windows localhost forwarding does not automatically expose it to the LAN.
+Use an address reachable through your VPN/WSL networking configuration.
+See [Hermes Webapp documentation](https://hermes-agent.nousresearch.com/docs/user-guide/desktop#use-the-desktop-workspace-from-a-browser).
 
 ## Using the container as Hermes' SSH terminal backend
 

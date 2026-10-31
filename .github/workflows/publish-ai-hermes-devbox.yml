@@ -16,6 +16,7 @@ on:
     paths:
       - 'src/ai-hermes-devbox/**'
       - 'scripts/validate-hermes-gateway.sh'
+      - 'scripts/validate-hermes-webapp.py'
       - '.github/workflows/publish-ai-hermes-devbox.yml'
   push:
     branches:
@@ -62,7 +63,7 @@ jobs:
       - name: Build validation image
         run: ./scripts/validate-hermes-gateway.sh build
 
-      - name: Run gateway checkpoints A through E
+      - name: Run gateway checkpoints A through E and Webapp checkpoint G
         run: ./scripts/validate-hermes-gateway.sh all
 
   deploy:

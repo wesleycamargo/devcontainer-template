@@ -17,7 +17,7 @@ services:
     ports:
       - "127.0.0.1:${HERMES_SSH_PORT:-2222}:2222"
     environment:
-      # Start the Hermes gateway + dashboard in this container; a bare
+      # Start the Hermes gateway (with Webapp) + dashboard; a bare
       # `docker run` leaves this unset and gets sshd only.
       HERMES_AUTOSTART_SERVICES: "1"
       # The container cannot see its own published port -- pass it through so
@@ -31,9 +31,9 @@ services:
     depends_on:
       ssh-pubkeys:
         condition: service_completed_successfully
-    # The Hermes dashboard (127.0.0.1:9119) and gateway (127.0.0.1:8642) are
-    # not published: VS Code forwards the dashboard (`forwardPorts` in
-    # devcontainer.json), and `ssh -L` can reach either through the gateway.
+    # Dashboard (9119) and Webapp (9120) default to container loopback and
+    # are not published. VS Code forwards both locally; image users can opt
+    # into remote Webapp access separately (see ../README.md).
     volumes:
       - ../..:/workspaces:cached
       # Named volumes make a fresh checkout usable on any host: Docker creates

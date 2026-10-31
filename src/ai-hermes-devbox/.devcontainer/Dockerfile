@@ -94,8 +94,15 @@ RUN printf 'PLAYWRIGHT_BROWSERS_PATH=/opt/playwright\n' >> /etc/environment
 # the browser/computer-use pieces rather than installing a second, competing
 # copy -- keep --hermes-home identical to src/ai-devbox/.devcontainer/Dockerfile's
 # install if either changes.
-RUN curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- \
-      --non-interactive --skip-setup --hermes-home /opt/hermes
+# Webapp is newer than v0.22.5. Pin installer and checkout together, as in
+# ai-devbox, without moving the base image or its other consumers off stable.
+ARG HERMES_COMMIT=c419cf7c864ac0ee511dbd9f7091a8bba0b567ee
+RUN curl -fsSL "https://raw.githubusercontent.com/NousResearch/hermes-agent/${HERMES_COMMIT}/scripts/install.sh" \
+      -o /tmp/hermes-install.sh \
+    && bash /tmp/hermes-install.sh --non-interactive --skip-setup \
+      --hermes-home /opt/hermes --commit "$HERMES_COMMIT" \
+    && rm /tmp/hermes-install.sh \
+    && /usr/local/bin/hermes webapp --build-only
 
 # Make the root-owned install readable and traversable by hermes. Each path is
 # optional (layout varies by installer version), but the install itself above
@@ -122,6 +129,7 @@ RUN chsh -s /bin/bash hermes
 # </dev/null and timeout guard against an unexpected interactive prompt.
 RUN timeout 600 runuser -u hermes -- /usr/local/bin/hermes pm repair </dev/null \
     && timeout 180 su hermes -c '/usr/local/bin/hermes --version' </dev/null \
+    && timeout 60 su hermes -c '/usr/local/bin/hermes webapp --build-only' </dev/null \
     && timeout 60 su hermes -c 'node --version' </dev/null \
     && timeout 30 runuser -u hermes -- claude --version </dev/null \
     && timeout 30 runuser -u hermes -- codex --version </dev/null
