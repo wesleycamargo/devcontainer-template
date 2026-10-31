@@ -39,6 +39,17 @@ RUN usermod -l hermes -d /home/hermes -m vscode \
 RUN rm -rf /home/hermes/.hermes/installs \
     && ln -sfn /home/hermes/.claude/CLAUDE.md /home/hermes/.codex/AGENTS.md
 ENV PATH="/home/hermes/.local/bin:${PATH}"
+# The native Claude installer uses an absolute link into its owner's home.
+# Repair it after usermod, and expose it to SSH's fresh default PATH as well.
+RUN if [ -L /home/hermes/.local/bin/claude ]; then \
+      claude_target="$(readlink /home/hermes/.local/bin/claude)"; \
+      case "$claude_target" in \
+        /home/vscode/*) ln -sfn "/home/hermes/${claude_target#/home/vscode/}" /home/hermes/.local/bin/claude ;; \
+      esac; \
+    fi \
+    && test -x /home/hermes/.local/bin/claude \
+    && ln -sfn /home/hermes/.local/bin/claude /usr/local/bin/claude
+
 
 # --- SSH server ------------------------------------------------------------
 # Installed here, not via the devcontainer `sshd` feature: features are applied
