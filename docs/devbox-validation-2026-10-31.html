@@ -47,6 +47,22 @@ sha256:fa515f7e701f82d9196d359cd1e49806db89fa6405bfe613a4c6e7bc37f43be4</code></
 <p>O log de construção da ESP32 confirma que ela herdou exatamente o identificador
 da base acima. As tags <code>latest</code> e de versão apontavam para a mesma imagem
 em cada teste.</p>
+<h2>Compatibilidade dos templates derivados</h2>
+<p>A troca da base revelou caminhos absolutos herdados após renomear o usuário
+<code>vscode</code> para <code>hermes</code>. As correções recriam o estado de
+dependências da imagem, corrigem o atalho nativo do Claude e o helper de serviços,
+e inicializam dependências quando um volume antigo esconde o ambiente preparado.
+Configurações, sessões e credenciais do volume foram preservadas pelo teste.</p>
+<p>Os checks Hermes agora bloqueiam a publicação quando falham.
+<a href="https://github.com/wesleycamargo/devcontainer-template/actions/runs/41223125898">Validação final</a>:
+<strong>37 aprovações, zero falhas, cinco verificações não executadas</strong>.
+Estas cinco dependem de gateway/dashboard configurados ou de abertura manual pelo
+Dev Containers; a conexão real com Hermes Desktop também permanece manual.</p>
+<p><a href="https://github.com/wesleycamargo/devcontainer-template/actions/runs/41223125894">Publicação Hermes concluída</a>
+no commit <code>efb7dc0</code>, imagem <code>ai-hermes-devbox-image:0.27.1</code>:</p>
+<pre><code>sha256:ccf1114162c5792da0a0e65ca030d28029830e2eeac833b36cac9eccc65e144f</code></pre>
+<p>O <a href="https://github.com/wesleycamargo/devcontainer-template/actions/runs/41221067497">workflow Hermes v1</a>
+também concluiu com sucesso após remover a sincronização automática de skills.</p>
 <h2>Visibilidade: decisão pendente</h2>
 <p>A checagem final conseguiu ler os manifestos dos quatro pacotes AI Devbox e
 ESP32 sem autenticação, e a página do pacote ESP32 exibe <strong>Public</strong>.
