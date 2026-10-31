@@ -70,4 +70,19 @@ no GitHub ou GHCR. A documentação e o AGENTS.md refletem essa decisão;
 o helper de publicação apenas consulta a visibilidade, sem alterá-la.</p>
 <p>A pendência de visibilidade está resolvida. Os nomes, versões e resultados
 funcionais registrados acima permanecem válidos.</p>
+<h2>Abertura do CLI confirmada pelo usuário</h2>
+<p>No container do usuário, <code>~/.hermes/installs</code> pertencia a
+<code>root (0:0)</code> com permissões <code>755</code>, enquanto o Hermes
+rodava como <code>vscode (1000:1000)</code>. A subpasta de instalação ainda não
+existia. O usuário corrigiu o dono do volume e preparou as dependências:</p>
+<pre><code>bash -lc &#x27;sudo chown &quot;$(id -u):$(id -g)&quot; &quot;$HOME/.hermes/installs&quot; &amp;&amp; hermes pm repair &amp;&amp; hermes --version&#x27;</code></pre>
+<p>Em seguida, o log mostrou que a integração WhatsApp estava habilitada e
+encerrava o gateway ao falhar na instalação npm do conector. Para usar apenas
+o CLI, o usuário desativou essa integração na configuração compartilhada com
+o host e confirmou que a interface abriu:</p>
+<pre><code>hermes config set platforms.whatsapp.enabled false
+hermes</code></pre>
+<p>Essas correções foram aplicadas ao container e à configuração do usuário.
+Os testes anteriores de <code>hermes --version</code> não cobriam a abertura
+da interface com as integrações configuradas no host.</p>
 </html>
