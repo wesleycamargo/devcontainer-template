@@ -33,6 +33,13 @@ RUN usermod -l hermes -d /home/hermes -m vscode \
          && sed -i 's/\bvscode\b/hermes/g' /etc/sudoers.d/hermes; \
        fi
 
+# The base prepared this dependency state for /home/vscode. Its records contain
+# absolute paths, so regenerate only this image-built state for the renamed user.
+# Consumer volumes are not present during this build.
+RUN rm -rf /home/hermes/.hermes/installs \
+    && ln -sfn /home/hermes/.claude/CLAUDE.md /home/hermes/.codex/AGENTS.md
+ENV PATH="/home/hermes/.local/bin:${PATH}"
+
 # --- SSH server ------------------------------------------------------------
 # Installed here, not via the devcontainer `sshd` feature: features are applied
 # by the Dev Containers tooling, so a feature-provided sshd does not exist
@@ -109,8 +116,11 @@ RUN chsh -s /bin/bash hermes
 # no write access to the install tree. If the app/data split regresses, the
 # build fails here instead of at someone's first SSH attempt.
 # </dev/null and timeout guard against an unexpected interactive prompt.
-RUN timeout 180 su hermes -c '/usr/local/bin/hermes --version' </dev/null \
-    && timeout 60 su hermes -c 'node --version' </dev/null
+RUN timeout 600 runuser -u hermes -- /usr/local/bin/hermes pm repair </dev/null \
+    && timeout 180 su hermes -c '/usr/local/bin/hermes --version' </dev/null \
+    && timeout 60 su hermes -c 'node --version' </dev/null \
+    && timeout 30 runuser -u hermes -- claude --version </dev/null \
+    && timeout 30 runuser -u hermes -- codex --version </dev/null
 # Diagnostics only: surfaces whether Hermes' Node shadows the base image's
 # Node 20 for the agent CLIs. Never fails the build.
 RUN su hermes -c 'command -v node npm hermes claude codex; claude --version; codex --version' </dev/null 2>&1 | sed 's/^/build-check: /' || true
