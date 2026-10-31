@@ -1,0 +1,27 @@
+{
+  "name": "AI ESP32 Devbox",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "devcontainer",
+  "workspaceFolder": "/workspace",
+  // Compose owns container lifecycle now (see docker-compose.yml); stop the
+  // service on close instead of leaving it running detached.
+  "shutdownAction": "stopCompose",
+  "remoteUser": "vscode",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "pwsh",
+        "terminal.integrated.profiles.linux": {
+          "pwsh": {
+            "path": "pwsh"
+          }
+        },
+        "terminal.integrated.fontFamily": "MesloLGM Nerd Font"
+      },
+      "extensions": [
+        "ms-vscode.powershell",
+        "anthropic.claude-code"
+      ]
+    }
+  }
+}

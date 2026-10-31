@@ -1,0 +1,7 @@
+# Enable explicitly once the USB serial device is visible to the Docker host.
+services:
+  devcontainer:
+    devices:
+      - "${ESP32_SERIAL_PORT:?Set ESP32_SERIAL_PORT}:/dev/ttyESP32"
+    group_add:
+      - "${ESP32_SERIAL_GID:?Set ESP32_SERIAL_GID}"

@@ -77,9 +77,8 @@ overrides it and the marker keeps the seed from overriding your choice back.
 - **Workspace folder**: `workspaceFolder` is
   `/workspaces/${localWorkspaceFolderBasename}` and the bind mount maps the
   project's parent into `/workspaces`, so no post-apply edit is needed.
-- **Project skills**: compose runs `sync-project-skills` on every start with
-  `SYNC_SKILLS_AGENTS: "*"`, installing `.agents/skills/` for every agent CLI
-  present.
+- **Project skills**: files are included in `.agents/skills`; startup does not
+  install or update skills.
 - **The image**: `ai-hermes-devbox-v1-image`, a thin `FROM ai-devbox-image`
   layer plus the full Hermes install (Playwright/Chromium and computer-use
   included). A base rebuild does not retrigger it.

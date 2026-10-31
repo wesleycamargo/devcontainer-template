@@ -1,0 +1,57 @@
+services:
+  devcontainer:
+    image: ghcr.io/wesleycamargo/devcontainer-template/ai-esp32-devbox-image:latest
+    init: true
+    user: vscode
+    working_dir: /workspace
+    environment:
+      HOME: /home/vscode
+      USER: vscode
+    # Repair only when the version check fails; bound both operations so startup
+    # eventually reaches sleep even if Hermes or the network is unavailable.
+    command:
+      - /bin/sh
+      - -c
+      - |
+        if ! timeout 30 hermes --version >/dev/null 2>&1; then
+          if ! timeout 180 /bin/sh -c 'hermes pm repair && hermes --version'; then
+            printf '%s\n' 'WARNING: Hermes initialization failed. The devcontainer will remain available.' >&2
+          fi
+        fi
+        exec sleep infinity
+    volumes:
+      # Share this project by default. Set DEVBOX_WORKSPACE_ROOT to share another
+      # directory, including the parent if sibling repositories are needed.
+      - ${DEVBOX_WORKSPACE_ROOT:-..}:/workspace:cached
+      - devbox-cache:/home/vscode/.cache
+      # Paths resolve on the WSL/macOS host: DEVBOX_HOST_HOME overrides HOME;
+      # /home/vscode is the fallback when both variables are unset or empty.
+      # Missing sources fail explicitly instead of creating directories at file paths.
+      - type: bind
+        source: ${DEVBOX_HOST_HOME:-${HOME:-/home/vscode}}/.claude
+        target: /home/vscode/.claude
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${DEVBOX_HOST_HOME:-${HOME:-/home/vscode}}/.claude.json
+        target: /home/vscode/.claude.json
+        bind:
+          create_host_path: false
+      # Share only the Codex auth file. Config, plugins, and databases stay local.
+      - type: bind
+        source: ${DEVBOX_HOST_HOME:-${HOME:-/home/vscode}}/.codex/auth.json
+        target: /home/vscode/.codex/auth.json
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${DEVBOX_HOST_HOME:-${HOME:-/home/vscode}}/.hermes
+        target: /home/vscode/.hermes
+        bind:
+          create_host_path: false
+      # Keep the image's prepared Linux dependency environments separate from
+      # the host's Hermes state, including when the host runs macOS.
+      - hermes-runtime:/home/vscode/.hermes/installs
+
+volumes:
+  devbox-cache:
+  hermes-runtime:

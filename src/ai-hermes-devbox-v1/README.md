@@ -127,10 +127,7 @@ by hand.
 
 ## Project skills
 
-`docker-compose.yml` runs `sync-project-skills` (baked into the base image) on
-every container start, with `SYNC_SKILLS_AGENTS: "*"`. It refreshes
-`.agents/skills/` from upstream and installs those skills for every agent CLI
-it finds, at both project and global scope.
+Project skills are included in `.agents/skills`. Container startup does not install or update them.
 
 ## Configuration
 

@@ -35,6 +35,10 @@ template/image built from the same config.
   It is independent from Hermes and uses Codex ACP with the user-supplied
   `CODEX_AUTH_JSON` OAuth secret. Published as `ai-openhands-devbox` /
   `ai-openhands-devbox-image`.
+- `src/ai-esp32-devbox/` — AI Devbox plus esptool/mpremote for MicroPython.
+  Its image derives from ai-devbox-image. Publish the base first, then this
+  variant; publishing the base does not trigger dependent image rebuilds.
+  Serial access is opt-in through docker-compose.serial.yml.
 - `docs/<id>.md` — the repo-side user-facing page for each published template
   (`docs/ai-devbox.md`, `docs/ai-hermes-devbox.md`,
   `docs/ai-hermes-devbox-v1.md`, `docs/ai-openhands-devbox.md`), linked from the root `README.md`'s Templates
@@ -64,7 +68,7 @@ template/image built from the same config.
   authenticated with `packages` scope.
 - `scripts/sync-template-agents.sh` — maintainer-only: mirrors the canonical
   root `.agents/` into `src/ai-devbox/.agents/`, `src/ai-hermes-devbox/.agents/`
-  and `src/ai-hermes-devbox-v1/.agents/`, and keeps the Hermes hook (`configure-project-skills.sh`) copy identical. Run
+  `src/ai-hermes-devbox-v1/.agents/`, and `src/ai-esp32-devbox/.agents/`, and keeps the Hermes hook (`configure-project-skills.sh`) copy identical. Run
   it (`--check` to only report) after any change under `.agents/`. It only
   mirrors files between the maintainer repo and template payloads.
 - `scripts/setup-devcontainer-client.ps1` — one-time client-side setup for
@@ -77,7 +81,8 @@ template/image built from the same config.
 
 All published packages under
 ghcr.io/wesleycamargo/devcontainer-template/` — the `ai-devbox`,
-`ai-hermes-devbox`, `ai-hermes-devbox-v1`, and `ai-openhands-devbox` templates
+`ai-hermes-devbox`, `ai-hermes-devbox-v1`, `ai-openhands-devbox`, and
+`ai-esp32-devbox` templates
 and their matching images — are **private**.
 
 ## The devcontainer image

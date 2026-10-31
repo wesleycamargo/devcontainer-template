@@ -1,0 +1,7 @@
+{
+  "id": "ai-esp32-devbox",
+  "version": "1.0.0",
+  "name": "AI ESP32 Devbox (MicroPython)",
+  "description": "AI Devbox plus esptool and mpremote for ESP32 MicroPython development.",
+  "options": {}
+}
