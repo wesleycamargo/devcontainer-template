@@ -24,12 +24,13 @@ class ReachedLogin(Exception):
 
 class RestartReplay:
     def __init__(self, *, change_port=False, refused_attempts=0, anonymous_status=401,
-                 response_body=b"{}"):
+                 response_body=b"{}", starting_attempts=0):
         self.port = 32000
         self.change_port = change_port
         self.refused_attempts = refused_attempts
         self.anonymous_status = anonymous_status
         self.response_body = response_body
+        self.starting_attempts = starting_attempts
         self.credentials = False
         self.config = ""
         self.webapp = {"enabled": True, "host": "127.0.0.1", "port": 9120}
@@ -70,6 +71,11 @@ class RestartReplay:
         if self.refused_attempts:
             self.refused_attempts -= 1
             raise urllib.error.URLError(ConnectionRefusedError(111, "Connection refused"))
+        if self.starting_attempts:
+            self.starting_attempts -= 1
+            raise urllib.error.HTTPError(
+                request.full_url, 503, "Service Unavailable", {},
+                io.BytesIO(b'{"error":"gateway_not_ready","state":"starting"}'))
         if request.full_url.endswith("/auth/password-login"):
             raise ReachedLogin()
         raise urllib.error.HTTPError(request.full_url, self.anonymous_status,
@@ -97,6 +103,14 @@ class WebappRestartTests(unittest.TestCase):
     def test_unprotected_endpoint_still_fails(self):
         with self.assertRaises(AssertionError):
             self.replay(RestartReplay(anonymous_status=200))
+
+    def test_waits_for_gateway_starting_before_checking_auth(self):
+        with self.assertRaises(ReachedLogin):
+            self.replay(RestartReplay(starting_attempts=2))
+
+    def test_gateway_stuck_starting_fails_after_timeout(self):
+        with self.assertRaisesRegex(AssertionError, "after restart:.*gateway_not_ready.*starting"):
+            self.replay(RestartReplay(starting_attempts=1000))
 
     def test_unreachable_endpoint_still_fails_after_timeout(self):
         with self.assertRaisesRegex(AssertionError, "HTTP did not become reachable"):

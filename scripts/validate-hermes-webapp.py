@@ -61,8 +61,8 @@ def validate(image):
             return exc.code, exc.read()
 
     def wait_http(expected):
-        # Internal status can become ready before the published socket is usable.
-        # Retry transport failures only; unexpected auth responses fail immediately.
+        # The listener can serve HTTP before gateway initialization has finished.
+        # Retry transport failures and the explicit startup response only.
         deadline = time.monotonic() + 30
         last_error = None
         while time.monotonic() < deadline:
@@ -71,15 +71,23 @@ def validate(image):
             except (urllib.error.URLError, ConnectionError, TimeoutError) as exc:
                 last_error = exc
             else:
-                if status not in expected:
-                    detail = body.decode("utf-8", errors="replace")
-                    for secret in [*test_secrets, *(cookie.value for cookie in cookies)]:
-                        if secret:
-                            detail = detail.replace(secret, "<REDACTED>")
-                    raise AssertionError(
-                        f"GET /api/sessions: expected HTTP {expected}, got {status}; "
-                        f"response body: {detail[:2048]!r}")
-                return
+                if status in expected:
+                    return
+                detail = body.decode("utf-8", errors="replace")
+                for secret in [*test_secrets, *(cookie.value for cookie in cookies)]:
+                    if secret:
+                        detail = detail.replace(secret, "<REDACTED>")
+                last_error = (
+                    f"GET /api/sessions: expected HTTP {expected}, got {status}; "
+                    f"response body: {detail[:2048]!r}")
+                try:
+                    starting = status == 503 and json.loads(body) == {
+                        "error": "gateway_not_ready", "state": "starting",
+                    }
+                except (ValueError, UnicodeError):
+                    starting = False
+                if not starting:
+                    raise AssertionError(last_error)
             time.sleep(1)
         raise AssertionError(f"Webapp HTTP did not become reachable after restart: {last_error}")
 
