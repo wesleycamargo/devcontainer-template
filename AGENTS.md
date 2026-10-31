@@ -12,18 +12,17 @@ template/image built from the same config.
 - `src/ai-devbox/.devcontainer/` — the base template, published via CI. The
   build recipe (`Dockerfile`) lives only here; nothing else consumes this
   directory directly.
-- `src/ai-hermes-devbox/` — a second published template: the `ai-devbox`
-  config plus the Hermes Agent (Nous Research), full browser + computer-use
-  install. Its `Dockerfile` is `FROM ai-devbox-image` + the Hermes
-  step, so it doesn't duplicate the base recipe — `ai-devbox-image` already
-  carries a lean (`--skip-browser --skip-computer-use`) root install of
-  `hermes` at the same FHS paths, so this step upgrades it in place rather
-  than installing a second, competing copy. Published as
+- `src/ai-hermes-devbox/` — a second published template based on the official
+  `nousresearch/hermes-agent:main-desktop` image, pinned by multi-arch digest.
+  Hermes, Webapp, browser and computer-use are prebuilt; this Dockerfile adds
+  development tools and the existing SSH lifecycle. Keep user `hermes` at
+  UID/GID 1000 and data at `/home/hermes/.hermes` for volume compatibility;
+  the sealed runtime lives at `/opt/hermes`. Published as
   `ai-hermes-devbox` / `ai-hermes-devbox-image`. The root `.devcontainer/`
   uses the base ai-devbox template.
 - `src/ai-hermes-devbox-v1/` — a third published template: the pre-gateway
   generation of `ai-hermes-devbox`, frozen from `ai-hermes-devbox-v0.12.0`.
-  Same `FROM ai-devbox-image` + Hermes step, but no sshd, no SSH gateway and
+  Uses `FROM ai-devbox-image` + Hermes step, but no sshd, no SSH gateway and
   no Open WebUI — just Hermes' own gateway and dashboard on container
   loopback, started by `start-hermes.sh`. Published as `ai-hermes-devbox-v1` /
   `ai-hermes-devbox-v1-image`. Its publish workflow's tag prefix
@@ -56,12 +55,13 @@ template/image built from the same config.
   stamps that version into `src/<id>/devcontainer-template.json`, publishes
   the `<id>` OCI template, and builds/pushes `<id>-image` from
   `src/<id>/.devcontainer/Dockerfile`. The workflows share nothing and
-  run in parallel; `ai-hermes-devbox-image` is `FROM ai-devbox-image` but a
-  base rebuild does **not** retrigger it.
-- `.github/workflows/validate-hermes-gateway.yml` — runs
-  `scripts/validate-hermes-gateway.sh build` and `all` for relevant Hermes
-  pull requests and main-branch updates. The Hermes publish workflow repeats
-  the same A-E contract checks as a required deployment gate; checkpoint F is
+  run in parallel. Hermes uses its own pinned official base; variants derived
+  from `ai-devbox-image` are **not** retriggered by a base rebuild.
+- `.github/workflows/validate-hermes-gateway.yml` — builds the Hermes image with
+  Buildx and a shared GHA layer cache, then runs
+  `scripts/validate-hermes-gateway.sh all` for relevant Hermes pull requests
+  and main-branch updates. The Hermes publish workflow repeats the same A-E
+  and G (Webapp) checks as a required deployment gate; checkpoint F is
   a real Hermes Desktop connection and remains manual.
 - `scripts/setup_github_publishing.py` — one-time GitHub-side setup helper
   (workflow token permissions, package visibility check). Requires `gh`
@@ -105,12 +105,11 @@ To bake a change into the shared image, edit the `Dockerfile` and push to
 layer, swap the `image:` line in `docker-compose.yml` for a `build:` block
 pointing at a small `Dockerfile` that does `FROM <id>-image`.
 
-`src/ai-hermes-devbox/.devcontainer/Dockerfile` is the exception to the
-"full recipe" rule: it's `FROM` the published `ai-devbox-image` plus the
-Hermes install, so it carries none of the recipe above. A change to the
-shared recipe only needs to be made in
-`src/ai-devbox/.devcontainer/Dockerfile`; `ai-hermes-devbox` picks it up
-automatically through its `FROM`.
+`src/ai-hermes-devbox/.devcontainer/Dockerfile` consumes the official Hermes
+image directly. Update its digest to upgrade Hermes; do not run the Hermes
+installer or rebuild Webapp in this Dockerfile. Its development-tool versions
+are maintained alongside ai-devbox's. It retains our SSH entrypoint rather
+than the official s6 lifecycle, so Compose's `init: true` remains valid.
 
 ## Related repos
 

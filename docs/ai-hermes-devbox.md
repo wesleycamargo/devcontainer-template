@@ -2,9 +2,9 @@
 
 `ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox`
 
-[AI Devbox](ai-devbox.md) plus the
-[Hermes Agent](https://hermes-agent.nousresearch.com/) (full browser +
-computer-use install) and an SSH gateway a host-side Hermes Desktop can drive.
+The official [Hermes Agent](https://hermes-agent.nousresearch.com/) image with
+prebuilt Webapp, browser and computer-use, plus the development tools familiar
+from [AI Devbox](ai-devbox.md) and an SSH gateway a host-side Hermes Desktop can drive.
 
 ## Command line
 
@@ -72,11 +72,15 @@ enter the container. Details and troubleshooting:
 
 ## Webapp in VS Code
 
-The image includes the prebuilt Desktop workspace for browsers. Hermes is pinned
-to commit `c419cf7c864ac0ee511dbd9f7091a8bba0b567ee` (after v0.22.5, before the
-next stable release); the base AI Devbox stays on v0.22.5. Back up existing
-Hermes data before upgrading. Update Hermes by rebuilding/pulling this image,
-so the backend and browser bundle stay together.
+The image reuses `nousresearch/hermes-agent:main-desktop`, pinned to the
+multi-arch digest `sha256:cef6ca13cc35452215c5774c0563b0940b0a6ebaebad0d87174b27ca3d5c93d5`
+(commit `c419cf7c864ac0ee511dbd9f7091a8bba0b567ee`, after v0.22.5).
+Hermes and Webapp are already built upstream; our build adds development tools
+and SSH. CI caches these extra layers across validation and publication.
+The first pull still downloads the official image (about 1.3 GB compressed).
+Back up existing Hermes data before upgrading. Update Hermes by changing the
+pinned image digest and publishing/pulling a new devbox image, keeping backend
+and browser assets together. The separate AI Devbox template is unchanged.
 
 After running `hermes` once to configure it, run in the container terminal:
 
@@ -175,8 +179,8 @@ The container reads no host credentials — run `claude`, `codex` and
   `./scripts/validate-hermes-gateway.sh build` then `all` — checkpoints A–E
   and G (Webapp), also run in CI. F (a real Hermes Desktop connection) and
   opening the Webapp through VS Code are manual.
-- **Lean image**: add `--skip-browser --skip-computer-use` to the `install.sh`
-  line in the `Dockerfile` if the Chromium/computer-use build is too heavy.
+- **Prebuilt runtime**: the official `main-desktop` base includes browser and
+  computer-use. There is no Hermes installer or frontend compilation in our build.
 - **Old `hermes-data` volumes** may still hold unused `~/.hermes/hermes-agent`
   or `~/.hermes/node`; the entrypoint flags them and leaves them alone.
 
@@ -187,9 +191,10 @@ Source: [`src/ai-hermes-devbox/`](../src/ai-hermes-devbox/) ·
 
 ### Existing Hermes data volumes
 
-Hermes source stays in the image at `/opt/hermes/hermes-agent`. The package
-manager keeps per-user dependency environments under `~/.hermes/installs`.
-An existing volume can hide the environment prepared by the image; startup runs
-a bounded `hermes pm repair` when the version check fails, retaining user
-configuration, credentials, plugins and sessions. If repair cannot finish,
-SSH remains available and startup logs explain the failure.
+Hermes source and its prepared Python environment live in `/opt/hermes`, outside
+the data volume. The devbox keeps UID/GID 1000, `/home/hermes/.hermes` and the
+existing named volumes, so no data move is needed. Optional plugin environments
+can still live under `~/.hermes/installs`. Startup checks the installed runtime;
+it does not reinstall Hermes. If the check fails, SSH remains available and
+logs advise pulling/recreating the image. Our SSH entrypoint replaces the
+official s6 startup, retaining `HERMES_AUTOSTART_SERVICES` and existing log paths.

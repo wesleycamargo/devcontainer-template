@@ -43,7 +43,7 @@ services:
       - claude-data:/home/hermes/.claude
       - codex-data:/home/hermes/.codex
       # Persist Hermes configuration, sessions, plugins and dependency state.
-      # Source code remains in the image at /opt/hermes/hermes-agent.
+      # Source code and the prepared runtime remain in the image at /opt/hermes.
       - hermes-data:/home/hermes/.hermes
       # Host public keys collected by ssh-pubkeys, at the contract path the
       # image reads. Read-only: the entrypoint copies them to hermes's

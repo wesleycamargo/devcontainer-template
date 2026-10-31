@@ -2,6 +2,6 @@
   "id": "ai-hermes-devbox",
   "version": "1.0.0",
   "name": "AI Hermes Devbox (PowerShell)",
-  "description": "AI Devbox plus Hermes Agent, an image-owned SSH gateway, and vendor-neutral AI-native SDLC skills.",
+  "description": "Prebuilt official Hermes Agent and Webapp with development tools, an SSH gateway, and vendor-neutral AI-native SDLC skills.",
   "options": {}
 }

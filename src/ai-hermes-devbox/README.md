@@ -6,24 +6,21 @@ Azure tooling preconfigured, plus the
 
 ## What's included
 
-- PowerShell (via the `powershell` devcontainer feature), set as the default
+- PowerShell installed in the image, set as the default
   integrated terminal, with Oh My Posh and Terminal-Icons.
 - Azure Bicep CLI (`azurebicep` feature) and GitHub CLI (`gh`).
-- Node.js 20, with `@anthropic-ai/claude-code` and `@openai/codex` installed
-  globally.
+- The official Hermes Node.js runtime, native Claude Code and the Codex CLI.
 - Codex's `AGENTS.md` symlinked to the same global agent instructions Claude
   Code reads (`~/.claude/CLAUDE.md`), so both CLIs start from one shared set
   of global guidelines instead of two copies that drift.
-- **Hermes Agent** — `hermes`, `hermes-agent`, and `hermes-acp` on `PATH`,
-  installed with the **full** option set: Playwright/Chromium for browser
-  automation plus the computer-use driver. Config and state live in
-  `~/.hermes/` (`.env`, `config.yaml`, sessions, logs, skills). Hermes brings
-  its own Python 3.11 (via `uv`) and Node.js runtime, separate from the
-  Node.js 20 above.
+- **Hermes Agent** — `hermes`, `hermes-agent` and `hermes-acp` on `PATH`, with the official
+  `main-desktop` image's prebuilt Webapp, Chromium and computer-use stack.
+  Config and state live in `~/.hermes/` (`.env`, `config.yaml`, sessions, logs,
+  skills). Python and Node.js come prepared in the upstream image.
 
 ## Prerequisites
 
-1. Docker Desktop (or another Docker Engine) running.
+1. Docker Engine running (inside WSL2 on Windows).
 2. VS Code with the Dev Containers extension, **or** the
    [devcontainer CLI](https://github.com/devcontainers/cli):
    ```powershell
@@ -50,15 +47,14 @@ Then **Reopen in Container**.
 
 ## First run
 
-Hermes is installed but not configured — the image build passes
-`--skip-setup` so it does not block on the interactive wizard. Run `hermes`
+Hermes is prebuilt but not configured. Run `hermes`
 inside the container once to set up API keys and connectors; it writes
 `~/.hermes/.env` and `~/.hermes/config.yaml`.
 
 The `hermes-data` Docker named volume persists that directory across normal
 rebuilds. It holds credentials, config, sessions, logs, memories, skills, and
 per-user dependency environments. Hermes source lives in the image under
-`/opt/hermes/hermes-agent`, so pulling a newer image updates the source. Do not remove Docker volumes, for example with
+`/opt/hermes`, so pulling a newer image updates the source. Do not remove Docker volumes, for example with
 `docker compose down -v`, if you need to retain Hermes data.
 
 If an existing volume came from an older image, it may still contain
@@ -89,12 +85,14 @@ inside a devcontainer:
 ./scripts/validate-hermes-gateway.sh all
 ```
 
-The build uses the public `ai-devbox-image` base; registry login is not required.
+The build uses the public official Hermes image, pinned by digest.
 Checkpoints A-E cover
 raw Docker startup, Compose, concurrent projects, the Dev Container manifest,
 and migration from the old Hermes data-volume layout. GitHub Actions runs them
 for relevant pull requests and main-branch changes; publishing the Hermes image
-also waits for the same checks to pass.
+also waits for the same checks to pass. Checkpoint G covers the prebuilt Webapp,
+local isolation and optional remote password login. CI shares a Buildx layer
+cache between validation and publication.
 
 Checkpoint F is intentionally manual: run `hermes-ssh-info` against the real
 Compose project, add its alias to the Windows SSH config, then confirm Hermes
@@ -118,11 +116,15 @@ Compose publishes neither.
 
 ## Webapp in VS Code
 
-The image includes the prebuilt Desktop workspace for browsers. Hermes is pinned
-to commit `c419cf7c864ac0ee511dbd9f7091a8bba0b567ee` (after v0.22.5, before the
-next stable release); the base AI Devbox stays on v0.22.5. Back up existing
-Hermes data before upgrading. Update Hermes by rebuilding/pulling this image,
-so the backend and browser bundle stay together.
+The image reuses `nousresearch/hermes-agent:main-desktop`, pinned to the
+multi-arch digest `sha256:cef6ca13cc35452215c5774c0563b0940b0a6ebaebad0d87174b27ca3d5c93d5`
+(commit `c419cf7c864ac0ee511dbd9f7091a8bba0b567ee`, after v0.22.5).
+Hermes and Webapp are already built upstream; our build adds development tools
+and SSH. CI caches these extra layers across validation and publication.
+The first pull still downloads the official image (about 1.3 GB compressed).
+Back up existing Hermes data before upgrading. Update Hermes by changing the
+pinned image digest and publishing/pulling a new devbox image, keeping backend
+and browser assets together. The separate AI Devbox template is unchanged.
 
 After running `hermes` once to configure it, run in the container terminal:
 
@@ -211,10 +213,10 @@ troubleshooting.
 `ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox-image` — the
 prebuilt image. Its `Dockerfile` (which
 `.github/workflows/publish-ai-hermes-devbox.yml` builds and pushes) is
-`FROM ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image` (the
-prebuilt base with PowerShell, Oh My Posh, Terminal-Icons, Node, and the
-Claude Code/Codex CLIs) plus the Hermes install step. `docker-compose.yml`
-doesn't build that `Dockerfile` — it's kept as the reference recipe.
+`FROM nousresearch/hermes-agent:main-desktop@sha256:...` plus PowerShell,
+Oh My Posh, Terminal-Icons, Claude Code, Codex, GitHub CLI and SSH. Hermes,
+Python, Node, Chromium and Webapp are reused from upstream. `docker-compose.yml`
+pulls our published image rather than building the recipe locally.
 
 ### Updating to the latest image
 
@@ -290,11 +292,9 @@ terminal working directory to that same path; no template edits are required.
 
 ## Troubleshooting
 
-- **The image build is slow or fails on Chromium**: the full Hermes install
-  pulls Playwright/Chromium and the computer-use driver. To build a lean
-  image, add `--skip-browser --skip-computer-use` to the `install.sh` line
-  in `Dockerfile` and publish a new `ai-hermes-devbox-image` (or point
-  `docker-compose.yml` at a local `build:` of that `Dockerfile`).
+- **First build/pull is slow**: the official base is about 1.3 GB compressed.
+  Subsequent builds reuse its layers; CI also caches our development-tool
+  layers. There is no local Hermes or Webapp compilation.
 - **Agent CLI asks you to log in again every rebuild**: check that the
   `claude-data` and `codex-data` named volumes still exist. Removing volumes
   removes CLI login state.
@@ -304,9 +304,10 @@ terminal working directory to that same path; no template edits are required.
 Project skills are included in `.agents/skills`. Container startup does not install or update them.
 ### Existing Hermes data volumes
 
-Hermes source stays in the image at `/opt/hermes/hermes-agent`. The package
-manager keeps per-user dependency environments under `~/.hermes/installs`.
-An existing volume can hide the environment prepared by the image; startup runs
-a bounded `hermes pm repair` when the version check fails, retaining user
-configuration, credentials, plugins and sessions. If repair cannot finish,
-SSH remains available and startup logs explain the failure.
+Hermes source and its prepared Python environment live in `/opt/hermes`, outside
+the data volume. The devbox keeps UID/GID 1000, `/home/hermes/.hermes` and the
+existing named volumes, so no data move is needed. Optional plugin environments
+can still live under `~/.hermes/installs`. Startup checks the installed runtime;
+it does not reinstall Hermes. If the check fails, SSH remains available and
+logs advise pulling/recreating the image. Our SSH entrypoint replaces the
+official s6 startup, retaining `HERMES_AUTOSTART_SERVICES` and existing log paths.

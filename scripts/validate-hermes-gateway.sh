@@ -114,10 +114,23 @@ do_A() {
   sshc 22222 'claude --version && codex --version' \
     && ok "Claude and Codex run over SSH" || bad "agent CLI missing from SSH PATH"
 
-  # Source must come from the image; dependencies are managed per user.
-  sshc 22222 'test -f /opt/hermes/hermes-agent/pyproject.toml && test ! -w /opt/hermes/hermes-agent' \
-    && ok "Hermes source is image-owned at /opt/hermes/hermes-agent" \
-    || bad "image-owned Hermes source missing"
+  # Official source, Python environment and browser assets stay in the image.
+  sshc 22222 'test -f /opt/hermes/pyproject.toml && test ! -w /opt/hermes && test -x /opt/hermes/.venv/bin/python && test -f /opt/hermes/apps/desktop/dist-webapp/index.html' \
+    && ok "official Hermes runtime and Webapp are image-owned" \
+    || bad "official Hermes runtime or Webapp missing"
+
+  sshc 22222 'test "$(id -u)" = 1000 && test "$HOME" = /home/hermes && sudo -n true' \
+    && ok "existing user ID, home and sudo contract preserved" \
+    || bad "development user contract changed"
+
+  sshc 22222 'pwsh -NoLogo -NoProfile -NonInteractive -Command "Import-Module Terminal-Icons" && gh --version && node --version && timeout 30 hermes-acp --help' >/dev/null \
+    && ok "development tools and Hermes ACP remain available" \
+    || bad "development tool missing"
+
+  docker exec hermes-test-a hermes config set webapp.enabled false >/dev/null \
+    && sshc 22222 'test "$(stat -c %u ~/.hermes/config.yaml)" = "$(id -u)"' \
+    && ok "root docker exec writes config as hermes in the existing data path" \
+    || bad "root invocation wrote config under the wrong user or home"
 
   sshc 22222 'test ! -e ~/.hermes/hermes-agent' \
     && ok "~/.hermes holds no runtime" || bad "~/.hermes still contains a runtime"

@@ -65,17 +65,17 @@ else
 fi
 
 # --- Hermes data directory -------------------------------------------------
-# The image installs Hermes source under /opt. ~/.hermes holds user data
-# and per-user dependency environments.
+# The official image provides Hermes source and dependencies under /opt/hermes.
+# ~/.hermes keeps user data at the same path as older devbox images.
 # The install-time data dirs were created under the build user's home, so make
 # sure hermes's own copy exists (the volume mounts in empty and root-owned).
 install -d -o hermes -g hermes /home/hermes/.hermes
 for d in cron sessions logs pairing hooks image_cache audio_cache memories skills; do
   install -d -o hermes -g hermes "/home/hermes/.hermes/$d"
 done
-if [ ! -f /home/hermes/.hermes/.env ] && [ -f /opt/hermes/hermes-agent/.env.example ]; then
+if [ ! -f /home/hermes/.hermes/.env ] && [ -f /opt/hermes/.env.example ]; then
   install -o hermes -g hermes -m 600 \
-    /opt/hermes/hermes-agent/.env.example /home/hermes/.hermes/.env
+    /opt/hermes/.env.example /home/hermes/.hermes/.env
   log "seeded ~/.hermes/.env from the installed template"
 fi
 
@@ -88,18 +88,15 @@ for legacy in hermes-agent node; do
   if [ -e "/home/hermes/.hermes/$legacy" ]; then
     log "legacy Hermes data notice: found leftover from an older image at ~/.hermes/$legacy"
     log "note: ~/.hermes/$legacy is a leftover from an older image and is no longer used."
-    log "      the active source is /opt/hermes/hermes-agent. to reclaim the space:"
+    log "      the active source is /opt/hermes. to reclaim the space:"
     log "      rm -rf ~/.hermes/$legacy"
   fi
 done
 
-# An existing data volume can hide the image's prepared dependency environment.
-# Repair through Hermes' package manager; user config, sessions and plugins stay
-# in place. Bound the work so unavailable downloads cannot prevent SSH forever.
+# The official runtime is outside the data volume. A broken image needs to be
+# replaced; startup must not reinstall Hermes or compile browser assets.
 if ! timeout 30 runuser -u hermes -- env HOME=/home/hermes /usr/local/bin/hermes --version >/dev/null 2>&1; then
-  if ! timeout 180 runuser -u hermes -- env HOME=/home/hermes /usr/local/bin/hermes pm repair </dev/null; then
-    log "WARNING: Hermes dependency initialization failed; SSH remains available"
-  fi
+  log "WARNING: Hermes runtime check failed; pull/recreate the image. SSH remains available"
 fi
 
 # --- optional Hermes services ---------------------------------------------

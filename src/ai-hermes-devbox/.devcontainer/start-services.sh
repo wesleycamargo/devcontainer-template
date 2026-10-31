@@ -36,8 +36,8 @@ mkdir -p "$HOME/.hermes/logs"
 # ~/.hermes/.codex-default-seeded to re-seed.
 codex_seed_marker="$HOME/.hermes/.codex-default-seeded"
 # The runtime now lives in the image, not under ~/.hermes.
-hermes_src="/opt/hermes/hermes-agent"
-hermes_python="$(cd "$hermes_src" && python -c 'from pathlib import Path; from pm.environments import project_python; print(project_python(Path.cwd()))' 2>/dev/null)"
+hermes_src="/opt/hermes"
+hermes_python="/opt/hermes/.venv/bin/python"
 if [ ! -f "$codex_seed_marker" ] && [ -s "$HOME/.codex/auth.json" ] \
    && [ -x "$hermes_python" ]; then
   echo "hermes-start-services: seeding default model from ~/.codex/auth.json (openai-codex / gpt-5.6-terra)"

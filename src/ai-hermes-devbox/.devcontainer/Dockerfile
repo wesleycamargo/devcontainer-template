@@ -1,156 +1,120 @@
-# AI Hermes Devbox -- the published ai-devbox image plus the Hermes Agent
-# (Nous Research, https://hermes-agent.nousresearch.com/) and an SSH gateway.
-# CI builds this and publishes it as ai-hermes-devbox-image; ai-devbox-image
-# itself is unchanged.
-#
-# Unlike the ai-devbox Dockerfile, this one is NOT the full build recipe -- it
-# layers on the already-published base so the build is just the Hermes and SSH
-# steps instead of re-running the whole PowerShell/Oh My Posh/Node/agent-CLI
-# install. publish-ai-hermes-devbox.yml pulls ai-devbox-image:latest as
-# published by the ai-devbox workflow; a base rebuild does not retrigger this
-# one, so :latest is whatever ai-devbox last published.
-#
-# The container contract this image implements (see SSH-BACKEND.md):
-#   SSH user              hermes, public key only
-#   Internal SSH port     2222
-#   Hermes executable     /usr/local/bin/hermes
-#   Authorized keys in    /run/hermes-ssh/authorized_keys
-# It holds for `docker run`, `docker compose` and VS Code Dev Containers alike,
-# because it is implemented here rather than in devcontainer.json.
-FROM ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image:latest
+# syntax=docker/dockerfile:1
+# Reuse the official, prebuilt Hermes runtime, Webapp and computer-use stack.
+# Multi-arch digest for main-desktop at c419cf7c864ac0ee511dbd9f7091a8bba0b567ee.
+# Only development tools and our SSH lifecycle are layered on top.
+FROM nousresearch/hermes-agent:main-desktop@sha256:cef6ca13cc35452215c5774c0563b0940b0a6ebaebad0d87174b27ca3d5c93d5
 
-# --- rename the base image's default user -----------------------------------
-# ai-devbox-image (built FROM a Microsoft devcontainers base) ships a
-# pre-created `vscode` user/group. Only this image renames it to `hermes` --
-# ai-devbox and any other consumer of ai-devbox-image (e.g. ai-openhands-devbox)
-# is untouched and still uses vscode. Every step below this point uses hermes;
-# if you add a new step that shells out as the container's user, use hermes
-# too, not vscode.
-RUN usermod -l hermes -d /home/hermes -m vscode \
-    && groupmod -n hermes vscode \
-    && if [ -f /etc/sudoers.d/vscode ]; then \
-         mv /etc/sudoers.d/vscode /etc/sudoers.d/hermes \
-         && sed -i 's/\bvscode\b/hermes/g' /etc/sudoers.d/hermes; \
-       fi
+USER root
+SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
+ENV HOME=/home/hermes \
+    HERMES_HOME=/home/hermes/.hermes \
+    HERMES_WRITE_SAFE_ROOT=/home/hermes/.hermes \
+    PATH="/usr/local/bin:/home/hermes/.local/bin:/opt/hermes/.venv/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin" \
+    DISABLE_AUTOUPDATER=1
+WORKDIR /home/hermes
 
-# The base prepared this dependency state for /home/vscode. Its records contain
-# absolute paths, so regenerate only this image-built state for the renamed user.
-# Consumer volumes are not present during this build.
-RUN rm -rf /home/hermes/.hermes/installs \
-    && ln -sfn /home/hermes/.claude/CLAUDE.md /home/hermes/.codex/AGENTS.md
-ENV PATH="/home/hermes/.local/bin:${PATH}"
-# The native Claude installer uses an absolute link into its owner's home.
-# Repair it after usermod, and expose it to SSH's fresh default PATH as well.
-RUN if [ -L /home/hermes/.local/bin/claude ]; then \
-      claude_target="$(readlink /home/hermes/.local/bin/claude)"; \
-      case "$claude_target" in \
-        /home/vscode/*) ln -sfn "/home/hermes/${claude_target#/home/vscode/}" /home/hermes/.local/bin/claude ;; \
-      esac; \
-    fi \
-    && test -x /home/hermes/.local/bin/claude \
-    && ln -sfn /home/hermes/.local/bin/claude /usr/local/bin/claude
+# Retain the existing template's UID/GID and volume paths. Do not move /opt/data:
+# it is an inherited VOLUME, and the official runtime under /opt/hermes is sealed.
+RUN groupmod -g 1000 hermes \
+    && usermod -u 1000 -g 1000 -d /home/hermes -s /bin/bash hermes \
+    && install -d -o hermes -g hermes /home/hermes /home/hermes/.hermes \
+       /home/hermes/.claude /home/hermes/.codex /home/hermes/.cache \
+    && install -d -o hermes -g hermes -m 700 /tmp/hermes-runtime
 
-
-# --- SSH server ------------------------------------------------------------
-# Installed here, not via the devcontainer `sshd` feature: features are applied
-# by the Dev Containers tooling, so a feature-provided sshd does not exist
-# under plain `docker run`.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends openssh-server \
+# Node, Python, Chromium and the browser bundles already come from upstream.
+# Keep the development-tool versions aligned with ai-devbox.
+RUN curl -fsSL https://packages.microsoft.com/config/debian/13/packages-microsoft-prod.deb \
+        -o /tmp/packages-microsoft-prod.deb \
+    && dpkg -i /tmp/packages-microsoft-prod.deb \
+    && rm /tmp/packages-microsoft-prod.deb \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends powershell openssh-server sudo less unzip \
     && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /run/sshd
+    && mkdir -p /run/sshd \
+    && printf 'hermes ALL=(ALL) NOPASSWD:ALL\n' > /etc/sudoers.d/hermes \
+    && chmod 440 /etc/sudoers.d/hermes \
+    && rm -f /usr/share/doc/libxmlsec1-dev/examples/rsakey.pem
 
+ARG OH_MY_POSH_VERSION=31.9.1
+RUN <<'BASH'
+artifact="posh-linux-$(dpkg --print-architecture)"
+release="https://github.com/JanDeDobbeleer/oh-my-posh/releases/download/v${OH_MY_POSH_VERSION}"
+cd /tmp
+curl -fsSL "$release/$artifact" -o "$artifact"
+curl -fsSL "$release/checksums.txt" | grep -F " $artifact" | sha256sum --check --strict
+install -m 0755 "$artifact" /usr/local/bin/oh-my-posh
+rm "$artifact"
+mkdir -p /etc/oh-my-posh
+curl -fsSL 'https://gist.githubusercontent.com/wesleycamargo/06b58b472fe0cded2e6d6451ea0778bd/raw/1c952297121a50826ef6f849bb7ee8c11d8e09a6/oh-my-posh-az-cli-az-pwsh.json' \
+    -o /etc/oh-my-posh/theme.omp.json
+BASH
+
+ARG TERMINAL_ICONS_VERSION=0.11.0
+RUN pwsh -NoLogo -NoProfile -NonInteractive -File /dev/stdin <<'PWSH'
+$ErrorActionPreference = 'Stop'
+Install-Module -Name Terminal-Icons -RequiredVersion $env:TERMINAL_ICONS_VERSION -Force -Scope AllUsers
+@'
+if (-not [Console]::IsInputRedirected) {
+    Import-Module Terminal-Icons
+    oh-my-posh init pwsh --config /etc/oh-my-posh/theme.omp.json | Invoke-Expression
+}
+'@ | Set-Content -Path $PROFILE.AllUsersAllHosts
+PWSH
+
+RUN echo 'eval "$(oh-my-posh init bash --config /etc/oh-my-posh/theme.omp.json)"' >> /etc/bash.bashrc \
+    && echo "$(command -v pwsh)" >> /etc/shells \
+    && printf 'export PATH="/usr/local/bin:/home/hermes/.local/bin:$PATH"\n' > /etc/profile.d/hermes.sh
+
+ARG GITHUB_CLI_VERSION=2.103.3
+RUN <<'BASH'
+artifact="gh_${GITHUB_CLI_VERSION}_linux_$(dpkg --print-architecture).deb"
+release="https://github.com/cli/cli/releases/download/v${GITHUB_CLI_VERSION}"
+cd /tmp
+curl -fsSL "$release/$artifact" -o "$artifact"
+curl -fsSL "$release/gh_${GITHUB_CLI_VERSION}_checksums.txt" | grep -F " $artifact" | sha256sum --check --strict
+dpkg -i "$artifact"
+rm "$artifact"
+BASH
+
+ARG CODEX_VERSION=0.166.0
+RUN --mount=type=cache,target=/root/.npm \
+    npm install --prefix /usr/local -g --no-audit --no-fund "@openai/codex@${CODEX_VERSION}"
+
+ARG CLAUDE_VERSION=2.1.314
+RUN curl -fsSL https://claude.ai/install.sh -o /tmp/claude-install.sh \
+    && runuser -u hermes -- bash /tmp/claude-install.sh "$CLAUDE_VERSION" \
+    && rm /tmp/claude-install.sh \
+    && ln -s /home/hermes/.local/bin/claude /usr/local/bin/claude \
+    && printf 'model_reasoning_effort = "medium"\n' > /home/hermes/.codex/config.toml \
+    && ln -s /home/hermes/.claude/CLAUDE.md /home/hermes/.codex/AGENTS.md \
+    && chown -h hermes:hermes /home/hermes/.codex/AGENTS.md /home/hermes/.codex/config.toml
+
+# The wrapper supplies the same runtime environment to Docker exec and SSH,
+# including env -i; root invocations drop to hermes before touching user data.
+COPY --chmod=755 hermes.sh /usr/local/bin/hermes
 COPY sshd-hermes-gateway.conf /etc/ssh/sshd_config.d/10-hermes-gateway.conf
-# Debian's stock sshd_config pulls in the drop-in directory. Fail the build
-# loudly if that ever stops being true, rather than shipping an image whose
-# hardening is silently ignored.
-# (The config is syntax-checked at runtime by hermes-entrypoint, once the host
-# keys it references actually exist.)
 RUN chmod 644 /etc/ssh/sshd_config.d/10-hermes-gateway.conf \
-    && grep -qE '^[[:space:]]*Include[[:space:]]+/etc/ssh/sshd_config\.d/\*\.conf' /etc/ssh/sshd_config
+    && grep -qE '^[[:space:]]*Include[[:space:]]+/etc/ssh/sshd_config\.d/\*\.conf' /etc/ssh/sshd_config \
+    && ln -s /opt/hermes/.venv/bin/hermes-acp /usr/local/bin/hermes-acp \
+    && ln -s /opt/hermes/.venv/bin/hermes-agent /usr/local/bin/hermes-agent
 
-# --- Hermes ----------------------------------------------------------------
-# Playwright keys its browser download location off this variable. Without it a
-# root install would put Chromium under /root/.cache (mode 700) where the
-# hermes user cannot read it, breaking browser and computer-use support.
-#
-# ENV alone is not enough: sshd builds a fresh environment for each session and
-# does not inherit the container's, so anything Hermes needs over SSH must also
-# be in /etc/environment, which pam_env applies to SSH logins.
-ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright
-RUN printf 'PLAYWRIGHT_BROWSERS_PATH=/opt/playwright\n' >> /etc/environment
-
-# Installed as root at the same /opt/hermes location as the base image.
-# Hermes prepares per-user dependency environments under ~/.hermes/installs;
-# source and bootstrap tools remain in the image.
-#
-# Full install: Playwright/Chromium and the computer-use driver are included
-# (no --skip-browser / --skip-computer-use). --skip-setup skips the API-key
-# wizard so the build does not block on it.
-#
-# ai-devbox-image (this Dockerfile's FROM) already ran this installer as root
-# to this same --hermes-home with --skip-browser --skip-computer-use, so the
-# source paths above already exist. This re-run upgrades them in place to add
-# the browser/computer-use pieces rather than installing a second, competing
-# copy -- keep --hermes-home identical to src/ai-devbox/.devcontainer/Dockerfile's
-# install if either changes.
-# Webapp is newer than v0.22.5. Pin installer and checkout together, as in
-# ai-devbox, without moving the base image or its other consumers off stable.
-ARG HERMES_COMMIT=c419cf7c864ac0ee511dbd9f7091a8bba0b567ee
-RUN curl -fsSL "https://raw.githubusercontent.com/NousResearch/hermes-agent/${HERMES_COMMIT}/scripts/install.sh" \
-      -o /tmp/hermes-install.sh \
-    && bash /tmp/hermes-install.sh --non-interactive --skip-setup \
-      --hermes-home /opt/hermes --commit "$HERMES_COMMIT" \
-    && rm /tmp/hermes-install.sh \
-    && /usr/local/bin/hermes webapp --build-only
-
-# Make the root-owned install readable and traversable by hermes. Each path is
-# optional (layout varies by installer version), but the install itself above
-# is not allowed to fail silently.
-RUN for d in /opt/hermes /usr/local/lib/hermes-agent /usr/local/share/uv /opt/playwright; do \
-      if [ -e "$d" ]; then chmod -R a+rX "$d"; fi; \
-    done
-
-# libxmlsec's development package ships this private key solely for a
-# documentation example. It is not needed at runtime and must not be present
-# in an image that accepts SSH connections.
-RUN rm -f /usr/share/doc/libxmlsec1-dev/examples/rsakey.pem
-
-# The base image makes pwsh hermes's login shell. Hermes' SSH backend keeps a
-# persistent `bash` session and drops to one-shot commands for stdin/sudo, both
-# of which expect POSIX sh. VS Code terminals still open pwsh via
-# terminal.integrated.defaultProfile.linux in devcontainer.json.
-RUN chsh -s /bin/bash hermes
-
-# Build-time proof of the contract: the hermes user must be able to run the
-# root-installed Hermes from the contract path with no shell initialisation and
-# no write access to the install tree. If the app/data split regresses, the
-# build fails here instead of at someone's first SSH attempt.
-# </dev/null and timeout guard against an unexpected interactive prompt.
-RUN timeout 600 runuser -u hermes -- /usr/local/bin/hermes pm repair </dev/null \
-    && timeout 180 su hermes -c '/usr/local/bin/hermes --version' </dev/null \
-    && timeout 60 su hermes -c '/usr/local/bin/hermes webapp --build-only' </dev/null \
-    && timeout 60 su hermes -c 'node --version' </dev/null \
+# Reuse checks only: no installer, dependency repair or frontend compilation.
+RUN --network=none timeout 60 runuser -u hermes -- hermes --version </dev/null \
+    && timeout 60 runuser -u hermes -- hermes webapp --build-only </dev/null \
     && timeout 30 runuser -u hermes -- claude --version </dev/null \
-    && timeout 30 runuser -u hermes -- codex --version </dev/null
-# Diagnostics only: surfaces whether Hermes' Node shadows the base image's
-# Node 24 for the agent CLIs. Never fails the build.
-RUN su hermes -c 'command -v node npm hermes claude codex; claude --version; codex --version' </dev/null 2>&1 | sed 's/^/build-check: /' || true
+    && timeout 30 runuser -u hermes -- codex --version </dev/null \
+    && runuser -u hermes -- gh --version \
+    && pwsh -NoLogo -NoProfile -NonInteractive -Command '$ErrorActionPreference = "Stop"; Import-Module Terminal-Icons' \
+    && node --version
 
-# --- container-owned runtime ----------------------------------------------
-COPY entrypoint.sh     /usr/local/bin/hermes-entrypoint
-COPY start-services.sh /usr/local/bin/hermes-start-services
-COPY hermes-ssh-info.sh /usr/local/bin/hermes-ssh-info
-RUN chmod 755 /usr/local/bin/hermes-entrypoint \
-              /usr/local/bin/hermes-start-services \
-              /usr/local/bin/hermes-ssh-info \
-    && bash -n /usr/local/bin/hermes-entrypoint \
+# Keep the existing SSH contract and Compose init, not the upstream s6 entrypoint.
+COPY --chmod=755 entrypoint.sh /usr/local/bin/hermes-entrypoint
+COPY --chmod=755 start-services.sh /usr/local/bin/hermes-start-services
+COPY --chmod=755 hermes-ssh-info.sh /usr/local/bin/hermes-ssh-info
+RUN bash -n /usr/local/bin/hermes-entrypoint \
     && bash -n /usr/local/bin/hermes-start-services \
-    && bash -n /usr/local/bin/hermes-ssh-info
+    && bash -n /usr/local/bin/hermes-ssh-info \
+    && sh -n /usr/local/bin/hermes
 
-# sshd in the foreground is the main process, so the container stays up on its
-# own. Compose no longer needs `command: sleep infinity`, and the Dev Container
-# attaches to a container that is already a working gateway.
-# The entrypoint ends in `exec "$@"`, so `docker run <image> bash` still works.
 ENTRYPOINT ["/usr/local/bin/hermes-entrypoint"]
 CMD ["/usr/sbin/sshd", "-D", "-e"]
