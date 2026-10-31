@@ -409,9 +409,11 @@ main() {
     *) echo "usage: $0 [build|A|B|C|D|E|G|all]"; exit 2 ;;
   esac
   printf '\n%s%d passed, %d failed, %d skipped%s\n' "$bld" "$PASS" "$FAIL" "$SKIP" "$off"
-  printf 'Checkpoint F (real Hermes Desktop connection) is manual: run\n'
-  printf '  bash .devcontainer/scripts/find-devcontainer.sh "$(pwd)" hermes-ssh-info\n'
-  printf 'and use the printed values.\n'
+  printf 'Checkpoint F (real Hermes Desktop connection) requires a running ai-hermes-devbox project.\n'
+  printf 'Validation containers are disposable and removed when this script exits.\n'
+  printf 'Replace /path/to/hermes-project with the project where the Hermes template is applied:\n'
+  printf '  bash %q /path/to/hermes-project hermes-ssh-info\n' "$CTX/scripts/find-devcontainer.sh"
+  printf 'Use the printed values in Hermes Desktop.\n'
   [ "$FAIL" -eq 0 ]
 }
 
