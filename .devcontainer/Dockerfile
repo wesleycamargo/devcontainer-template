@@ -1,23 +1,40 @@
 # syntax=docker/dockerfile:1
-FROM mcr.microsoft.com/devcontainers/python:3.12-bookworm
+# Reuse the official, prebuilt Hermes runtime, Webapp and computer-use stack.
+# Multi-arch digest for main-desktop at c419cf7c864ac0ee511dbd9f7091a8bba0b567ee.
+# Only development tools and our SSH lifecycle are layered on top.
+FROM nousresearch/hermes-agent:main-desktop@sha256:cef6ca13cc35452215c5774c0563b0940b0a6ebaebad0d87174b27ca3d5c93d5
 
-# Fail the build if any download or command in a pipeline fails.
+USER root
 SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
-ENV PATH="/home/vscode/.local/bin:${PATH}" \
+ENV HOME=/home/hermes \
+    HERMES_HOME=/home/hermes/.hermes \
+    HERMES_WRITE_SAFE_ROOT=/home/hermes/.hermes \
+    PATH="/usr/local/bin:/home/hermes/.local/bin:/opt/hermes/.venv/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin" \
     DISABLE_AUTOUPDATER=1
+WORKDIR /home/hermes
 
-# Install these here so they are available during the build and with Compose.
-ARG NODE_MAJOR=24
-RUN curl -fsSL https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb \
+# Retain the existing template's UID/GID and volume paths. Do not move /opt/data:
+# it is an inherited VOLUME, and the official runtime under /opt/hermes is sealed.
+RUN groupmod -g 1000 hermes \
+    && usermod -u 1000 -g 1000 -d /home/hermes -s /bin/bash hermes \
+    && install -d -o hermes -g hermes /home/hermes /home/hermes/.hermes \
+       /home/hermes/.claude /home/hermes/.codex /home/hermes/.cache \
+    && install -d -o hermes -g hermes -m 700 /tmp/hermes-runtime
+
+# Node, Python, Chromium and the browser bundles already come from upstream.
+# Keep the development-tool versions aligned with ai-devbox.
+RUN curl -fsSL https://packages.microsoft.com/config/debian/13/packages-microsoft-prod.deb \
         -o /tmp/packages-microsoft-prod.deb \
     && dpkg -i /tmp/packages-microsoft-prod.deb \
     && rm /tmp/packages-microsoft-prod.deb \
-    && curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash - \
     && apt-get update \
-    && apt-get install -y --no-install-recommends powershell nodejs \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get install -y --no-install-recommends powershell openssh-server sudo less unzip \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /run/sshd \
+    && printf 'hermes ALL=(ALL) NOPASSWD:ALL\n' > /etc/sudoers.d/hermes \
+    && chmod 440 /etc/sudoers.d/hermes \
+    && rm -f /usr/share/doc/libxmlsec1-dev/examples/rsakey.pem
 
-# Download only the prompt binary for this architecture, without extra themes.
 ARG OH_MY_POSH_VERSION=31.9.1
 RUN <<'BASH'
 artifact="posh-linux-$(dpkg --print-architecture)"
@@ -33,7 +50,11 @@ curl -fsSL 'https://gist.githubusercontent.com/wesleycamargo/06b58b472fe0cded2e6
 BASH
 
 ARG TERMINAL_ICONS_VERSION=0.11.0
-RUN pwsh -NoLogo -NoProfile -NonInteractive -File /dev/stdin <<'PWSH'
+# PowerShell writes both ~/.local/share and $XDG_RUNTIME_DIR/.dotnet even
+# without a profile. Isolate root's setup so Claude and PSReadLine can run as hermes.
+RUN install -d -m 700 /root/.cache/powershell-runtime \
+    && HOME=/root XDG_RUNTIME_DIR=/root/.cache/powershell-runtime \
+       pwsh -NoLogo -NoProfile -NonInteractive -File /dev/stdin <<'PWSH'
 $ErrorActionPreference = 'Stop'
 Install-Module -Name Terminal-Icons -RequiredVersion $env:TERMINAL_ICONS_VERSION -Force -Scope AllUsers
 @'
@@ -46,9 +67,8 @@ PWSH
 
 RUN echo 'eval "$(oh-my-posh init bash --config /etc/oh-my-posh/theme.omp.json)"' >> /etc/bash.bashrc \
     && echo "$(command -v pwsh)" >> /etc/shells \
-    && chsh -s "$(command -v pwsh)" vscode
+    && printf 'export PATH="/usr/local/bin:/home/hermes/.local/bin:$PATH"\n' > /etc/profile.d/hermes.sh
 
-# GitHub CLI is part of the image, including when VS Code Features are absent.
 ARG GITHUB_CLI_VERSION=2.103.3
 RUN <<'BASH'
 artifact="gh_${GITHUB_CLI_VERSION}_linux_$(dpkg --print-architecture).deb"
@@ -62,51 +82,46 @@ BASH
 
 ARG CODEX_VERSION=0.166.0
 RUN --mount=type=cache,target=/root/.npm \
-    npm install -g --no-audit --no-fund "@openai/codex@${CODEX_VERSION}"
+    npm install --prefix /usr/local -g --no-audit --no-fund "@openai/codex@${CODEX_VERSION}"
 
-# One native Claude installation, owned by the user who runs it.
 ARG CLAUDE_VERSION=2.1.314
-RUN curl -fsSL https://claude.ai/install.sh -o /tmp/claude-install.sh \
-    && runuser -u vscode -- bash /tmp/claude-install.sh "$CLAUDE_VERSION" \
-    && rm /tmp/claude-install.sh
+RUN install -d -o hermes -g hermes /home/hermes/.local \
+       /home/hermes/.local/bin /home/hermes/.local/share \
+    && curl -fsSL https://claude.ai/install.sh -o /tmp/claude-install.sh \
+    && runuser -u hermes -- bash /tmp/claude-install.sh "$CLAUDE_VERSION" \
+    && rm /tmp/claude-install.sh \
+    && ln -s /home/hermes/.local/bin/claude /usr/local/bin/claude \
+    && printf 'model_reasoning_effort = "medium"\n' > /home/hermes/.codex/config.toml \
+    && ln -s /home/hermes/.claude/CLAUDE.md /home/hermes/.codex/AGENTS.md \
+    && chown -h hermes:hermes /home/hermes/.codex/AGENTS.md /home/hermes/.codex/config.toml
 
-# Pin both the Hermes installer and checkout to the same release commit (v0.22.5).
-# Keep the installation in /opt; each user's writable state lives in ~/.hermes.
-ARG HERMES_COMMIT=bf0203a794a07aac3ff764972ab9087baa4e4f4e
-RUN --mount=type=cache,target=/root/.cache/uv <<'BASH'
-curl -fsSL "https://raw.githubusercontent.com/NousResearch/hermes-agent/${HERMES_COMMIT}/scripts/install.sh" \
-    -o /tmp/hermes-install.sh
-bash /tmp/hermes-install.sh --non-interactive --skip-setup \
-    --skip-browser --skip-computer-use --hermes-home /opt/hermes --commit "$HERMES_COMMIT"
-rm /tmp/hermes-install.sh
-# Apply permissions before committing this layer, avoiding a second copy of the tree.
-for directory in /opt/hermes /usr/local/lib/hermes-agent /usr/local/share/uv; do
-    if [ -e "$directory" ]; then chmod -R a+rX "$directory"; fi
-done
-for command in hermes hermes-acp; do
-    launcher="/opt/hermes/hermes-agent/.hermes/bin/$command"
-    test -x "$launcher"
-    ln -sfn "$launcher" "/usr/local/bin/$command"
-done
-BASH
+# The wrapper supplies the same runtime environment to Docker exec and SSH,
+# including env -i; root invocations drop to hermes before touching user data.
+COPY --chmod=755 hermes.sh /usr/local/bin/hermes
+COPY sshd-hermes-gateway.conf /etc/ssh/sshd_config.d/10-hermes-gateway.conf
+RUN chmod 644 /etc/ssh/sshd_config.d/10-hermes-gateway.conf \
+    && grep -qE '^[[:space:]]*Include[[:space:]]+/etc/ssh/sshd_config\.d/\*\.conf' /etc/ssh/sshd_config \
+    && ln -s /opt/hermes/.venv/bin/hermes-acp /usr/local/bin/hermes-acp \
+    && ln -s /opt/hermes/.venv/bin/hermes-agent /usr/local/bin/hermes-agent
 
-# Container-local config avoids sharing host-specific plugin paths and databases.
-# The auth file alone is mounted by Compose. Global agent instructions are shared.
-RUN install -d -o vscode -g vscode /home/vscode/.codex /home/vscode/.cache \
-    && printf 'model_reasoning_effort = "medium"\n' > /home/vscode/.codex/config.toml \
-    && ln -s /home/vscode/.claude/CLAUDE.md /home/vscode/.codex/AGENTS.md \
-    && chown -R vscode:vscode /home/vscode/.codex
-
-# Smoke checks use the development user, without loading an interactive profile.
-RUN timeout 600 runuser -u vscode -- hermes pm repair </dev/null \
-    && timeout 60 runuser -u vscode -- hermes --version </dev/null \
-    && timeout 30 runuser -u vscode -- claude --version </dev/null \
-    && timeout 30 runuser -u vscode -- codex --version </dev/null \
-    && runuser -u vscode -- gh --version \
-    && pwsh -NoLogo -NoProfile -NonInteractive -Command '$ErrorActionPreference = "Stop"; Import-Module Terminal-Icons' \
+# Reuse checks only: no installer, dependency repair or frontend compilation.
+RUN --network=none timeout 60 runuser -u hermes -- hermes --version </dev/null \
+    && timeout 60 runuser -u hermes -- hermes webapp --build-only </dev/null \
+    && timeout 30 runuser -u hermes -- claude --version </dev/null \
+    && timeout 30 runuser -u hermes -- codex --version </dev/null \
+    && runuser -u hermes -- gh --version \
+    && runuser -u hermes -- pwsh -NoLogo -NoProfile -NonInteractive -Command '$ErrorActionPreference = "Stop"; Import-Module Terminal-Icons; $mutex = [System.Threading.Mutex]::new($false, "HermesPSReadLineSmoke"); $mutex.Dispose()' \
     && node --version
 
-# Repair ownership on reused runtime volumes before Compose initializes Hermes.
-COPY --chmod=755 entrypoint.sh /usr/local/bin/devbox-entrypoint
-ENTRYPOINT ["/usr/local/bin/devbox-entrypoint"]
-CMD ["python3"]
+# Keep the existing SSH contract and Compose init, not the upstream s6 entrypoint.
+COPY --chmod=755 entrypoint.sh /usr/local/bin/hermes-entrypoint
+COPY --chmod=755 start-services.sh /usr/local/bin/hermes-start-services
+COPY --chmod=755 hermes-ssh-info.sh /usr/local/bin/hermes-ssh-info
+COPY --chmod=755 webapp-open.py /usr/local/bin/hermes-webapp-open
+RUN bash -n /usr/local/bin/hermes-entrypoint \
+    && bash -n /usr/local/bin/hermes-start-services \
+    && bash -n /usr/local/bin/hermes-ssh-info \
+    && sh -n /usr/local/bin/hermes
+
+ENTRYPOINT ["/usr/local/bin/hermes-entrypoint"]
+CMD ["/usr/sbin/sshd", "-D", "-e"]

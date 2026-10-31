@@ -1,57 +1,54 @@
 services:
   devcontainer:
-    image: ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image:latest
+    # Pull the prebuilt image (CI builds it from this directory's Dockerfile
+    # and publishes it as ai-hermes-devbox-image). No local build step --
+    # for an extra local layer, swap this for a `build:` block pointing at a
+    # Dockerfile that does `FROM` this public image. Registry login is not required.
+    image: ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox-image:latest
     init: true
-    user: vscode
-    working_dir: /workspace
+    # No `command:` override. The image's entrypoint runs sshd in the
+    # foreground, so the container stays up on its own and is a working SSH
+    # gateway whether it was started by Compose, `docker run`, or VS Code.
+    #
+    # No host port bindings: several devcontainers can start without collisions.
+    # VS Code forwards the Webapp locally. External SSH is opt-in through
+    # docker-compose.ssh.yml; sshd remains available inside the image on 2222.
     environment:
-      HOME: /home/vscode
-      USER: vscode
-    # Repair only when the version check fails; bound both operations so startup
-    # eventually reaches sleep even if Hermes or the network is unavailable.
-    command:
-      - /bin/sh
-      - -c
-      - |
-        if ! timeout 30 hermes --version >/dev/null 2>&1; then
-          if ! timeout 180 /bin/sh -c 'hermes pm repair && hermes --version'; then
-            printf '%s\n' 'WARNING: Hermes initialization failed. The devcontainer will remain available.' >&2
-          fi
-        fi
-        exec sleep infinity
+      # Start the Hermes gateway (with Webapp) + dashboard; a bare
+      # `docker run` leaves this unset and gets sshd only.
+      HERMES_AUTOSTART_SERVICES: "1"
+      # Pins `hermes-ssh-info`'s suggested terminal.cwd to the workspace mount
+      # below instead of its /workspaces/*/ auto-detect glob, which falls back
+      # to /home/hermes if it ever can't find a match. Keep this in sync with
+      # workspaceFolder (devcontainer.json) and the bind mount target (below).
+      HERMES_SSH_CWD: "/workspaces"
+    # Dashboard (9119) and Webapp (9120) default to container loopback and
+    # are not published. VS Code forwards both locally; image users can opt
+    # into remote Webapp access separately (see ../README.md).
     volumes:
-      # Share this project by default. Set DEVBOX_WORKSPACE_ROOT to share another
-      # directory, including the parent if sibling repositories are needed.
-      - ${DEVBOX_WORKSPACE_ROOT:-..}:/workspace:cached
-      - devbox-cache:/home/vscode/.cache
-      # Paths resolve on the WSL/macOS host: DEVBOX_HOST_HOME overrides HOME;
-      # /home/vscode is the fallback when both variables are unset or empty.
-      # Missing sources fail explicitly instead of creating directories at file paths.
-      - type: bind
-        source: ${DEVBOX_HOST_HOME:-${HOME:-/home/vscode}}/.claude
-        target: /home/vscode/.claude
-        bind:
-          create_host_path: false
-      - type: bind
-        source: ${DEVBOX_HOST_HOME:-${HOME:-/home/vscode}}/.claude.json
-        target: /home/vscode/.claude.json
-        bind:
-          create_host_path: false
-      # Share only the Codex auth file. Config, plugins, and databases stay local.
+      - ../..:/workspaces:cached
+      # Docker creates the named volumes on demand and initializes them from
+      # the image. Settings/history survive rebuilds; Codex auth comes from
+      # the host file mounted below.
+      - claude-data:/home/hermes/.claude
+      - codex-data:/home/hermes/.codex
+      # Authenticate once with Codex CLI on the host. Only its credential file
+      # is shared; Codex configuration and history remain project-local.
       - type: bind
         source: ${DEVBOX_HOST_HOME:-${HOME:-/home/vscode}}/.codex/auth.json
-        target: /home/vscode/.codex/auth.json
+        target: /home/hermes/.codex/auth.json
         bind:
           create_host_path: false
-      - type: bind
-        source: ${DEVBOX_HOST_HOME:-${HOME:-/home/vscode}}/.hermes
-        target: /home/vscode/.hermes
-        bind:
-          create_host_path: false
-      # Keep the image's prepared Linux dependency environments separate from
-      # the host's Hermes state, including when the host runs macOS.
-      - hermes-runtime:/home/vscode/.hermes/installs
+      # Persist Hermes configuration, sessions, plugins and dependency state.
+      # Source code and the prepared runtime remain in the image at /opt/hermes.
+      - hermes-data:/home/hermes/.hermes
+      # The container's own SSH host identity. Persisted so a rebuild or
+      # recreate does not change the fingerprint -- Hermes connects with
+      # StrictHostKeyChecking=accept-new and would refuse a changed key.
+      - ssh-host-keys:/var/lib/hermes-ssh/host_keys
 
 volumes:
-  devbox-cache:
-  hermes-runtime:
+  claude-data:
+  codex-data:
+  hermes-data:
+  ssh-host-keys:

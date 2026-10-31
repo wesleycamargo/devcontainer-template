@@ -1,14 +1,14 @@
 # devcontainer-template
 
-Personal devcontainer, and a published "AI Devbox" dev container
-template/image built from the same config.
+Personal development container for maintaining published AI devcontainer
+templates and images.
 
 ## Layout
 
-- `.devcontainer/` — the repo's development container. Keep its Dockerfile,
-  devcontainer.json, docker-compose.yml, entrypoint.sh and README.md identical to
-  `src/ai-devbox/.devcontainer/`. Compose pulls the public ai-devbox image;
-  CI builds the Dockerfile. Host mounts use DEVBOX_HOST_HOME.
+- `.devcontainer/` — the repo's development container. Keep its tracked files
+  identical to `src/ai-hermes-devbox/.devcontainer/`. Compose pulls the public
+  `ai-hermes-devbox-image`; it needs the Docker host's Codex credential file
+  (`~/.codex/auth.json`, or `DEVBOX_HOST_HOME/.codex/auth.json`).
 - `src/ai-devbox/.devcontainer/` — the base template, published via CI. The
   build recipe (`Dockerfile`) lives only here; nothing else consumes this
   directory directly.
@@ -19,7 +19,7 @@ template/image built from the same config.
   UID/GID 1000 and data at `/home/hermes/.hermes` for volume compatibility;
   the sealed runtime lives at `/opt/hermes`. Published as
   `ai-hermes-devbox` / `ai-hermes-devbox-image`. The root `.devcontainer/`
-  uses the base ai-devbox template.
+  mirrors this template for repository development.
 - `src/ai-hermes-devbox-v1/` — a third published template: the pre-gateway
   generation of `ai-hermes-devbox`, frozen from `ai-hermes-devbox-v0.12.0`.
   Uses `FROM ai-devbox-image` + Hermes step, but no sshd, no SSH gateway and
@@ -98,7 +98,8 @@ CLIs, Codex's `AGENTS.md` symlinked to `~/.claude/CLAUDE.md`).
 
 The `docker-compose.yml` next to it does **not** build anything: it sets
 `image:` to that published package, so opening the devcontainer pulls the
-prebuilt image instead of reinstalling everything from scratch. The root `.devcontainer/` mirrors ai-devbox and pulls `ai-devbox-image`.
+prebuilt image instead of reinstalling everything from scratch. The root
+`.devcontainer/` mirrors `ai-hermes-devbox` and pulls `ai-hermes-devbox-image`.
 
 To bake a change into the shared image, edit the `Dockerfile` and push to
 `main` — the publish workflow rebuilds `<id>-image`. For a throwaway local

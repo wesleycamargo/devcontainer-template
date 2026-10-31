@@ -2,9 +2,9 @@
 
 See the [AI-native SDLC framework guide](docs/ai-native-sdlc.md) included with the AI Devbox template.
 
-Five published dev container templates built from one shared image recipe: a
-PowerShell-first devbox with the Claude Code / Codex agent CLIs and Python/Node.js
-tooling, on its own or paired with an agent stack.
+Five published dev container templates: a PowerShell-first devbox with the
+Claude Code / Codex agent CLIs and Python/Node.js tooling, on its own or paired
+with an agent stack.
 
 ## Templates
 
@@ -58,9 +58,10 @@ public templates above.
 Every template's `docker-compose.yml` sets `image:` to a prebuilt package and
 builds nothing locally; the `Dockerfile` next to it is the recipe CI builds from
 and publishes as `<template-id>-image`. Applying a template or rebuilding the
-container just re-pulls that image. `ai-hermes-devbox` and `ai-openhands-devbox`
-are both `FROM ai-devbox-image`, so a change to the shared recipe is made once,
-in [`src/ai-devbox/.devcontainer/Dockerfile`](src/ai-devbox/.devcontainer/Dockerfile).
+container just re-pulls that image. `ai-hermes-devbox` instead layers its
+development tools and SSH lifecycle directly on the pinned official
+`nousresearch/hermes-agent:main-desktop` image; it does not derive from
+`ai-devbox-image`.
 
 Docker caches `:latest`: a rebuild will not fetch a newer image on its own. Pull
 it explicitly when a new `<template-id>-v*` tag is published.
@@ -82,7 +83,13 @@ extensions, Docker Engine **inside WSL** (never Docker Desktop), the
 ```
 
 On Linux it only checks and prints install instructions. The repo's own
-devcontainer pulls the public `ai-devbox-image`; login is not required for it.
+devcontainer pulls the public `ai-hermes-devbox-image`; registry login is not
+required for it. Before first start, authenticate Codex on the Docker host so
+the required credential file exists:
+
+```bash
+codex -c 'cli_auth_credentials_store="file"' login
+```
 
 ### 2. Clone and open the devcontainer
 
@@ -99,12 +106,14 @@ Then start it any of these ways:
 
 There is no build step — `docker-compose.yml` pulls the prebuilt image.
 
-### 3. Configure credentials inside the container
+### 3. Credentials and persistence
 
-Compose uses `DEVBOX_HOST_HOME` (falling back to host `HOME`) for the Claude,
-Codex authentication and Hermes mounts. Follow [.devcontainer/README.md](.devcontainer/README.md)
-for required host paths, Git configuration and persistence. Codex shares only
-its authentication file; its configuration and sessions stay container-local.
+The root configuration mirrors AI Hermes Devbox. Compose uses
+`DEVBOX_HOST_HOME` (falling back to host `HOME`) to mount only
+`~/.codex/auth.json`; it must exist before Compose starts. Claude state, Codex
+configuration/history, Hermes state, and SSH host keys are per-project Docker
+named volumes. See [AI Hermes Devbox](docs/ai-hermes-devbox.md) for the Webapp,
+VS Code opener, optional SSH backend, and volume details.
 
 ### 4. Validation and tests
 
@@ -112,13 +121,13 @@ Run these on the **WSL host** where Docker runs, not inside the devcontainer:
 
 ```bash
 ./scripts/validate-hermes-gateway.sh build   # build the test image first
-./scripts/validate-hermes-gateway.sh all     # or a single checkpoint: A..E
+./scripts/validate-hermes-gateway.sh all     # or a single checkpoint: A..E, G
 bash scripts/test_ai_openhands_devbox.sh     # static config checks (any shell)
 ```
 
 Checkpoints A–E cover raw `docker run`, Compose, two projects at once, Dev
-Container, and an image upgrade over an existing volume; F (a real Hermes
-Desktop connection) is manual. CI runs the same checks via
+Container, and an image upgrade over an existing volume; G validates the
+Webapp. F (a real Hermes Desktop connection) is manual. CI runs the same checks via
 `.github/workflows/validate-hermes-gateway.yml`.
 
 ### 5. One-time publishing setup (maintainer only)

@@ -1,15 +1,41 @@
 {
-  "name": "AI Devbox",
+  "name": "AI Hermes Devbox",
   "dockerComposeFile": "docker-compose.yml",
   "service": "devcontainer",
-  "workspaceFolder": "/workspace",
-  // Compose owns container lifecycle now (see docker-compose.yml); stop the
-  // service on close instead of leaving it running detached.
-  "shutdownAction": "stopCompose",
-  "remoteUser": "vscode",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  // Leave the Compose project running when the VS Code window closes. This
+  // container is an SSH gateway: `stopCompose` would tear down the SSH daemon underneath
+  // a connected Hermes Desktop just because an editor window was closed. Stop
+  // it deliberately instead, with `docker compose down`.
+  "shutdownAction": "none",
+  "remoteUser": "hermes",
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": "true",
+      "username": "hermes",
+      "upgradePackages": "false",
+      "nonFreePackages": "true"
+    },
+    "ghcr.io/rchaganti/vsc-devcontainer-features/azurebicep:1": {
+      "version": "latest"
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  // Hermes services are image-owned. The post-create hook only configures
+  // the current workspace as the Hermes project skill source.
+  // Dashboard and Webapp default to container loopback. Only VS Code forwards
+  // them to the local computer; Compose does not publish either on the network.
+  "forwardPorts": [9119, 9120],
+  "portsAttributes": {
+    "9120": {
+      "label": "Hermes Webapp",
+      "onAutoForward": "silent"
+    }
+  },
   "customizations": {
     "vscode": {
       "settings": {
+        "remote.localPortHost": "localhost",
         "terminal.integrated.defaultProfile.linux": "pwsh",
         "terminal.integrated.profiles.linux": {
           "pwsh": {
