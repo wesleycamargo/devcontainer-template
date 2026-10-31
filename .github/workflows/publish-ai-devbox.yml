@@ -146,3 +146,10 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}/${{ env.TEMPLATE_ID }}-image:latest
             ghcr.io/${{ github.repository }}/${{ env.TEMPLATE_ID }}-image:${{ steps.version.outputs.version }}
+
+      - name: Install consumer validation CLI
+        run: npm install -g @devcontainers/cli
+
+      - name: Validate published template in a fresh directory
+        timeout-minutes: 15
+        run: bash scripts/validate-published-devbox.sh "$TEMPLATE_ID" '${{ steps.version.outputs.version }}'

@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
 # Maintainer script for this repo: mirror the canonical root .agents/ into the
 # published template payloads (src/<id>/.agents/), and keep the Hermes hook
-# copy identical to the root one. Skill exposure to individual agents
-# (Claude Code, Codex, Hermes) is handled at container-start time by the
-# `skills` CLI (see src/ai-devbox/.devcontainer/scripts/sync-project-skills.sh),
-# not by this script.
+# copy identical to the published Hermes hook when a root hook exists.
 #
 # Usage: scripts/sync-template-agents.sh [--check] [--force]
 set -euo pipefail
@@ -19,11 +16,7 @@ for arg in "$@"; do
 done
 
 repo=$(cd -P "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
-# Never mirror the skills CLI's per-skill OpenAI/Codex metadata. `skills add
-# --agent universal` (run by sync-project-skills inside a container) writes
-# .agents/skills/<skill>/agents/openai.yaml into whatever project is mounted,
-# including this repo's own checkout. They are generated display metadata, not
-# source, so they stay out of both git and the published template payloads.
+# Exclude generated agent display metadata from published payloads.
 rsync_excludes=(--exclude='agents/openai.yaml' --exclude='agents/openai.yml')
 templates=(ai-devbox ai-hermes-devbox ai-hermes-devbox-v1)
 hook_rel=.devcontainer/scripts/configure-project-skills.sh
@@ -41,7 +34,7 @@ for t in "${templates[@]}"; do
   fi
 done
 
-if ! cmp -s "$repo/$hook_rel" "$repo/src/ai-hermes-devbox/$hook_rel"; then
+if [ -f "$repo/$hook_rel" ] && ! cmp -s "$repo/$hook_rel" "$repo/src/ai-hermes-devbox/$hook_rel"; then
   drift=1
   echo "hook: src/ai-hermes-devbox/$hook_rel differs from root"
   ((check)) || install -m 755 "$repo/$hook_rel" "$repo/src/ai-hermes-devbox/$hook_rel"

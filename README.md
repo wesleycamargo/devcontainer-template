@@ -3,14 +3,14 @@
 See the [AI-native SDLC framework guide](docs/ai-native-sdlc.md) included with the AI Devbox template.
 
 Four published dev container templates built from one shared image recipe: a
-PowerShell-first devbox with the Claude Code / Codex agent CLIs and Azure
+PowerShell-first devbox with the Claude Code / Codex agent CLIs and Python/Node.js
 tooling, on its own or paired with an agent stack.
 
 ## Templates
 
 | Template | What it adds | Page |
 | --- | --- | --- |
-| **AI Devbox** | The base: PowerShell 7, Oh My Posh, Node.js, Claude Code + Codex CLIs, Azure Bicep, GitHub CLI, esptool/mpremote | [docs/ai-devbox.md](docs/ai-devbox.md) |
+| **AI Devbox** | The base: PowerShell 7, Oh My Posh, Node.js, Claude Code + Codex + lean Hermes CLIs, GitHub CLI, Python 3.12, Node.js 24 | [docs/ai-devbox.md](docs/ai-devbox.md) |
 | **AI Hermes Devbox** | AI Devbox + the [Hermes Agent](https://hermes-agent.nousresearch.com/) (full browser + computer-use) and an SSH gateway for Hermes Desktop | [docs/ai-hermes-devbox.md](docs/ai-hermes-devbox.md) |
 | **AI Hermes Devbox v1** | AI Devbox + the [Hermes Agent](https://hermes-agent.nousresearch.com/), gateway and dashboard only — the pre-gateway generation, no SSH, no Open WebUI | [docs/ai-hermes-devbox-v1.md](docs/ai-hermes-devbox-v1.md) |
 | **AI OpenHands Devbox** | AI Devbox + [OpenHands Agent Canvas](https://www.openhands.dev/) via Codex ACP / ChatGPT OAuth | [docs/ai-openhands-devbox.md](docs/ai-openhands-devbox.md) |
@@ -100,24 +100,10 @@ There is no build step — `docker-compose.yml` pulls the prebuilt image.
 
 ### 3. Configure credentials inside the container
 
-`docker-compose.yml` bind-mounts `~/.claude` and `~/.codex/auth.json` from
-the host, so Claude Code / Codex logins survive a rebuild — edit those
-`volumes` entries to point at your own host paths (the committed ones are the
-original author's). Run once, inside the container:
-
-```bash
-git config --global user.name "..." && git config --global user.email "..."
-claude     # sign in, if the host doesn't already have a login
-codex      # sign in, if the host doesn't already have a login
-hermes     # optional: API keys / connectors for the plain `hermes` CLI
-```
-
-`hermes` here is the lean install the base `ai-devbox` image carries (no
-browser/computer-use, no gateway, no dashboard); its `~/.hermes` isn't bind-
-mounted or volumed, so it doesn't survive a rebuild. For a persistent Hermes
-agent with a gateway/dashboard or SSH access from Hermes Desktop, use the
-[`ai-hermes-devbox`](docs/ai-hermes-devbox.md) or
-[`ai-hermes-devbox-v1`](docs/ai-hermes-devbox-v1.md) template instead.
+Compose uses `DEVBOX_HOST_HOME` (falling back to host `HOME`) for the Claude,
+Codex authentication and Hermes mounts. Follow [.devcontainer/README.md](.devcontainer/README.md)
+for required host paths, Git configuration and persistence. Codex shares only
+its authentication file; its configuration and sessions stay container-local.
 
 ### 4. Validation and tests
 

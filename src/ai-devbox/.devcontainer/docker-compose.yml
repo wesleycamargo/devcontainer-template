@@ -1,43 +1,57 @@
 services:
   devcontainer:
-    # Pull the prebuilt image (CI builds it from this directory's Dockerfile
-    # and publishes it as ai-devbox-image). No local build step -- for an
-    # extra local layer, swap this for a `build:` block pointing at a
-    # Dockerfile that does `FROM` this image. Requires `docker login
-    # ghcr.io` (private package).
     image: ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image:latest
     init: true
+    user: vscode
+    working_dir: /workspace
     environment:
-      # Consumed by /usr/local/bin/sync-project-skills (run below, on every
-      # start): keeps .agents/skills current with upstream and installs it
-      # for every agent it detects installed, at project and global scope.
-      # See that script for what each var does.
-      SYNC_SKILLS_USER: vscode
-      SYNC_SKILLS_AGENTS: "*"
-    # Runs the skills sync once per start, then keeps the container running;
-    # VS Code/the devcontainer CLI exec into it rather than relying on the
-    # image's own entrypoint to block.
-    command: ["/bin/sh", "-c", "sync-project-skills || true; sleep infinity"]
+      HOME: /home/vscode
+      USER: vscode
+    # Repair only when the version check fails; bound both operations so startup
+    # eventually reaches sleep even if Hermes or the network is unavailable.
+    command:
+      - /bin/sh
+      - -c
+      - |
+        if ! timeout 30 hermes --version >/dev/null 2>&1; then
+          if ! timeout 180 /bin/sh -c 'hermes pm repair && hermes --version'; then
+            printf '%s\n' 'WARNING: Hermes initialization failed. The devcontainer will remain available.' >&2
+          fi
+        fi
+        exec sleep infinity
     volumes:
-      - ../..:/workspaces:cached
-      # Agent CLI configs, bind-mounted from the host rather than COPYed into
-      # the image -- these hold live credentials (.credentials.json, auth.json)
-      # and baking them into image layers would persist them in `docker history`.
-      # Personal host paths for this learning machine. Claude comes from the
-      # WSL install (native fs, correct 0600 perms, and uid 1000 matches the
-      # container's `vscode` user). On a different host account, edit/remove
-      # these mounts rather than copying credentials into the image.
-      - /mnt/c/Users/Wesle/.claude:/home/vscode/.claude
-      - /mnt/c/Users/Wesle/.claude.json:/home/vscode/.claude.json
-      # Codex only exists on this machine's Windows side, so this one crosses
-      # /mnt/c and includes the local Windows user path.
-      # Only auth.json, NOT the whole ~/.codex: the rest of that directory is
-      # desktop-app state (Windows-path config.toml, plugin dirs, live SQLite
-      # files the app holds locks on). The container gets its own ~/.codex from
-      # the Dockerfile; sharing just the credentials file means token refreshes
-      # stay in sync in both directions. See .devcontainer/README.md.
-      - /mnt/c/Users/Wesle/.codex/auth.json:/home/vscode/.codex/auth.json
-      # Host git identity/credentials, read-only. postCreateCommand copies
-      # these into ~/.gitconfig / ~/.git-credentials on container create.
-      - /mnt/c/Users/Wesle/.gitconfig:/tmp/host-gitconfig:ro
-      - /mnt/c/Users/Wesle/.git-credentials:/tmp/host-git-credentials:ro
+      # Share this project by default. Set DEVBOX_WORKSPACE_ROOT to share another
+      # directory, including the parent if sibling repositories are needed.
+      - ${DEVBOX_WORKSPACE_ROOT:-..}:/workspace:cached
+      - devbox-cache:/home/vscode/.cache
+      # Paths resolve on the WSL/macOS host: DEVBOX_HOST_HOME overrides HOME;
+      # /home/vscode is the fallback when both variables are unset or empty.
+      # Missing sources fail explicitly instead of creating directories at file paths.
+      - type: bind
+        source: ${DEVBOX_HOST_HOME:-${HOME:-/home/vscode}}/.claude
+        target: /home/vscode/.claude
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${DEVBOX_HOST_HOME:-${HOME:-/home/vscode}}/.claude.json
+        target: /home/vscode/.claude.json
+        bind:
+          create_host_path: false
+      # Share only the Codex auth file. Config, plugins, and databases stay local.
+      - type: bind
+        source: ${DEVBOX_HOST_HOME:-${HOME:-/home/vscode}}/.codex/auth.json
+        target: /home/vscode/.codex/auth.json
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${DEVBOX_HOST_HOME:-${HOME:-/home/vscode}}/.hermes
+        target: /home/vscode/.hermes
+        bind:
+          create_host_path: false
+      # Keep the image's prepared Linux dependency environments separate from
+      # the host's Hermes state, including when the host runs macOS.
+      - hermes-runtime:/home/vscode/.hermes/installs
+
+volumes:
+  devbox-cache:
+  hermes-runtime:

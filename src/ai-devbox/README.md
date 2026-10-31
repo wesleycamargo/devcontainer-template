@@ -1,109 +1,106 @@
-# AI Devbox (PowerShell)
+# AI Devbox
 
-A PowerShell-first dev container with the Claude Code / Codex agent CLIs
-preconfigured, plus Azure tooling.
+Python 3.12, Node.js 24, PowerShell, Oh My Posh, Terminal-Icons, GitHub CLI,
+Claude Code, Codex and lean Hermes. Hermes runs as a CLI without a gateway,
+dashboard, browser or computer-use service.
 
-## What's included
+## Apply the private template
 
-- PowerShell (via the `powershell` devcontainer feature), set as the default
-  integrated terminal.
-- Azure Bicep CLI (`azurebicep` feature) and GitHub CLI (`gh`).
-- Node.js 20, with `@anthropic-ai/claude-code` and `@openai/codex` installed
-  globally.
-- Codex's `AGENTS.md` symlinked to the same global agent instructions Claude
-  Code reads (`~/.claude/CLAUDE.md`), so both CLIs start from one shared set
-  of global guidelines instead of two copies that drift.
-- The `hermes` CLI ([Hermes Agent](https://hermes-agent.nousresearch.com/),
-  Nous Research) — a lean install: no browser/computer-use, no SSH gateway,
-  no dashboard. Run `hermes` once to set up API keys and connectors; data
-  lives in `~/.hermes` and isn't persisted across a rebuild unless you add a
-  bind mount or volume for it yourself. For the full install (browser +
-  computer-use, SSH gateway, dashboard) see the
-  [`ai-hermes-devbox`](../../docs/ai-hermes-devbox.md) template.
+Authenticate on the host where Docker runs:
 
-## Prerequisites
-
-1. Docker Desktop (or another Docker Engine) running.
-2. VS Code with the Dev Containers extension, **or** the
-   [devcontainer CLI](https://github.com/devcontainers/cli):
-   ```powershell
-   npm install -g @devcontainers/cli
-   ```
-   (needs Node.js on the host — this installs the CLI on your machine, not
-   inside the container.)
-3. [GitHub CLI](https://cli.github.com) (`gh`), used below to authenticate
-   to the private package:
-   ```powershell
-   winget install --id GitHub.cli
-   ```
-## Getting started
-
-The template is published as a **private** package, so Docker needs to be
-logged in to `ghcr.io` before it can pull it:
-
-```powershell
-gh auth login                                      # if not already logged in
-gh auth refresh -h github.com -s read:packages      # add the packages scope
+```sh
+gh auth login
+gh auth refresh -h github.com -s read:packages
 gh auth token | docker login ghcr.io -u wesleycamargo --password-stdin
-```
-
-Then apply the template into a project:
-
-```powershell
 devcontainer templates apply -w . -t ghcr.io/wesleycamargo/devcontainer-template/ai-devbox
 ```
 
-or in VS Code (after the `docker login` step above): **Dev Containers: Add
-Dev Container Configuration Files** → search for
-`wesleycamargo/devcontainer-template/ai-devbox`.
+Open the project with **Dev Containers: Reopen in Container**. On Windows use
+Docker Engine inside WSL. The container configuration also supports macOS hosts.
 
-Then **Reopen in Container**.
+## Start
 
-## Configuration
+Open the project with **Dev Containers: Rebuild and Reopen in Container**, or run
+these commands from the project root:
 
-### The image
+```sh
+docker compose -f .devcontainer/docker-compose.yml pull
+docker compose -f .devcontainer/docker-compose.yml up -d
+docker compose -f .devcontainer/docker-compose.yml exec --user vscode devcontainer pwsh
+```
 
-`docker-compose.yml` sets `image:` to
-`ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image` — the
-prebuilt image with the full recipe (PowerShell, Oh My Posh,
-Terminal-Icons, Node, the Claude Code/Codex/Hermes CLIs) already installed.
-`.github/workflows/publish-ai-devbox.yml` builds it from the `Dockerfile`
-in this directory and pushes it there. `docker-compose.yml` doesn't build
-that `Dockerfile` — it's kept as the reference recipe for what's in the
-image. Applying the template and rebuilding just re-pulls the image.
+The workspace is `/workspace`. Compose mounts this project by default. To share
+the parent directory instead, set `DEVBOX_WORKSPACE_ROOT=../..`; paths are relative
+to `.devcontainer/docker-compose.yml`, and VS Code will open the shared parent.
 
-For your own customizations, add a second file (e.g. `Dockerfile.local`)
-that does `FROM
-ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image` followed by
-your `RUN`/`COPY` lines, and point `docker-compose.yml` at it with a
-`build:` block instead of `image:` — your layers sit on top of the
-prebuilt image, so rebuilds stay fast.
+## Host configuration
 
-### Agent CLI credentials
+Host mounts use `DEVBOX_HOST_HOME`, then `HOME`, then `/home/vscode` when both
+variables are unset or empty. Override the host directory when needed:
 
-`docker-compose.yml` bind-mounts `~/.claude` and `~/.codex/auth.json` from
-the host so Claude Code / Codex logins survive a container rebuild, instead
-of baking tokens into the image (which would leave them in `docker
-history` and wouldn't pick up refreshed tokens). The paths in this
-template point at the original author's machine — edit or remove those
-`volumes` entries in `docker-compose.yml` to match your own host, or drop
-them entirely if you don't need persisted agent logins.
+```sh
+export DEVBOX_HOST_HOME=/path/to/host-home
+```
 
-### Workspace location
+The following sources must already exist in that directory:
 
-The parent directory containing the applied repository is mounted at
-`/workspaces`. VS Code automatically opens
-`/workspaces/<your-repository-directory-name>`, so no repository-specific path
-changes are required.
+| Source | Type |
+| --- | --- |
+| `.claude` | Directory |
+| `.claude.json` | File |
+| `.codex/auth.json` | File |
+| `.hermes` | Directory |
 
-## Troubleshooting
+Prepare those paths using the agents' normal setup/login commands on the host.
+Missing sources fail explicitly instead of being created as directories. Mounts
+are writable so agents can refresh credentials and persist their settings. Codex
+shares only authentication; its other configuration and sessions are container-local
+and are recreated when the container is replaced. Codex's global `AGENTS.md`
+points to the host's `.claude/CLAUDE.md`, if that file exists.
 
-- **Agent CLI asks you to log in again every rebuild**: check that the
-  credential bind mounts in `docker-compose.yml` point at real, existing
-  paths on your host.
+Hermes configuration stays on the host, while a separate `hermes-runtime` volume
+stores its Linux dependency environments under `.hermes/installs`. Docker seeds
+this volume from the prepared image, so an empty host directory does not hide the
+installed dependencies or trigger a fresh download on first start.
 
-## AI-native SDLC framework
+VS Code Dev Containers [shares Git configuration and authentication](https://code.visualstudio.com/remote/advancedcontainers/sharing-git-credentials)
+through the host credential helper or SSH agent. With plain Compose, configure
+Git inside the container:
 
-This template includes a vendor-neutral AI-native SDLC framework in .agents/. Use its five sdlc-* skills to create intent.md, spec.md, and plan.md in sdlc/<work-item>/ only when work begins. See .agents/README.md for the internal conventions and the repository [framework guide](../../docs/ai-native-sdlc.md) before applying the template.
+```sh
+git config --global user.name "Your Name"
+git config --global user.email "you@example.com"
+gh auth login
+gh auth setup-git
+```
 
-`.agents/skills` is the single source of truth for skills — create them only there. On every container start, `sync-project-skills` (via the `skills` CLI, already installed in the image) pulls the latest upstream skills into it, then exposes the merged set to Claude Code and Codex, both inside the project and at each agent's global level so they work from any directory. Configurable via `SYNC_SKILLS_USER`/`SYNC_SKILLS_AGENTS`/`SYNC_SKILLS_UPSTREAM` in `docker-compose.yml`; run `sync-project-skills` by hand to refresh mid-session.
+Git credential files are not copied into the container.
+
+## Builds and updates
+
+CI builds the Dockerfile and publishes `ai-devbox-image`. Tool versions are build
+arguments in that recipe. Maintainers can build it directly:
+
+```sh
+docker build -t ai-devbox-local .devcontainer
+```
+
+Consumers update with `docker compose -f .devcontainer/docker-compose.yml pull`
+and then recreate the container. Compose does not build the Dockerfile.
+
+Hermes pins its installer and checkout to the same commit. Claude background
+updates are disabled so the image controls its initial installed version; manual
+updates remain available. The base image tag and APT repositories continue to
+receive updates, so this is not a fully reproducible dependency snapshot.
+
+BuildKit cache mounts cover npm and the default uv cache directory. Hermes permissions are set
+in the installation layer to avoid copying its tree into a second layer.
+A named volume preserves the
+development user's `.cache` across container replacements. For projects with many
+small files, keep the source inside the WSL filesystem rather than `/mnt/c`; mount
+large dependency directories such as `node_modules` in dedicated Docker volumes
+when the project needs them. Install MesloLGM Nerd Font on the host for terminal icons.
+
+## Project skills
+
+Templates include `.agents/skills`; startup does not install or update skills.

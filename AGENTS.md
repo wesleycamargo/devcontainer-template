@@ -5,15 +5,10 @@ template/image built from the same config.
 
 ## Layout
 
-- `.devcontainer/` — the devcontainer used to develop this repo itself.
-  Personal, host-specific (bind-mounts Windows host paths for Claude/Codex
-  credentials and git config). `devcontainer.json`, `docker-compose.yml`,
-  `Dockerfile`, `devcontainer-lock.json`, and `scripts/sync-project-skills.sh`
-  are plain copies of their `src/ai-devbox/.devcontainer/` counterparts, kept
-  in sync by hand — mirror any change there into this directory too. Pulls
-  `ai-devbox-image`; no gateway, dashboard, or SSH service runs here, so
-  `hermes` is just a plain CLI (see that Dockerfile's Hermes step), same as
-  any other `ai-devbox` consumer.
+- `.devcontainer/` — the repo's development container. Keep its Dockerfile,
+  devcontainer.json, docker-compose.yml and README.md identical to
+  `src/ai-devbox/.devcontainer/`. Compose pulls the private ai-devbox image;
+  CI builds the Dockerfile. Host mounts use DEVBOX_HOST_HOME.
 - `src/ai-devbox/.devcontainer/` — the base template, published via CI. The
   build recipe (`Dockerfile`) lives only here; nothing else consumes this
   directory directly.
@@ -25,7 +20,7 @@ template/image built from the same config.
   `hermes` at the same FHS paths, so this step upgrades it in place rather
   than installing a second, competing copy. Published as
   `ai-hermes-devbox` / `ai-hermes-devbox-image`. The root `.devcontainer/`
-  tracks this one.
+  uses the base ai-devbox template.
 - `src/ai-hermes-devbox-v1/` — a third published template: the pre-gateway
   generation of `ai-hermes-devbox`, frozen from `ai-hermes-devbox-v0.12.0`.
   Same `FROM ai-devbox-image` + Hermes step, but no sshd, no SSH gateway and
@@ -70,11 +65,8 @@ template/image built from the same config.
 - `scripts/sync-template-agents.sh` — maintainer-only: mirrors the canonical
   root `.agents/` into `src/ai-devbox/.agents/`, `src/ai-hermes-devbox/.agents/`
   and `src/ai-hermes-devbox-v1/.agents/`, and keeps the Hermes hook (`configure-project-skills.sh`) copy identical. Run
-  it (`--check` to only report) after any change under `.agents/`. It does not
-  ship. Exposing `.agents/skills` to individual agents at container-start time
-  is handled separately, by `sync-project-skills` (see "Cross-agent skill
-  discovery" below) — this script only mirrors files between the maintainer's
-  repo and the template payloads.
+  it (`--check` to only report) after any change under `.agents/`. It only
+  mirrors files between the maintainer repo and template payloads.
 - `scripts/setup-devcontainer-client.ps1` — one-time client-side setup for
   someone *consuming* a published template/image: installs Git/GitHub
   CLI/VS Code + the Dev Containers/Remote-WSL extensions via winget, Docker
@@ -94,15 +86,13 @@ Each template under `src/<id>/.devcontainer/` has one `Dockerfile` — the
 full build recipe (PowerShell installed directly via Microsoft's apt repo
 so later `pwsh` steps work at build time, Oh My Posh + theme,
 Terminal-Icons, an all-users PowerShell profile, the same prompt wired into
-`/etc/bash.bashrc`, `esptool`/`mpremote`, Node.js, the Claude Code/Codex
+`/etc/bash.bashrc`, Node.js, the Claude Code/Codex
 CLIs, Codex's `AGENTS.md` symlinked to `~/.claude/CLAUDE.md`).
 `publish-<id>.yml` builds it and publishes it as `<id>-image`.
 
 The `docker-compose.yml` next to it does **not** build anything: it sets
 `image:` to that published package, so opening the devcontainer pulls the
-prebuilt image instead of reinstalling everything from scratch. The root
-`.devcontainer/` does the same — it has no `Dockerfile` at all and pulls
-`ai-hermes-devbox-image`.
+prebuilt image instead of reinstalling everything from scratch. The root `.devcontainer/` mirrors ai-devbox and pulls `ai-devbox-image`.
 
 To bake a change into the shared image, edit the `Dockerfile` and push to
 `main` — the publish workflow rebuilds `<id>-image`. For a throwaway local
@@ -127,6 +117,6 @@ automatically through its `FROM`.
   devcontainer-template repo this repo's publishing workflow was originally
   modeled on.
 
-## Cross-agent skill discovery
+## Project skills
 
-Create reusable project skills only in .agents/skills/<skill-name>/ — it is the single source of truth. Exposing it to individual agents (Claude Code, Codex, Hermes) is handled automatically, at container start, by the `skills` CLI (https://github.com/vercel-labs/skills, already installed in the devbox image) via `/usr/local/bin/sync-project-skills` (see src/ai-devbox/.devcontainer/scripts/sync-project-skills.sh, invoked from each template's docker-compose.yml/entrypoint.sh, not a Dev Container hook). It pulls the latest upstream skills into .agents/skills, then symlinks the merged set into every configured agent's project directory (.claude/skills, .hermes/skills; Codex's own project path is .agents/skills itself) and, for agents that need it, into their global (home-directory) skill directory too, so they work outside the project as well. Hermes is additionally configured (`hermes config set skills.external_dirs`) to read .agents/skills directly, while its personal skills remain in ~/.hermes/skills. Run `sync-project-skills` by hand inside a container to force a refresh mid-session instead of waiting for the next restart.
+Create reusable project skills in `.agents/skills/<skill-name>/`. Templates include these files; container startup does not download, update, or install skills. Agents with repository-local discovery can read them directly; otherwise ask the agent to read the desired `SKILL.md`.

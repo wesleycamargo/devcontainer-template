@@ -1,131 +1,107 @@
-# Debian bookworm base (GLIBC 2.36) -- avoids the minimum-GLIBC check VS Code
-# Server enforces (older bases like Ubuntu 20.04 fail it).
+# syntax=docker/dockerfile:1
 FROM mcr.microsoft.com/devcontainers/python:3.12-bookworm
 
-# PowerShell, installed directly (not via the devcontainer feature) so later
-# RUN steps in this Dockerfile can invoke `pwsh` at build time -- features are
-# layered on after the Dockerfile builds, so a feature-provided pwsh wouldn't
-# exist yet when this file runs.
-RUN apt-get update && apt-get install -y wget \
-    && wget -q https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb \
-    && dpkg -i packages-microsoft-prod.deb && rm packages-microsoft-prod.deb \
-    && apt-get update && apt-get install -y powershell \
+# Fail the build if any download or command in a pipeline fails.
+SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
+ENV PATH="/home/vscode/.local/bin:${PATH}" \
+    DISABLE_AUTOUPDATER=1
+
+# Install these here so they are available during the build and with Compose.
+ARG NODE_MAJOR=24
+RUN curl -fsSL https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb \
+        -o /tmp/packages-microsoft-prod.deb \
+    && dpkg -i /tmp/packages-microsoft-prod.deb \
+    && rm /tmp/packages-microsoft-prod.deb \
+    && curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash - \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends powershell nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# Oh My Posh + theme, baked into the image instead of fetched by
-# postCreateCommand on every container creation.
-RUN curl -s https://ohmyposh.dev/install.sh | bash -s -- -d /usr/local/bin \
-    && mkdir -p /etc/oh-my-posh \
-    && curl -fsSL 'https://gist.githubusercontent.com/wesleycamargo/06b58b472fe0cded2e6d6451ea0778bd/raw/1c952297121a50826ef6f849bb7ee8c11d8e09a6/oh-my-posh-az-cli-az-pwsh.json' \
-       -o /etc/oh-my-posh/theme.omp.json
+# Download only the prompt binary for this architecture, without extra themes.
+ARG OH_MY_POSH_VERSION=31.9.1
+RUN <<'BASH'
+artifact="posh-linux-$(dpkg --print-architecture)"
+release="https://github.com/JanDeDobbeleer/oh-my-posh/releases/download/v${OH_MY_POSH_VERSION}"
+cd /tmp
+curl -fsSL "$release/$artifact" -o "$artifact"
+curl -fsSL "$release/checksums.txt" | grep -F " $artifact" | sha256sum --check --strict
+install -m 0755 "$artifact" /usr/local/bin/oh-my-posh
+rm "$artifact"
+mkdir -p /etc/oh-my-posh
+curl -fsSL 'https://gist.githubusercontent.com/wesleycamargo/06b58b472fe0cded2e6d6451ea0778bd/raw/1c952297121a50826ef6f849bb7ee8c11d8e09a6/oh-my-posh-az-cli-az-pwsh.json' \
+    -o /etc/oh-my-posh/theme.omp.json
+BASH
 
-# Terminal-Icons + an all-users PowerShell profile wiring both of the above in.
-# Also prepends ~/.local/bin to PATH here (pwsh is vscode's login shell --
-# chsh below -- so bash's rc files never run; without this, `claude install`'s
-# native build in ~/.local/bin is invisible and the CLI nags that itself is
-# "missing or broken").
-# Note: a here-string (@' ... '@) won't survive Dockerfile line-continuation
-# (Docker joins continued lines by stripping the newline, so the closing '@
-# would no longer be alone on its own line) -- `n inside a normal quoted
-# string sidesteps that since it doesn't depend on real newlines surviving.
-RUN pwsh -NoProfile -Command ' \
-    Install-Module -Name Terminal-Icons -Force -Scope AllUsers; \
-    Set-Content -Path $PROFILE.AllUsersAllHosts -Value "if (Test-Path `$HOME/.local/bin) { `$env:PATH = `"`$HOME/.local/bin`$([IO.Path]::PathSeparator)`$env:PATH`" }`nif (Get-Module -ListAvailable -Name Terminal-Icons) { Import-Module Terminal-Icons }`noh-my-posh init pwsh --config /etc/oh-my-posh/theme.omp.json | Invoke-Expression" \
-'
+ARG TERMINAL_ICONS_VERSION=0.11.0
+RUN pwsh -NoLogo -NoProfile -NonInteractive -File /dev/stdin <<'PWSH'
+$ErrorActionPreference = 'Stop'
+Install-Module -Name Terminal-Icons -RequiredVersion $env:TERMINAL_ICONS_VERSION -Force -Scope AllUsers
+@'
+if (-not [Console]::IsInputRedirected) {
+    Import-Module Terminal-Icons
+    oh-my-posh init pwsh --config /etc/oh-my-posh/theme.omp.json | Invoke-Expression
+}
+'@ | Set-Content -Path $PROFILE.AllUsersAllHosts
+PWSH
 
-# Same prompt for bash, and make pwsh the vscode user's default shell (both
-# previously done at container-create time via postCreateCommand).
 RUN echo 'eval "$(oh-my-posh init bash --config /etc/oh-my-posh/theme.omp.json)"' >> /etc/bash.bashrc \
     && echo "$(command -v pwsh)" >> /etc/shells \
     && chsh -s "$(command -v pwsh)" vscode
 
-# Node.js/npm (apt's default is too old for the packages below)
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y nodejs
+# GitHub CLI is part of the image, including when VS Code Features are absent.
+ARG GITHUB_CLI_VERSION=2.103.3
+RUN <<'BASH'
+artifact="gh_${GITHUB_CLI_VERSION}_linux_$(dpkg --print-architecture).deb"
+release="https://github.com/cli/cli/releases/download/v${GITHUB_CLI_VERSION}"
+cd /tmp
+curl -fsSL "$release/$artifact" -o "$artifact"
+curl -fsSL "$release/gh_${GITHUB_CLI_VERSION}_checksums.txt" | grep -F " $artifact" | sha256sum --check --strict
+dpkg -i "$artifact"
+rm "$artifact"
+BASH
 
-# Agent CLIs
-RUN npm install -g @anthropic-ai/claude-code @openai/codex
-RUN echo 'export PATH="$HOME/.local/bin:$PATH"' >> /root/.bashrc
+ARG CODEX_VERSION=0.166.0
+RUN --mount=type=cache,target=/root/.npm \
+    npm install -g --no-audit --no-fund "@openai/codex@${CODEX_VERSION}"
 
-# Skills CLI, plus the shared startup script (both templates' docker-compose.yml
-# run this on every container start) that pulls .agents/skills from upstream and
-# exposes it to every configured agent via the CLI, at project and global scope.
-RUN npm install -g skills
-COPY scripts/sync-project-skills.sh /usr/local/bin/sync-project-skills
-RUN chmod +x /usr/local/bin/sync-project-skills
+# One native Claude installation, owned by the user who runs it.
+ARG CLAUDE_VERSION=2.1.314
+RUN curl -fsSL https://claude.ai/install.sh -o /tmp/claude-install.sh \
+    && runuser -u vscode -- bash /tmp/claude-install.sh "$CLAUDE_VERSION" \
+    && rm /tmp/claude-install.sh
 
-# Pre-install Claude Code's self-managed native build into vscode's home.
-# The CLI's own self-check expects ~/.local/bin/claude to exist alongside the
-# npm-installed copy; without this it nags "missing or broken" on every start.
-RUN su vscode -c 'claude install'
+# Pin both the Hermes installer and checkout to the same release commit (v0.22.5).
+# Keep the installation in /opt; each user's writable state lives in ~/.hermes.
+ARG HERMES_COMMIT=bf0203a794a07aac3ff764972ab9087baa4e4f4e
+RUN --mount=type=cache,target=/root/.cache/uv <<'BASH'
+curl -fsSL "https://raw.githubusercontent.com/NousResearch/hermes-agent/${HERMES_COMMIT}/scripts/install.sh" \
+    -o /tmp/hermes-install.sh
+bash /tmp/hermes-install.sh --non-interactive --skip-setup \
+    --skip-browser --skip-computer-use --hermes-home /opt/hermes --commit "$HERMES_COMMIT"
+rm /tmp/hermes-install.sh
+# Apply permissions before committing this layer, avoiding a second copy of the tree.
+for directory in /opt/hermes /usr/local/lib/hermes-agent /usr/local/share/uv; do
+    if [ -e "$directory" ]; then chmod -R a+rX "$directory"; fi
+done
+for command in hermes hermes-acp; do
+    launcher="/opt/hermes/hermes-agent/.hermes/bin/$command"
+    test -x "$launcher"
+    ln -sfn "$launcher" "/usr/local/bin/$command"
+done
+BASH
 
-# Hermes Agent CLI (Nous Research, https://hermes-agent.nousresearch.com/) --
-# lean install: no browser/computer-use, no SSH gateway, no dashboard, no user
-# rename. Just the `hermes` binary so it's available like the other agent
-# CLIs above; run `hermes` once to set up API keys and connectors.
-#
-# Installed as ROOT (not su vscode, unlike `claude install` above), so the
-# install lives in image layers under --hermes-home rather than in one user's
-# home: checkout at /opt/hermes/hermes-agent, its real launchers at
-# /opt/hermes/hermes-agent/.hermes/bin/{hermes,hermes-acp}. That is
-# load-bearing: src/ai-hermes-devbox/.devcontainer/Dockerfile (FROM this
-# image) re-runs this same installer as root, to the same --hermes-home, to
-# add the full browser/computer-use install -- it upgrades these exact paths
-# in place rather than installing a second, conflicting copy. Keep
-# --hermes-home in sync between the two Dockerfiles if it ever changes.
-# --skip-browser --skip-computer-use keeps this layer lean (see that
-# Dockerfile's own full install for what gets added back). --skip-setup skips
-# the interactive API-key wizard so the build doesn't block on it.
-RUN curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- \
-      --non-interactive --skip-setup --skip-browser --skip-computer-use \
-      --hermes-home /opt/hermes
+# Container-local config avoids sharing host-specific plugin paths and databases.
+# The auth file alone is mounted by Compose. Global agent instructions are shared.
+RUN install -d -o vscode -g vscode /home/vscode/.codex /home/vscode/.cache \
+    && printf 'model_reasoning_effort = "medium"\n' > /home/vscode/.codex/config.toml \
+    && ln -s /home/vscode/.claude/CLAUDE.md /home/vscode/.codex/AGENTS.md \
+    && chown -R vscode:vscode /home/vscode/.codex
 
-# Make the root-owned install readable/traversable by vscode (and by `hermes`,
-# after ai-hermes-devbox's own user rename). Mirrors that Dockerfile's
-# identical permission fix over the same paths.
-RUN for d in /opt/hermes /usr/local/lib/hermes-agent /usr/local/share/uv; do \
-      if [ -e "$d" ]; then chmod -R a+rX "$d"; fi; \
-    done
-
-# Put the commands on every user's PATH. The installer does not do this for a
-# root install: it publishes its launchers inside the checkout (above) and then
-# only *repairs* an existing /usr/local/bin/hermes -- hermes_cli/_launchers.py's
-# expose_cli never creates a new global entry -- so the only conveniences it
-# writes are in /root/.local/bin, which mode-700 /root hides from vscode.
-# Symlinks to the checkout launchers fix that, and because they resolve back
-# into the install root (what expose_cli's _owns_launcher looks for), later
-# installer runs -- including ai-hermes-devbox's re-install -- now recognise
-# /usr/local/bin as theirs and keep it current.
-# HERMES_HOME is not baked into the launchers: each user's run defaults it to
-# their own ~/.hermes, so vscode gets a writable data dir without write access
-# to the install tree.
-RUN set -eu; \
-    for n in hermes hermes-acp; do \
-      test -x "/opt/hermes/hermes-agent/.hermes/bin/$n"; \
-      ln -sfn "/opt/hermes/hermes-agent/.hermes/bin/$n" "/usr/local/bin/$n"; \
-    done
-
-# Build-time proof the CLI actually works for the image's default user.
-# Diagnostics first (never fails the build) so a regression in the step above
-# shows up as "which hermes" in the log instead of just a non-zero exit.
-RUN su vscode -s /bin/sh -c 'command -v hermes hermes-acp' </dev/null 2>&1 | sed 's/^/build-check: /' || true
-RUN timeout 180 su vscode -c 'hermes --version' </dev/null
-
-# Codex's config dir, created here (owned by vscode) so the auth.json bind mount
-# in devcontainer.json doesn't make Docker create the parent as root -- that
-# would leave Codex unable to write its own session state.
-#
-# config.toml is written fresh instead of reusing the host's: that one is
-# generated by the Codex desktop app on Windows and is full of Windows-only
-# paths (a `notify` hook .exe, the `node_repl` MCP server .exe, `\\?\C:\...`
-# marketplace sources) that don't resolve in a Linux container. Only the model
-# settings carry over.
-#
-# AGENTS.md is symlinked to the same global agent guidelines Claude Code reads
-# from ~/.claude/CLAUDE.md (bind-mounted from the host), so both agents start
-# with identical global instructions rather than two copies that drift. Project
-# context comes from the repo's own AGENTS.md, which Codex reads by default.
-RUN mkdir -p /home/vscode/.codex && \
-    printf 'model = "gpt-5.5"\nmodel_reasoning_effort = "medium"\n' > /home/vscode/.codex/config.toml && \
-    ln -s /home/vscode/.claude/CLAUDE.md /home/vscode/.codex/AGENTS.md && \
-    chown -R vscode:vscode /home/vscode/.codex
+# Smoke checks use the development user, without loading an interactive profile.
+RUN timeout 600 runuser -u vscode -- hermes pm repair </dev/null \
+    && timeout 60 runuser -u vscode -- hermes --version </dev/null \
+    && timeout 30 runuser -u vscode -- claude --version </dev/null \
+    && timeout 30 runuser -u vscode -- codex --version </dev/null \
+    && runuser -u vscode -- gh --version \
+    && pwsh -NoLogo -NoProfile -NonInteractive -Command '$ErrorActionPreference = "Stop"; Import-Module Terminal-Icons' \
+    && node --version
