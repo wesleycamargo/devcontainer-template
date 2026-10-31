@@ -27,12 +27,18 @@ services:
     # into remote Webapp access separately (see ../README.md).
     volumes:
       - ../..:/workspaces:cached
-      # Named volumes make a fresh checkout usable on any host: Docker creates
-      # them on demand and copies each image directory into it on first use.
-      # They keep CLI logins across normal container rebuilds without depending
-      # on personal host paths or baking credentials into the image.
+      # Docker creates the named volumes on demand and initializes them from
+      # the image. Settings/history survive rebuilds; Codex auth comes from
+      # the host file mounted below.
       - claude-data:/home/hermes/.claude
       - codex-data:/home/hermes/.codex
+      # Authenticate once with Codex CLI on the host. Only its credential file
+      # is shared; Codex configuration and history remain project-local.
+      - type: bind
+        source: ${DEVBOX_HOST_HOME:-${HOME:-/home/vscode}}/.codex/auth.json
+        target: /home/hermes/.codex/auth.json
+        bind:
+          create_host_path: false
       # Persist Hermes configuration, sessions, plugins and dependency state.
       # Source code and the prepared runtime remain in the image at /opt/hermes.
       - hermes-data:/home/hermes/.hermes

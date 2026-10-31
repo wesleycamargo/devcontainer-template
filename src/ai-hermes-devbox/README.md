@@ -43,16 +43,24 @@ enter the full ID, including `ghcr.io/` —
 registry prefix the template can't be found ("Failed to fetch template
 manifest").
 
-Then **Reopen in Container**.
+Before **Reopen in Container**, authenticate once with Codex CLI on the Docker
+host (WSL when Docker runs in WSL):
+
+```bash
+codex -c 'cli_auth_credentials_store="file"' login
+```
+
+The resulting host `~/.codex/auth.json` must exist before Compose starts.
+Hermes imports this OpenAI login automatically.
 
 ## First run
 
 The Webapp starts automatically. Run `hermes-webapp-open` in the devcontainer's
-VS Code terminal to open it already signed in. Model credentials and connectors
-still need your account setup; run `hermes` when ready to configure them.
+VS Code terminal to open it already signed in. OpenAI authentication comes from
+the host Codex login. Run `hermes` to configure other providers or connectors.
 
 The `hermes-data` Docker named volume persists that directory across normal
-rebuilds. It holds credentials, config, sessions, logs, memories, skills, and
+rebuilds. It holds config, sessions, logs, memories, skills, and
 per-user dependency environments. Hermes source lives in the image under
 `/opt/hermes`, so pulling a newer image updates the source. Do not remove Docker volumes, for example with
 `docker compose down -v`, if you need to retain Hermes data.
@@ -62,17 +70,18 @@ If an existing volume came from an older image, it may still contain
 alone and prints cleanup guidance in `docker compose logs devcontainer`; they
 are no longer used by the active `hermes` executable.
 
-**Codex / ChatGPT shortcut.** On container start, `hermes-start-services` seeds
-Hermes' default from `~/.codex/auth.json` when that file contains a currently
-valid ChatGPT/Codex OAuth token. It copies those tokens into Hermes' auth store
-and sets `model.provider: openai-codex` / `model.default: gpt-5.6-terra` in
-`config.yaml`, matching the import path behind `hermes model` -> "ChatGPT or
-Codex Subscription". It does not run `hermes auth add openai-codex`, which
-starts a fresh device-code login.
+**Codex / ChatGPT shortcut.** On first start, `hermes-start-services` imports
+the valid host Codex login and defaults to `openai-codex` / `gpt-5.6-terra`.
+Explicit provider and model choices and existing Hermes logins are preserved.
+Each project imports the host Codex credentials into its own Hermes store.
+No interactive Hermes login is started.
+The marker `~/.hermes/.codex-default-seeded` makes model setup run once per
+project. If the initial Codex access token has expired, renew it with Codex on
+the host and restart the container; failed imports are retried on startup.
 
-The seed runs once, guarded by `~/.hermes/.codex-default-seeded`; delete that
-marker plus `hermes auth logout openai-codex` to re-seed. If the Codex access
-token has expired, the step is skipped and retried on the next start.
+Hermes and Codex CLI renew credentials separately. Actively using multiple
+clients with the same imported login can invalidate a refresh token and
+require signing in again.
 
 ## Gateway validation
 
@@ -279,22 +288,23 @@ prebuilt image, so rebuilds stay fast.
 
 ### Agent CLI credentials
 
-`docker-compose.yml` uses named Docker volumes instead of host-path mounts,
-so a fresh template works on any host without pre-creating credential files:
+`docker-compose.yml` mounts the host `~/.codex/auth.json` read/write at
+`/home/hermes/.codex/auth.json`. Existing credentials are immediately available
+inside the container. Codex logins inside the container update the host file,
+so other containers can reuse it too.
 
-- `claude-data` — the complete `~/.claude` directory
-- `codex-data` — the complete `~/.codex` directory
-- `hermes-data` — the complete `~/.hermes` user-data directory: credentials,
-  config, sessions, logs, memories, and skills. Hermes' code and runtime live
-  in the image, not in this volume.
+Run the host login command above first. Codex must use file storage rather
+than an OS keyring; see the [Codex authentication documentation](https://learn.chatgpt.com/docs/auth).
+Set `DEVBOX_HOST_HOME` in `.devcontainer/.env` to override the host home.
+Credentials are never baked into the image.
 
-Docker creates these volumes on demand and initializes the CLI directories
-from the image on first use. Log in with `claude` or `codex` inside the
-container; that state survives normal rebuilds without copying credentials
-into image layers. The template does not read host credentials or Git
-settings, so configure Git with `git config --global ...` inside the
-container when needed. Do not remove the named volumes if you need to retain
-their state.
+Hermes imports this login into its own store. Hermes credentials, config and
+conversations remain separate per project.
+
+Named volumes retain `claude-data` (Claude login/settings), `codex-data`
+(Codex settings/history), and `hermes-data` (config, sessions, logs, memories,
+skills). Removing those volumes deletes their state but leaves host
+credentials intact. Git settings remain local to the container.
 
 ### Workspace location
 
@@ -308,9 +318,10 @@ terminal working directory to that same path; no template edits are required.
 - **First build/pull is slow**: the official base is about 1.3 GB compressed.
   Subsequent builds reuse its layers; CI also caches our development-tool
   layers. There is no local Hermes or Webapp compilation.
-- **Agent CLI asks you to log in again every rebuild**: check that the
-  `claude-data` and `codex-data` named volumes still exist. Removing volumes
-  removes CLI login state.
+- **OpenAI asks you to log in again**: check `DEVBOX_HOST_HOME` points to the
+  Docker host home where Codex saved `~/.codex/auth.json`, and inspect
+  `~/.hermes/logs/codex-seed.out`. Refresh conflicts between Codex and Hermes
+  can also require another login. Claude authentication remains in `claude-data`.
 
 ## AI-native SDLC framework
 

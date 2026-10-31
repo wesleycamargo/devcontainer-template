@@ -17,6 +17,7 @@ on:
       - 'scripts/validate-hermes-webapp.py'
       - 'scripts/test_validate_hermes_webapp.py'
       - 'scripts/test_hermes_webapp_open.py'
+      - 'scripts/test_hermes_auth.py'
       - '.github/workflows/publish-ai-hermes-devbox.yml'
   push:
     branches:

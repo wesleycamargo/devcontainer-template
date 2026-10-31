@@ -64,6 +64,12 @@ host_fp() { # fingerprint of the container's ed25519 host key
 setup() {
   command -v docker >/dev/null || { echo "docker not found -- run this on the Docker host"; exit 1; }
   ssh-keygen -q -t ed25519 -N '' -f "$KEY" -C hermes-gateway-test
+  # Never mount or mutate the operator's real OpenAI credentials in validation.
+  export DEVBOX_HOST_HOME="$WORK/host-home"
+  mkdir -p "$DEVBOX_HOST_HOME/.codex"
+  printf '{"tokens": null}\n' >"$DEVBOX_HOST_HOME/.codex/auth.json"
+  # Synthetic fixture only: let container UID 1000 write even when CI uses 1001.
+  chmod 666 "$DEVBOX_HOST_HOME/.codex/auth.json"
   cat >"$WORK/override.yml" <<YML
 services:
   devcontainer:
@@ -324,6 +330,29 @@ do_C() {
   [ -n "$f1" ] && [ "$f1" != "$f2" ] && ok "each project has its own host key" \
     || bad "projects share a host key ($f1 / $f2)"
 
+  # A credential write from one container must reach the host and the other
+  # project. This touches only the synthetic file created by setup().
+  if docker exec -i -u hermes "$id1" /opt/hermes/.venv/bin/python - <<'PY'
+import json
+from pathlib import Path
+path = Path.home() / ".codex/auth.json"
+assert json.loads(path.read_text()) == {"tokens": None}
+path.write_text('{"tokens": null, "fixture": "persisted-on-host"}\n')
+PY
+  then
+    if python3 - "$DEVBOX_HOST_HOME/.codex/auth.json" <<'PY'
+import json, sys
+from pathlib import Path
+assert json.loads(Path(sys.argv[1]).read_text())["fixture"] == "persisted-on-host"
+PY
+    then ok "Codex credential writes persist on the host"
+    else bad "Codex credential write did not reach the host"; fi
+    docker exec -u hermes "$id2" /opt/hermes/.venv/bin/python -c \
+      'import json; from pathlib import Path; assert json.loads((Path.home()/".codex/auth.json").read_text())["fixture"] == "persisted-on-host"' \
+      && ok "second project reuses host Codex credentials" \
+      || bad "second project did not see host Codex credentials"
+  else bad "container cannot read/write the host Codex credential file"; fi
+
   "${c1[@]}" down -v --remove-orphans >/dev/null 2>&1
   "${c2[@]}" down -v --remove-orphans >/dev/null 2>&1
 }
@@ -399,7 +428,7 @@ do_E() {
 
 do_G() {
   head_ "G. Webapp local defaults and optional remote login"
-  if python3 -m unittest discover -s "$REPO_ROOT/scripts" -p 'test_*webapp*.py' \
+  if python3 -m unittest discover -s "$REPO_ROOT/scripts" -p 'test_*hermes*.py' \
       && python3 "$REPO_ROOT/scripts/validate-hermes-webapp.py" "$IMAGE"; then
     ok "Webapp contract"
   else

@@ -17,23 +17,19 @@ command -v hermes >/dev/null 2>&1 || exit 0
 mkdir -p "$HOME/.hermes/logs"
 
 # --- one-time Codex/ChatGPT seed -------------------------------------------
-# Point Hermes' default model at a persisted Codex login. ~/.codex is backed by
-# a named volume, so this also works after signing in to Codex in the
-# container.
+# Codex auth.json is mounted from the host. Import it into this project's
+# Hermes auth store, preserving an existing Hermes login and model choice.
 #
 # We deliberately do NOT call `hermes auth add openai-codex`: that jumps
 # straight to an interactive device-code login and never looks at the Codex CLI
 # file, so it would just hang. Instead we call the same internal helpers
 # `hermes model` -> "ChatGPT or Codex Subscription" uses:
-#   _import_codex_cli_tokens()    -- nothing if the file is missing or its
-#                                    access token already expired (Codex
-#                                    refresh tokens are single-use)
-#   _save_codex_tokens()          -- copy into Hermes' own auth store
+#   _import_codex_cli_tokens()    -- initial import only, when Hermes has no grant
+#   _save_codex_tokens()          -- save under the native auth lock
 #   _update_config_for_provider() -- model.provider=openai-codex + base_url
 #   set_config_value()            -- pin model.default
-# All local: no network, no prompts. The marker makes it run once, so it never
-# overrides a provider picked later with `hermes model`; delete
-# ~/.hermes/.codex-default-seeded to re-seed.
+# All local: no network, no prompts. Explicit provider/model choices are kept.
+# Codex CLI and Hermes remain separate OAuth clients with independent refreshes.
 codex_seed_marker="$HOME/.hermes/.codex-default-seeded"
 # The runtime now lives in the image, not under ~/.hermes.
 hermes_src="/opt/hermes"
@@ -45,23 +41,34 @@ if [ ! -f "$codex_seed_marker" ] && [ -s "$HOME/.codex/auth.json" ] \
 import sys
 try:
     from hermes_cli.auth import (
+        _auth_store_lock, _load_auth_store, _load_provider_state,
         _import_codex_cli_tokens, _save_codex_tokens, _update_config_for_provider)
     from hermes_cli.auth_codex import _codex_base_url
-    from hermes_cli.config import set_config_value
+    from hermes_cli.config import get_config_path, require_readable_config_before_write, set_config_value
 except Exception as exc:
     print("import error:", exc); sys.exit(3)
-tokens = _import_codex_cli_tokens()
-if not tokens:
-    print("no usable Codex CLI tokens (file missing or access token expired)")
-    sys.exit(2)
-_save_codex_tokens(tokens)
+config = require_readable_config_before_write(get_config_path())
+model = config.get("model", {})
+if not isinstance(model, dict) or model.get("provider") not in (None, "", "openai-codex"):
+    print("existing model provider preserved")
+    sys.exit(0)
+with _auth_store_lock():
+    state = _load_provider_state(_load_auth_store(), "openai-codex") or {}
+    tokens = state.get("tokens") or {}
+    if not (tokens.get("access_token") and tokens.get("refresh_token")):
+        tokens = _import_codex_cli_tokens()
+        if not tokens:
+            print("no usable Codex CLI login; authenticate with Codex CLI on the host")
+            sys.exit(2)
+        _save_codex_tokens(tokens)
 _update_config_for_provider("openai-codex", _codex_base_url())
-set_config_value("model.default", "gpt-5.6-terra")
-print("seeded provider=openai-codex, model.default=gpt-5.6-terra")
+if not model.get("default"):
+    set_config_value("model.default", "gpt-5.6-terra")
+print("configured openai-codex; existing login and model choice preserved")
 PY
   ) >"$HOME/.hermes/logs/codex-seed.out" 2>&1; then
     touch "$codex_seed_marker"
-    echo "hermes-start-services: seeded provider=openai-codex, model.default=gpt-5.6-terra"
+    echo "hermes-start-services: Codex login setup complete (existing model choices preserved)"
   else
     echo "hermes-start-services: codex seed skipped/failed; will retry next start (see ~/.hermes/logs/codex-seed.out)"
   fi

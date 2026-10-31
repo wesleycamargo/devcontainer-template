@@ -13,8 +13,16 @@ from [AI Devbox](ai-devbox.md) and an SSH gateway a host-side Hermes Desktop can
 devcontainer templates apply -w . -t ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox
 ```
 
-Then **Reopen in Container** and run `hermes-webapp-open` in its terminal.
-Run `hermes` separately when ready to set up model credentials and connectors.
+Before opening the container, authenticate once with Codex CLI on the Docker
+host (WSL when Docker runs in WSL):
+
+```bash
+codex -c 'cli_auth_credentials_store="file"' login
+```
+
+This creates the required `~/.codex/auth.json` host file. Then **Reopen in
+Container** and run `hermes-webapp-open` in its terminal. Hermes imports the
+OpenAI login automatically; there is no separate Hermes OpenAI login step.
 
 The default devcontainer publishes no host ports. VS Code forwards the Webapp
 locally, choosing an available port for each project.
@@ -30,7 +38,8 @@ locally, choosing an available port for each project.
    ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox
    ```
 
-3. **Reopen in Container**, then run `hermes-webapp-open` in its VS Code terminal.
+3. Complete the host Codex login above, then **Reopen in Container** and run
+   `hermes-webapp-open` in its VS Code terminal.
 
 ## Connect Hermes Desktop
 
@@ -161,22 +170,36 @@ See [Hermes Webapp documentation](https://hermes-agent.nousresearch.com/docs/use
 
 ## Persistence
 
-Named volumes, created on demand: `claude-data`, `codex-data`, `hermes-data`
-(credentials, config, sessions, memories, skills — Hermes' *code* lives in the
-image, so a newer image really upgrades Hermes), `ssh-host-keys` (stable host
-identity across recreates). `docker compose down -v` destroys all of them.
+The host `~/.codex/auth.json` is mounted read/write into each container at
+`/home/hermes/.codex/auth.json`. Existing host credentials are immediately
+available; Codex logins inside the container also update the host file.
 
-The container reads no host credentials — run `claude`, `codex` and
-`git config --global …` inside it.
+Set `DEVBOX_HOST_HOME` in `.devcontainer/.env` if Compose should use a different
+host home. The host credential file must exist before creating the container.
+Use Codex's file credential store, as described in the
+[Codex authentication documentation](https://learn.chatgpt.com/docs/auth).
+
+Named volumes keep Claude state, Codex settings/history, and Hermes config,
+sessions, memories and skills separate per project. `ssh-host-keys` keeps each
+project's SSH identity. `docker compose down -v` removes those volumes but
+does not remove host credentials. Hermes' code lives in the image.
+
+Hermes imports the Codex login into its own per-project authentication store.
+Git settings remain local to the container.
 
 ## Notes
 
 - **Project skills**: files are included in `.agents/skills`; startup does not
   install or update skills.
-- **Codex/ChatGPT shortcut**: on start, a valid `~/.codex/auth.json` seeds
-  Hermes with `model.provider: openai-codex` / `gpt-5.6-terra`. Runs once,
-  guarded by `~/.hermes/.codex-default-seeded`; delete that plus
-  `hermes auth logout openai-codex` to re-seed.
+- **Codex/ChatGPT shortcut**: on first start, Hermes imports a valid host Codex
+  login and defaults to `openai-codex` / `gpt-5.6-terra`. Explicit provider and
+  model choices and existing Hermes logins are preserved. If the initial Codex
+  access token has expired, renew it
+  with Codex on the host and restart the container.
+- **Refresh limitation**: Hermes and Codex CLI renew credentials separately.
+  Using multiple clients actively
+  with the same imported login can invalidate a refresh token and require
+  signing in again.
 - **Updating**: Docker caches `:latest`, so pull explicitly, then
   `devcontainer up --workspace-folder . --remove-existing-container --build-no-cache`.
   If the template's `.devcontainer/` changed too, re-run `templates apply` first
