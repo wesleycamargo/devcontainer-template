@@ -50,7 +50,9 @@ curl -fsSL 'https://gist.githubusercontent.com/wesleycamargo/06b58b472fe0cded2e6
 BASH
 
 ARG TERMINAL_ICONS_VERSION=0.11.0
-RUN pwsh -NoLogo -NoProfile -NonInteractive -File /dev/stdin <<'PWSH'
+# PowerShell creates ~/.local/share even with -NoProfile. Keep root's setup
+# files out of the development user's home so Claude can install there later.
+RUN HOME=/root pwsh -NoLogo -NoProfile -NonInteractive -File /dev/stdin <<'PWSH'
 $ErrorActionPreference = 'Stop'
 Install-Module -Name Terminal-Icons -RequiredVersion $env:TERMINAL_ICONS_VERSION -Force -Scope AllUsers
 @'
@@ -81,7 +83,9 @@ RUN --mount=type=cache,target=/root/.npm \
     npm install --prefix /usr/local -g --no-audit --no-fund "@openai/codex@${CODEX_VERSION}"
 
 ARG CLAUDE_VERSION=2.1.314
-RUN curl -fsSL https://claude.ai/install.sh -o /tmp/claude-install.sh \
+RUN install -d -o hermes -g hermes /home/hermes/.local \
+       /home/hermes/.local/bin /home/hermes/.local/share \
+    && curl -fsSL https://claude.ai/install.sh -o /tmp/claude-install.sh \
     && runuser -u hermes -- bash /tmp/claude-install.sh "$CLAUDE_VERSION" \
     && rm /tmp/claude-install.sh \
     && ln -s /home/hermes/.local/bin/claude /usr/local/bin/claude \
@@ -104,7 +108,7 @@ RUN --network=none timeout 60 runuser -u hermes -- hermes --version </dev/null \
     && timeout 30 runuser -u hermes -- claude --version </dev/null \
     && timeout 30 runuser -u hermes -- codex --version </dev/null \
     && runuser -u hermes -- gh --version \
-    && pwsh -NoLogo -NoProfile -NonInteractive -Command '$ErrorActionPreference = "Stop"; Import-Module Terminal-Icons' \
+    && HOME=/root pwsh -NoLogo -NoProfile -NonInteractive -Command '$ErrorActionPreference = "Stop"; Import-Module Terminal-Icons' \
     && node --version
 
 # Keep the existing SSH contract and Compose init, not the upstream s6 entrypoint.
