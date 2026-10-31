@@ -63,13 +63,11 @@ no commit <code>efb7dc0</code>, imagem <code>ai-hermes-devbox-image:0.27.1</code
 <pre><code>sha256:ccf1114162c5792da0a0e65ca030d28029830e2eeac833b36cac9eccc65e144f</code></pre>
 <p>O <a href="https://github.com/wesleycamargo/devcontainer-template/actions/runs/41221067497">workflow Hermes v1</a>
 também concluiu com sucesso após remover a sincronização automática de skills.</p>
-<h2>Visibilidade: decisão pendente</h2>
-<p>A checagem final conseguiu ler os manifestos dos quatro pacotes AI Devbox e
-ESP32 sem autenticação, e a página do pacote ESP32 exibe <strong>Public</strong>.
-Isso diverge da regra de pacotes privados registrada no AGENTS.md.
-A validação funcional passou; a conformidade da visibilidade permanece pendente.</p>
-<p>Segundo a <a href="https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility">documentação do GitHub</a>,
-um pacote público não pode voltar a ser privado. A decisão solicitada ao mantenedor
-é manter os nomes públicos e corrigir a documentação, ou publicar novos pacotes
-privados com outros nomes.</p>
+<h2>Visibilidade: decisão aprovada</h2>
+<p>O mantenedor aprovou manter os nomes atuais e os pacotes públicos.
+Os templates e imagens AI Devbox, ESP32 e Hermes podem ser baixados sem login
+no GitHub ou GHCR. A documentação e o AGENTS.md refletem essa decisão;
+o helper de publicação apenas consulta a visibilidade, sem alterá-la.</p>
+<p>A pendência de visibilidade está resolvida. Os nomes, versões e resultados
+funcionais registrados acima permanecem válidos.</p>
 </html>

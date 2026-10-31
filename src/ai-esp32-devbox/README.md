@@ -5,12 +5,9 @@ with MicroPython. All base tools, agent mounts and caches are inherited.
 
 ## Apply and start
 
-On the Docker host, authenticate to the private packages and apply:
+The template and image are public. Apply on the Docker host; registry login is not required:
 
 ```sh
-gh auth login
-gh auth refresh -h github.com -s read:packages
-gh auth token | docker login ghcr.io -u wesleycamargo --password-stdin
 devcontainer templates apply -w . -t ghcr.io/wesleycamargo/devcontainer-template/ai-esp32-devbox
 ```
 
@@ -55,7 +52,7 @@ instructions with `esptool`. Flash offsets and images differ by board.
 ## Publishing and updates
 
 CI builds this Dockerfile on top of the published `ai-devbox-image:latest` and
-publishes the private `ai-esp32-devbox` template and `ai-esp32-devbox-image` image.
+publishes the public `ai-esp32-devbox` template and `ai-esp32-devbox-image` image.
 Publish the base first. Its updates do not automatically rebuild this variant;
 run the ESP32 publish workflow afterward to adopt them. Consumers pull the image
 and recreate the container to update.

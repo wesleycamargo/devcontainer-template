@@ -7,7 +7,7 @@ template/image built from the same config.
 
 - `.devcontainer/` — the repo's development container. Keep its Dockerfile,
   devcontainer.json, docker-compose.yml and README.md identical to
-  `src/ai-devbox/.devcontainer/`. Compose pulls the private ai-devbox image;
+  `src/ai-devbox/.devcontainer/`. Compose pulls the public ai-devbox image;
   CI builds the Dockerfile. Host mounts use DEVBOX_HOST_HOME.
 - `src/ai-devbox/.devcontainer/` — the base template, published via CI. The
   build recipe (`Dockerfile`) lives only here; nothing else consumes this
@@ -79,11 +79,12 @@ template/image built from the same config.
   Idempotent; safe to re-run. Windows-only install automation; Linux prints
   manual install instructions.
 
-All published packages under
-ghcr.io/wesleycamargo/devcontainer-template/` — the `ai-devbox`,
-`ai-hermes-devbox`, `ai-hermes-devbox-v1`, `ai-openhands-devbox`, and
-`ai-esp32-devbox` templates
-and their matching images — are **private**.
+The `ai-devbox`, `ai-esp32-devbox`, `ai-hermes-devbox` and
+`ai-hermes-devbox-v1` templates and matching images under
+`ghcr.io/wesleycamargo/devcontainer-template/` are **public**. Keep their current
+package names and public visibility. Consumers do not need registry login;
+publishing requires authenticated write access. OpenHands authentication is
+documented separately in `docs/ai-openhands-devbox.md`.
 
 ## The devcontainer image
 

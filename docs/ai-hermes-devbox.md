@@ -9,14 +9,10 @@ computer-use install) and an SSH gateway a host-side Hermes Desktop can drive.
 ## Command line
 
 ```powershell
-# 1. log in — the packages are private
-gh auth refresh -h github.com -s read:packages
-gh auth token | docker login ghcr.io -u wesleycamargo --password-stdin
-
-# 2. apply into your project
+# Apply the public template (no registry login required)
 devcontainer templates apply -w . -t ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox
 
-# 3. pick a stable SSH port
+# Pick a stable SSH port
 cp .devcontainer/.env.example .devcontainer/.env
 ```
 
@@ -32,18 +28,16 @@ HERMES_SSH_PORT=2222
 
 ## VS Code UI
 
-1. Do the `docker login` above — it must exist where VS Code runs the
-   devcontainer CLI: WSL for a WSL folder, Windows for a Windows folder.
-2. Command palette (`Ctrl+Shift+P` / `F1`) → **Dev Containers: Add Dev Container
+1. Command palette (`Ctrl+Shift+P` / `F1`) → **Dev Containers: Add Dev Container
    Configuration Files**.
-3. Paste this into the search box — the `ghcr.io/` prefix is required, or the
+2. Paste this into the search box — the `ghcr.io/` prefix is required, or the
    template isn't found ("Failed to fetch template manifest"):
 
    ```
    ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox
    ```
 
-4. Copy `.devcontainer/.env.example` to `.devcontainer/.env` as above, then
+3. Copy `.devcontainer/.env.example` to `.devcontainer/.env` as above, then
    **Reopen in Container** and run `hermes` once inside it.
 
 ## Connect Hermes Desktop

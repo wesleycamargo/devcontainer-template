@@ -2,9 +2,9 @@
 
 Run this devcontainer from WSL or macOS. The Dockerfile installs Python 3.12,
 Node.js 24, PowerShell, GitHub CLI, Claude Code, Codex, and Hermes. Bicep is not
-installed. VS Code supplies editor settings and extensions. Compose pulls the private
+installed. VS Code supplies editor settings and extensions. Compose pulls the public
 `ghcr.io/wesleycamargo/devcontainer-template/ai-devbox-image:latest` image.
-Authenticate Docker to GHCR before starting.
+Registry login is not required to download it.
 Compose runs the service as `vscode` with `HOME=/home/vscode`.
 
 ## Start

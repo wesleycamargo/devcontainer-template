@@ -4,14 +4,12 @@ Python 3.12, Node.js 24, PowerShell, Oh My Posh, Terminal-Icons, GitHub CLI,
 Claude Code, Codex and lean Hermes. Hermes runs as a CLI without a gateway,
 dashboard, browser or computer-use service.
 
-## Apply the private template
+## Apply the public template
 
-Authenticate on the host where Docker runs:
+The template and image are public. No GitHub or GHCR login is required to download them.
+Run on the Docker host:
 
 ```sh
-gh auth login
-gh auth refresh -h github.com -s read:packages
-gh auth token | docker login ghcr.io -u wesleycamargo --password-stdin
 devcontainer templates apply -w . -t ghcr.io/wesleycamargo/devcontainer-template/ai-devbox
 ```
 

@@ -45,15 +45,9 @@ Host (Windows)                          Docker (e.g. in WSL)
 
 Run these where Docker runs (WSL, if that's where your Docker engine is).
 
-1. Authenticate to the private GHCR packages — `gh` needs the `read:packages`
-   scope, and Docker needs the login:
+The template and image are public; registry login is not required.
 
-   ```bash
-   gh auth refresh -h github.com -s read:packages
-   gh auth token | docker login ghcr.io -u wesleycamargo --password-stdin
-   ```
-
-2. Pull the latest image. Docker caches `:latest` and never re-downloads it on
+1. Pull the latest image. Docker caches `:latest` and never re-downloads it on
    apply or rebuild:
 
    ```bash
@@ -63,7 +57,7 @@ Run these where Docker runs (WSL, if that's where your Docker engine is).
    Do this again whenever a new image is published. See
    [Updating to the latest image](../README.md#updating-to-the-latest-image) for
    how to check whether you're behind and rebuild on the new image.
-3. If the project already has `.devcontainer/` files from an older version of
+2. If the project already has `.devcontainer/` files from an older version of
    the template, re-apply the template so you get the image-owned gateway
    compose wiring, public-key collector, host-key volume, and helper scripts.
 

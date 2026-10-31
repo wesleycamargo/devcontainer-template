@@ -39,19 +39,19 @@ ghcr.io/wesleycamargo/devcontainer-template/ai-esp32-devbox
 
 ## Authentication
 
-All packages under `ghcr.io/wesleycamargo/devcontainer-template/` — the five
-templates and their matching images — are **private**, so Docker has to be
-logged in to `ghcr.io` before any of them will pull:
+The AI Devbox, AI ESP32 Devbox, AI Hermes Devbox and AI Hermes Devbox v1
+templates and images are **public** under
+`ghcr.io/wesleycamargo/devcontainer-template/`. Applying these templates and
+pulling their images does not require GitHub or GHCR login. Publishing still
+requires authenticated write access.
 
-```powershell
-gh auth refresh -h github.com -s read:packages
-gh auth token | docker login ghcr.io -u wesleycamargo --password-stdin
-```
+OpenHands has separate authentication requirements; see
+[its setup guide](docs/ai-openhands-devbox.md).
 
 On Windows, [`scripts/setup-devcontainer-client.ps1`](scripts/setup-devcontainer-client.ps1)
-does this plus installing everything else a consumer needs (Git, GitHub CLI,
-VS Code + the Dev Containers/Remote-WSL extensions, Docker Engine inside WSL, the
-`devcontainer` CLI). It's idempotent — re-run it whenever the token expires.
+installs the prerequisites and also configures GitHub/GHCR authentication for
+private-package access. That authentication is optional when consuming only the
+public templates above.
 
 ## How the images work
 
@@ -82,8 +82,7 @@ extensions, Docker Engine **inside WSL** (never Docker Desktop), the
 ```
 
 On Linux it only checks and prints install instructions. The repo's own
-devcontainer pulls the private `ai-devbox-image`, so that login has to
-succeed before the container will start.
+devcontainer pulls the public `ai-devbox-image`; login is not required for it.
 
 ### 2. Clone and open the devcontainer
 
@@ -129,8 +128,8 @@ python scripts/setup_github_publishing.py --template-id ai-devbox
 ```
 
 Requires `gh` authenticated. It grants the workflows write permission, pushes,
-watches the first `publish-<id>.yml` run, and confirms the published package
-stayed private. After that, a push to `main` touching `src/<id>/**` bumps the
+watches the first `publish-<id>.yml` run, and reports the published package
+visibility without changing it. After that, a push to `main` touching `src/<id>/**` bumps the
 `<id>-vX.Y.Z` tag (minor by default; `[major]`/`[minor]`/`[patch]` in the commit
 message overrides) and republishes the template and its image.
 

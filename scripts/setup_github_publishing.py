@@ -2,7 +2,7 @@
 """One-time GitHub-side setup for a per-devcontainer publish workflow
 (`.github/workflows/publish-<template-id>.yml`): grants workflows write
 access, pushes main, watches the first run, then confirms the published
-ghcr.io package stayed private.
+ghcr.io package visibility without changing it.
 
 Requires: gh CLI, authenticated (`gh auth login`), run from inside the repo.
 """
@@ -73,10 +73,11 @@ def main():
 
     print(f"==> Confirming package visibility: {package_name}")
     encoded_name = urllib.parse.quote(package_name, safe="")
-    run([
-        "gh", "api", "-X", "PATCH", f"user/packages/container/{encoded_name}",
-        "-f", "visibility=private",
+    visibility = capture([
+        "gh", "api", f"users/{owner}/packages/container/{encoded_name}",
+        "--jq", ".visibility",
     ])
+    print(f"Package visibility: {visibility} (unchanged)")
 
     print(f"Done. Package: https://github.com/users/{owner}/packages/container/package/{encoded_name}")
 

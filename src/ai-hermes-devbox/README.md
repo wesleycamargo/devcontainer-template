@@ -31,24 +31,10 @@ Azure tooling preconfigured, plus the
    ```
    (needs Node.js on the host — this installs the CLI on your machine, not
    inside the container.)
-3. [GitHub CLI](https://cli.github.com) (`gh`), used below to authenticate
-   to the private package:
-   ```powershell
-   winget install --id GitHub.cli
-   ```
 
 ## Getting started
 
-The template is published as a **private** package, so Docker needs to be
-logged in to `ghcr.io` before it can pull it:
-
-```powershell
-gh auth login                                      # if not already logged in
-gh auth refresh -h github.com -s read:packages      # add the packages scope
-gh auth token | docker login ghcr.io -u wesleycamargo --password-stdin
-```
-
-Then apply the template into a project:
+The template and image are **public**. Apply directly; registry login is not required.
 
 ```powershell
 devcontainer templates apply -w . -t ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox
@@ -59,16 +45,6 @@ enter the full ID, including `ghcr.io/` —
 `ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox`. Without the
 registry prefix the template can't be found ("Failed to fetch template
 manifest").
-
-The login has to exist where VS Code runs the devcontainer CLI. For a folder
-opened in WSL that's WSL (the `docker login` above, run there). For a Windows
-folder it's Windows: either `docker login` on Windows, or start VS Code with a
-token for that session:
-
-```powershell
-$env:GITHUB_TOKEN = gh auth token   # token needs read:packages
-code .
-```
 
 Then **Reopen in Container**.
 
@@ -113,8 +89,8 @@ inside a devcontainer:
 ./scripts/validate-hermes-gateway.sh all
 ```
 
-The build uses the private `ai-devbox-image` base, so authenticate to GHCR
-first as shown in [Getting started](#getting-started). Checkpoints A-E cover
+The build uses the public `ai-devbox-image` base; registry login is not required.
+Checkpoints A-E cover
 raw Docker startup, Compose, concurrent projects, the Dev Container manifest,
 and migration from the old Hermes data-volume layout. GitHub Actions runs them
 for relevant pull requests and main-branch changes; publishing the Hermes image

@@ -9,8 +9,9 @@
   Remote-WSL extensions, Docker Engine running inside WSL (never Docker
   Desktop), and the `devcontainer` CLI (for the `devcontainer templates
   apply` / `devcontainer up` workflow). Then authenticates `gh` with the
-  `read:packages` scope and logs Docker in to ghcr.io so the private
-  ghcr.io/wesleycamargo/devcontainer-template/* packages can be pulled.
+  `read:packages` scope and logs Docker in to ghcr.io for private-package
+  access, including OpenHands. The public AI Devbox, ESP32 and Hermes
+  packages do not require this authentication to download.
 
   Windows: installs missing tools via winget; installs Docker Engine inside
   your default WSL distro.
