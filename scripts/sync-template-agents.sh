@@ -18,7 +18,7 @@ done
 repo=$(cd -P "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
 # Exclude generated agent display metadata from published payloads.
 rsync_excludes=(--exclude='agents/openai.yaml' --exclude='agents/openai.yml')
-templates=(ai-devbox ai-hermes-devbox ai-hermes-devbox-v1 ai-esp32-devbox)
+templates=(ai-devbox ai-hermes-devbox ai-esp32-devbox)
 hook_rel=.devcontainer/scripts/configure-project-skills.sh
 
 drift=0

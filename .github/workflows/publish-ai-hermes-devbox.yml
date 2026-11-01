@@ -97,8 +97,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # The glob is fnmatch, so `${TAG_PREFIX}[0-9]*.[0-9]*.[0-9]*` also
-          # matches ai-hermes-devbox-v1-*, the sibling template whose prefix
-          # extends this one. Post-filter with a real regex so only this
+          # matches tags from the retired sibling template whose prefix
+          # extended this one. Post-filter with a real regex so only this
           # template's own tags are considered.
           LAST_TAG=$(git tag --list "${TAG_PREFIX}[0-9]*.[0-9]*.[0-9]*" --sort=-v:refname \
             | grep -E "^${TAG_PREFIX}[0-9]+\.[0-9]+\.[0-9]+$" | head -1)
