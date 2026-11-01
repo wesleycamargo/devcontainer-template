@@ -1,6 +1,6 @@
 {
   "id": "ai-hermes-devbox",
-  "version": "1.0.0",
+  "version": "0.29.0",
   "name": "AI Hermes Devbox (PowerShell)",
   "description": "Prebuilt official Hermes Agent and Webapp with development tools, VS Code browser access, an opt-in dashboard, and vendor-neutral AI-native SDLC skills.",
   "options": {}
