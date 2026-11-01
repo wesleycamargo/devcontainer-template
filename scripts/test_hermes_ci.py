@@ -136,6 +136,15 @@ class HermesWorkflowTests(unittest.TestCase):
         self.assertIn("fetch-depth: 0", text)
         self.assertIn("npm install --global @devcontainers/cli@0.90.0", text)
 
+    def test_runtime_features_can_extend_the_daemon_local_validation_image(self):
+        text = WORKFLOW.read_text()
+        step = text.split(
+            "      - name: Run runtime checkpoints A through E and Webapp checkpoint G\n", 1
+        )[1].split("\n\n", 1)[0]
+        self.assertIn("        env:\n          BUILDX_BUILDER: default\n", step)
+        self.assertIn("run: bash scripts/validate-hermes-runtime.sh all", step)
+        self.assertIn("cache-to: type=gha,mode=max,scope=ai-hermes-devbox", text)
+
     def test_unit_tests_are_not_deferred_to_checkpoint_g(self):
         path = ROOT / "scripts/validate-hermes-runtime.sh"
         self.assertTrue(path.is_file(), "runtime validator is missing")

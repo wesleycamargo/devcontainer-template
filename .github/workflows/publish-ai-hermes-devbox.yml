@@ -107,6 +107,10 @@ jobs:
           cache-to: type=gha,mode=max,scope=ai-hermes-devbox
 
       - name: Run runtime checkpoints A through E and Webapp checkpoint G
+        # Features extend the image loaded into dockerd. The isolated cache
+        # builder cannot resolve that daemon-local tag as a FROM image.
+        env:
+          BUILDX_BUILDER: default
         run: bash scripts/validate-hermes-runtime.sh all
 
   deploy:

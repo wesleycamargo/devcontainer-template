@@ -114,6 +114,11 @@ are bounded, and cancellation stops the owned child process group before cleanin
 the disposable project. Timeout overrides are documented in the maintainer
 repository's root README.
 
+CI builds and caches the validation image with an isolated Buildx builder, then
+sets `BUILDX_BUILDER=default` for runtime checks. This lets the feature build in
+checkpoint D extend the image loaded in the Docker daemon instead of trying to
+pull its local test tag from a registry.
+
 Only `.github/workflows/publish-ai-hermes-devbox.yml` owns Hermes CI:
 preflight → one runtime validation → conditional deployment. Relevant pull
 requests and main updates validate; only main pushes changing
