@@ -2,7 +2,7 @@
 
 See the [AI-native SDLC framework guide](docs/ai-native-sdlc.md) included with the AI Devbox template.
 
-Five published dev container templates: a PowerShell-first devbox with the
+Four published dev container templates: a PowerShell-first devbox with the
 Claude Code / Codex agent CLIs and Python/Node.js tooling, on its own or paired
 with an agent stack.
 
@@ -13,7 +13,6 @@ with an agent stack.
 | **AI Devbox** | The base: PowerShell 7, Oh My Posh, Node.js, Claude Code + Codex + lean Hermes CLIs, GitHub CLI, Python 3.12, Node.js 24 | [docs/ai-devbox.md](docs/ai-devbox.md) |
 | **AI ESP32 Devbox** | AI Devbox + esptool and mpremote for MicroPython | [docs/ai-esp32-devbox.md](docs/ai-esp32-devbox.md) |
 | **AI Hermes Devbox** | Prebuilt official [Hermes Agent](https://hermes-agent.nousresearch.com/) with Webapp, browser + computer-use and development tools; VS Code browser access | [docs/ai-hermes-devbox.md](docs/ai-hermes-devbox.md) |
-| **AI Hermes Devbox v1** | AI Devbox + the [Hermes Agent](https://hermes-agent.nousresearch.com/), gateway and dashboard only — the pre-gateway generation, no SSH, no Open WebUI | [docs/ai-hermes-devbox-v1.md](docs/ai-hermes-devbox-v1.md) |
 | **AI OpenHands Devbox** | AI Devbox + [OpenHands Agent Canvas](https://www.openhands.dev/) via Codex ACP / ChatGPT OAuth | [docs/ai-openhands-devbox.md](docs/ai-openhands-devbox.md) |
 
 Each page covers both install paths — command line and VS Code UI — plus first
@@ -32,14 +31,13 @@ required, or the template isn't found):
 ```
 ghcr.io/wesleycamargo/devcontainer-template/ai-devbox
 ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox
-ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox-v1
 ghcr.io/wesleycamargo/devcontainer-template/ai-openhands-devbox
 ghcr.io/wesleycamargo/devcontainer-template/ai-esp32-devbox
 ```
 
 ## Authentication
 
-The AI Devbox, AI ESP32 Devbox, AI Hermes Devbox and AI Hermes Devbox v1
+The AI Devbox, AI ESP32 Devbox and AI Hermes Devbox
 templates and images are **public** under
 `ghcr.io/wesleycamargo/devcontainer-template/`. Applying these templates and
 pulling their images does not require GitHub or GHCR login. Publishing still

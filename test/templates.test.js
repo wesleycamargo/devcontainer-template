@@ -6,12 +6,15 @@ test('offers every published devcontainer image', () => {
   assert.deepEqual(templates.map((template) => template.id), [
     'ai-devbox',
     'ai-hermes-devbox',
-    'ai-hermes-devbox-v1',
     'ai-openhands-devbox',
   ]);
   for (const template of templates) {
     assert.match(template.image, /^ghcr\.io\/wesleycamargo\/devcontainer-template\/.+-image:latest$/);
   }
+});
+
+test('does not offer the retired Hermes v1 image', () => {
+  assert.equal(templateById('ai-hermes-devbox-v1'), undefined);
 });
 
 test('builds a minimal valid image-based devcontainer configuration', () => {
