@@ -12,7 +12,7 @@ with an agent stack.
 | --- | --- | --- |
 | **AI Devbox** | The base: PowerShell 7, Oh My Posh, Node.js, Claude Code + Codex + lean Hermes CLIs, GitHub CLI, Python 3.12, Node.js 24 | [docs/ai-devbox.md](docs/ai-devbox.md) |
 | **AI ESP32 Devbox** | AI Devbox + esptool and mpremote for MicroPython | [docs/ai-esp32-devbox.md](docs/ai-esp32-devbox.md) |
-| **AI Hermes Devbox** | AI Devbox + the [Hermes Agent](https://hermes-agent.nousresearch.com/) (full browser + computer-use) and an SSH gateway for Hermes Desktop | [docs/ai-hermes-devbox.md](docs/ai-hermes-devbox.md) |
+| **AI Hermes Devbox** | Prebuilt official [Hermes Agent](https://hermes-agent.nousresearch.com/) with Webapp, browser + computer-use and development tools; VS Code browser access | [docs/ai-hermes-devbox.md](docs/ai-hermes-devbox.md) |
 | **AI Hermes Devbox v1** | AI Devbox + the [Hermes Agent](https://hermes-agent.nousresearch.com/), gateway and dashboard only — the pre-gateway generation, no SSH, no Open WebUI | [docs/ai-hermes-devbox-v1.md](docs/ai-hermes-devbox-v1.md) |
 | **AI OpenHands Devbox** | AI Devbox + [OpenHands Agent Canvas](https://www.openhands.dev/) via Codex ACP / ChatGPT OAuth | [docs/ai-openhands-devbox.md](docs/ai-openhands-devbox.md) |
 
@@ -58,10 +58,20 @@ public templates above.
 Every template's `docker-compose.yml` sets `image:` to a prebuilt package and
 builds nothing locally; the `Dockerfile` next to it is the recipe CI builds from
 and publishes as `<template-id>-image`. Applying a template or rebuilding the
-container just re-pulls that image. `ai-hermes-devbox` instead layers its
-development tools and SSH lifecycle directly on the pinned official
+container uses that prebuilt image. `ai-hermes-devbox` instead layers its
+development tools and development-shell lifecycle directly on the pinned official
 `nousresearch/hermes-agent:main-desktop` image; it does not derive from
 `ai-devbox-image`.
+
+Hermes includes GitHub CLI (`gh`) in its image; common-utils and Azure Bicep
+remain Dev Container features. Its entrypoint prepares state and autostarts
+requested services before `sleep infinity` keeps the development shell alive;
+it is not a daemon supervisor. Compose retains `init: true` and starts the
+loopback gateway/Webapp by default. The dashboard requires
+`HERMES_AUTOSTART_DASHBOARD=1`; `HERMES_AUTOSTART_SERVICES=0` disables both.
+Bare `docker run` without the master autostart flag stays shell-only. Custom
+SSH server/Desktop backend support is removed; existing installations should
+follow the [migration guide](docs/ai-hermes-devbox.md#migration-from-the-ssh-enabled-devbox).
 
 Docker caches `:latest`: a rebuild will not fetch a newer image on its own. Pull
 it explicitly when a new `<template-id>-v*` tag is published.
@@ -111,24 +121,47 @@ There is no build step — `docker-compose.yml` pulls the prebuilt image.
 The root configuration mirrors AI Hermes Devbox. Compose uses
 `DEVBOX_HOST_HOME` (falling back to host `HOME`) to mount only
 `~/.codex/auth.json`; it must exist before Compose starts. Claude state, Codex
-configuration/history, Hermes state, and SSH host keys are per-project Docker
+configuration/history and Hermes state are per-project Docker
 named volumes. See [AI Hermes Devbox](docs/ai-hermes-devbox.md) for the Webapp,
-VS Code opener, optional SSH backend, and volume details.
+VS Code opener, shell-only mode, migration, and volume details. Gateway/Webapp
+starts by default; the dashboard is opt-in. Closing the attached VS Code window
+stops the Compose project (`shutdownAction: stopCompose`).
 
 ### 4. Validation and tests
 
 Run these on the **WSL host** where Docker runs, not inside the devcontainer:
 
 ```bash
-./scripts/validate-hermes-gateway.sh build   # build the test image first
-./scripts/validate-hermes-gateway.sh all     # or a single checkpoint: A..E, G
+npm test && npm run check
+python3 -B -m unittest discover -s scripts -p 'test_*hermes*.py' -v
+./scripts/validate-hermes-runtime.sh build   # build the test image first
+./scripts/validate-hermes-runtime.sh all     # or a single checkpoint: A, B, C, D, E, G
 bash scripts/test_ai_openhands_devbox.sh     # static config checks (any shell)
 ```
 
-Checkpoints A–E cover raw `docker run`, Compose, two projects at once, Dev
-Container, and an image upgrade over an existing volume; G validates the
-Webapp. F (a real Hermes Desktop connection) is manual. CI runs the same checks via
-`.github/workflows/validate-hermes-gateway.yml`.
+Checkpoint A checks raw image shell/tools with no listeners; B checks the default
+gateway/Webapp and dashboard opt-in; C checks isolated projects sharing synthetic
+Codex auth; D runs a disposable `devcontainer up` with CLI 0.90.0, actual features
+and a frozen lockfile; E checks existing-volume migration; G checks Webapp HTTP
+authentication. D uses `scripts/validate-hermes-devcontainer.sh`. Opening the
+browser through the VS Code opener remains manual; there is no SSH checkpoint F.
+
+Checkpoint D also requires GNU coreutils `timeout`. Its commands and each cleanup
+operation have deadlines; cancellation stops the owned child process group before
+cleaning only the disposable project. Positive integer overrides are seconds:
+
+| Variable | Default |
+| --- | ---: |
+| `HERMES_SMOKE_INFO_TIMEOUT` | 30 |
+| `HERMES_SMOKE_UP_TIMEOUT` | 900 |
+| `HERMES_SMOKE_EXEC_TIMEOUT` | 180 |
+| `HERMES_SMOKE_CLEANUP_TIMEOUT` | 60 per operation |
+| `HERMES_SMOKE_KILL_AFTER` | 5 |
+
+Hermes CI has one owner: `.github/workflows/publish-ai-hermes-devbox.yml` runs
+preflight → runtime validation → conditional deployment. Relevant pull requests
+and main updates validate; only a push to `main` changing `src/ai-hermes-devbox/**`
+or a manual dispatch publishes. There is no separate Hermes validation workflow.
 
 ### 5. One-time publishing setup (maintainer only)
 
@@ -147,7 +180,8 @@ message overrides) and republishes the template and its image.
 | Script                                          | Where it runs        | Purpose                                                     |
 | ----------------------------------------------- | -------------------- | ----------------------------------------------------------- |
 | `scripts/setup-devcontainer-client.ps1`         | Windows host         | Install prerequisites + `gh`/Docker ghcr.io login           |
-| `scripts/validate-hermes-gateway.sh`            | WSL host             | Hermes SSH gateway contract checks (`build`, `A`–`E`, `all`) |
+| `scripts/validate-hermes-runtime.sh`            | Docker host          | Hermes runtime checks (`build`, `all`, `A`, `B`, `C`, `D`, `E`, `G`) |
+| `scripts/validate-hermes-devcontainer.sh`       | Docker host          | Disposable Dev Container CLI validation with real features and frozen lockfile |
 | `scripts/test_ai_openhands_devbox.sh`           | anywhere             | Static config checks for the OpenHands template             |
 | `scripts/setup_github_publishing.py`            | anywhere with `gh`   | One-time GitHub publishing setup                            |
 
@@ -174,6 +208,11 @@ On Debian/Ubuntu it can install Docker directly. On Windows it installs and
 runs Docker and the Dev Container CLI inside a selected WSL distribution; it
 never installs or requires Docker Desktop. Existing devcontainer configuration
 is only replaced after explicit confirmation. See the [package README](https://www.npmjs.com/package/devcontainer-setup-cli) for details.
+
+For Hermes, this CLI's minimal image-only configuration is **shell-only**; it
+does not add the template's Compose autostart, credential mount, named volumes
+or VS Code Webapp forwarding. Apply the full
+[Hermes template](docs/ai-hermes-devbox.md) for that integrated setup.
 
 The [`Publish package`](.github/workflows/publish.yml) workflow publishes a
 scoped `@wesleycamargo/devcontainer-setup-cli` copy to GitHub Packages on

@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # Reuse the official, prebuilt Hermes runtime, Webapp and computer-use stack.
 # Multi-arch digest for main-desktop at c419cf7c864ac0ee511dbd9f7091a8bba0b567ee.
-# Only development tools and our SSH lifecycle are layered on top.
+# Only development tools and our data/bootstrap lifecycle are layered on top.
 FROM nousresearch/hermes-agent:main-desktop@sha256:cef6ca13cc35452215c5774c0563b0940b0a6ebaebad0d87174b27ca3d5c93d5
 
 USER root
@@ -28,9 +28,8 @@ RUN curl -fsSL https://packages.microsoft.com/config/debian/13/packages-microsof
     && dpkg -i /tmp/packages-microsoft-prod.deb \
     && rm /tmp/packages-microsoft-prod.deb \
     && apt-get update \
-    && apt-get install -y --no-install-recommends powershell openssh-server sudo less unzip \
+    && apt-get install -y --no-install-recommends powershell sudo less unzip \
     && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /run/sshd \
     && printf 'hermes ALL=(ALL) NOPASSWD:ALL\n' > /etc/sudoers.d/hermes \
     && chmod 440 /etc/sudoers.d/hermes \
     && rm -f /usr/share/doc/libxmlsec1-dev/examples/rsakey.pem
@@ -95,13 +94,10 @@ RUN install -d -o hermes -g hermes /home/hermes/.local \
     && ln -s /home/hermes/.claude/CLAUDE.md /home/hermes/.codex/AGENTS.md \
     && chown -h hermes:hermes /home/hermes/.codex/AGENTS.md /home/hermes/.codex/config.toml
 
-# The wrapper supplies the same runtime environment to Docker exec and SSH,
+# The wrapper supplies the same runtime environment to Docker exec and shells,
 # including env -i; root invocations drop to hermes before touching user data.
 COPY --chmod=755 hermes.sh /usr/local/bin/hermes
-COPY sshd-hermes-gateway.conf /etc/ssh/sshd_config.d/10-hermes-gateway.conf
-RUN chmod 644 /etc/ssh/sshd_config.d/10-hermes-gateway.conf \
-    && grep -qE '^[[:space:]]*Include[[:space:]]+/etc/ssh/sshd_config\.d/\*\.conf' /etc/ssh/sshd_config \
-    && ln -s /opt/hermes/.venv/bin/hermes-acp /usr/local/bin/hermes-acp \
+RUN ln -s /opt/hermes/.venv/bin/hermes-acp /usr/local/bin/hermes-acp \
     && ln -s /opt/hermes/.venv/bin/hermes-agent /usr/local/bin/hermes-agent
 
 # Reuse checks only: no installer, dependency repair or frontend compilation.
@@ -113,15 +109,13 @@ RUN --network=none timeout 60 runuser -u hermes -- hermes --version </dev/null \
     && runuser -u hermes -- pwsh -NoLogo -NoProfile -NonInteractive -Command '$ErrorActionPreference = "Stop"; Import-Module Terminal-Icons; $mutex = [System.Threading.Mutex]::new($false, "HermesPSReadLineSmoke"); $mutex.Dispose()' \
     && node --version
 
-# Keep the existing SSH contract and Compose init, not the upstream s6 entrypoint.
+# Keep data/bootstrap preparation and Compose init, not the upstream s6 entrypoint.
 COPY --chmod=755 entrypoint.sh /usr/local/bin/hermes-entrypoint
 COPY --chmod=755 start-services.sh /usr/local/bin/hermes-start-services
-COPY --chmod=755 hermes-ssh-info.sh /usr/local/bin/hermes-ssh-info
 COPY --chmod=755 webapp-open.py /usr/local/bin/hermes-webapp-open
 RUN bash -n /usr/local/bin/hermes-entrypoint \
     && bash -n /usr/local/bin/hermes-start-services \
-    && bash -n /usr/local/bin/hermes-ssh-info \
     && sh -n /usr/local/bin/hermes
 
 ENTRYPOINT ["/usr/local/bin/hermes-entrypoint"]
-CMD ["/usr/sbin/sshd", "-D", "-e"]
+CMD ["sleep", "infinity"]

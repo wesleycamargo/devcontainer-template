@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Start the Hermes gateway (including Webapp) and web dashboard. Installed as
+# Start the Hermes gateway (including Webapp) and optional dashboard. Installed as
 # /usr/local/bin/hermes-start-services and run as hermes by hermes-entrypoint
 # when HERMES_AUTOSTART_SERVICES=1. Safe to re-run by hand: every service is
 # guarded, so a second run never produces a duplicate process.
@@ -111,7 +111,9 @@ else
   nohup hermes gateway >"$HOME/.hermes/logs/gateway.out" 2>&1 &
 fi
 
-if pgrep -f "[h]ermes dashboard([[:space:]]|$)|[h]ermes_cli[.]main.* dashboard([[:space:]]|$)" >/dev/null 2>&1; then
+if [ "${HERMES_AUTOSTART_DASHBOARD:-0}" != "1" ]; then
+  echo "hermes-start-services: dashboard autostart disabled (set HERMES_AUTOSTART_DASHBOARD=1 to enable)"
+elif pgrep -f "[h]ermes dashboard([[:space:]]|$)|[h]ermes_cli[.]main.* dashboard([[:space:]]|$)" >/dev/null 2>&1; then
   echo "hermes-start-services: dashboard already running"
 else
   echo "hermes-start-services: starting dashboard on 127.0.0.1:9119"

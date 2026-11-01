@@ -1,29 +1,34 @@
 name: Publish ai-hermes-devbox
 
-# One publish workflow per devcontainer under src/. This one owns the
-# `ai-hermes-devbox` template and the `ai-hermes-devbox-image` image, and
-# publishes only when `src/ai-hermes-devbox/**` changes. Pull requests that
-# affect the template or its gateway validation script run the contract check
-# without publishing.
-#
-# ai-hermes-devbox-image layers development tools onto a digest-pinned official
-# Hermes image. Updating ai-devbox does not affect this template's runtime.
+# One event owner: fast checks, one runtime validation, conditional publication.
 
 on:
   pull_request:
     paths:
       - 'src/ai-hermes-devbox/**'
-      - 'scripts/validate-hermes-gateway.sh'
-      - 'scripts/validate-hermes-webapp.py'
-      - 'scripts/test_validate_hermes_webapp.py'
-      - 'scripts/test_hermes_webapp_open.py'
-      - 'scripts/test_hermes_auth.py'
+      - '.devcontainer/**'
+      - 'scripts/test_*hermes*.py'
+      - 'scripts/hermes-ci-publish.py'
+      - 'scripts/validate-hermes-*.py'
+      - 'scripts/validate-hermes-*.sh'
       - '.github/workflows/publish-ai-hermes-devbox.yml'
+      - '.github/workflows/validate-hermes-gateway.yml'
+      - 'package.json'
+      - 'package-lock.json'
   push:
     branches:
       - main
     paths:
       - 'src/ai-hermes-devbox/**'
+      - '.devcontainer/**'
+      - 'scripts/test_*hermes*.py'
+      - 'scripts/hermes-ci-publish.py'
+      - 'scripts/validate-hermes-*.py'
+      - 'scripts/validate-hermes-*.sh'
+      - '.github/workflows/publish-ai-hermes-devbox.yml'
+      - '.github/workflows/validate-hermes-gateway.yml'
+      - 'package.json'
+      - 'package-lock.json'
   workflow_dispatch:
     inputs:
       bump_type:
@@ -37,8 +42,43 @@ on:
           - patch
 
 jobs:
+  preflight:
+    name: Hermes preflight
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      publish: ${{ steps.publish.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install setup CLI dependencies
+        run: npm ci
+      - name: Check setup CLI
+        run: npm test && npm run check
+      - name: Run fast Hermes tests
+        run: python3 -B -m unittest discover -s scripts -p 'test_*hermes*.py' -v
+      - name: Check shell syntax and whitespace
+        run: |
+          bash -n src/ai-hermes-devbox/.devcontainer/entrypoint.sh
+          bash -n src/ai-hermes-devbox/.devcontainer/start-services.sh
+          bash -n scripts/validate-hermes-runtime.sh
+          bash -n scripts/validate-hermes-devcontainer.sh
+          git diff --check
+      - name: Decide whether this event publishes the template
+        id: publish
+        run: |
+          decision=$(python3 scripts/hermes-ci-publish.py "$GITHUB_EVENT_NAME" "$GITHUB_EVENT_PATH")
+          echo "publish=$decision" >> "$GITHUB_OUTPUT"
+
   validate:
-    name: Validate Hermes SSH gateway
+    name: Validate Hermes runtime
+    needs: preflight
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -52,14 +92,7 @@ jobs:
           node-version: 22
 
       - name: Install Dev Container CLI
-        run: npm install --global @devcontainers/cli
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+        run: npm install --global @devcontainers/cli@0.90.0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -73,12 +106,12 @@ jobs:
           cache-from: type=gha,scope=ai-hermes-devbox
           cache-to: type=gha,mode=max,scope=ai-hermes-devbox
 
-      - name: Run gateway checkpoints A through E and Webapp checkpoint G
-        run: ./scripts/validate-hermes-gateway.sh all
+      - name: Run runtime checkpoints A through E and Webapp checkpoint G
+        run: bash scripts/validate-hermes-runtime.sh all
 
   deploy:
-    if: github.event_name != 'pull_request'
-    needs: validate
+    if: github.event_name != 'pull_request' && needs.preflight.outputs.publish == 'true'
+    needs: [preflight, validate]
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -4,7 +4,8 @@
 
 The official [Hermes Agent](https://hermes-agent.nousresearch.com/) image with
 prebuilt Webapp, browser and computer-use, plus the development tools familiar
-from [AI Devbox](ai-devbox.md) and an SSH gateway a host-side Hermes Desktop can drive.
+from [AI Devbox](ai-devbox.md). Use the Webapp from the project's VS Code window;
+the devbox no longer includes a custom SSH server or external Desktop SSH backend.
 
 ## Command line
 
@@ -41,40 +42,33 @@ locally, choosing an available port for each project.
 3. Complete the host Codex login above, then **Reopen in Container** and run
    `hermes-webapp-open` in its VS Code terminal.
 
-## Connect Hermes Desktop
+## Workspace location
 
-Optional; browser users do not need this. Add `docker-compose.ssh.yml` after
-`docker-compose.yml` in `devcontainer.json`'s `dockerComposeFile` array and
-recreate the container. Copy `.devcontainer/.env.example` to `.devcontainer/.env`
-and choose a different `HERMES_SSH_PORT` for each project before recreating it.
-
-```powershell
-# Windows: reads the running container, writes ~/.ssh/config + Hermes config, verifies
-./.devcontainer/scripts/connect-hermes-desktop.ps1
-```
-
-```bash
-# or read the connection details yourself
-bash .devcontainer/scripts/find-devcontainer.sh "$(pwd)" hermes-ssh-info
-```
-
-Your host's `~/.ssh/*.pub` keys are authorized automatically; private keys never
-enter the container. Details and troubleshooting:
-[`SSH-BACKEND.md`](../src/ai-hermes-devbox/.devcontainer/SSH-BACKEND.md).
-
-## Fix three things after applying
-
-`/workspaces/devcontainer-template` is hardcoded in `devcontainer.json`
-(`workspaceFolder`) and twice in `docker-compose.yml` (bind mount target,
-`HERMES_SSH_CWD`). Change all three to your folder name.
+Compose mounts the parent directory at `/workspaces`; VS Code opens
+`/workspaces/${localWorkspaceFolderBasename}`. No hardcoded repository-name
+edits are required.
 
 ## What runs
 
 | Service | Address | Notes |
 | --- | --- | --- |
-| SSH gateway | Container port 2222 | Host publication is opt-in with `docker-compose.ssh.yml` |
-| Hermes gateway / Webapp | `127.0.0.1:9120` by default | Started by `hermes-start-services`; forwarded locally by VS Code |
-| Hermes dashboard | `127.0.0.1:9119` | Forwarded by VS Code; logs in `~/.hermes/logs/` |
+| Development shell | `sleep infinity` keeps the container alive | Custom entrypoint prepares state and optionally starts services; Compose retains `init: true` |
+| Hermes gateway / Webapp | `127.0.0.1:9120` by default | Automatic in Compose; forwarded locally by VS Code |
+| Hermes dashboard | `127.0.0.1:9119` | Off by default; opt in with `HERMES_AUTOSTART_DASHBOARD=1` |
+
+Compose defaults to `HERMES_AUTOSTART_SERVICES=1`. Copy
+`.devcontainer/.env.example` to `.devcontainer/.env` to customize it, then
+recreate the container. Set `HERMES_AUTOSTART_SERVICES=0` for shell-only mode;
+this master switch also suppresses the dashboard even if its opt-in is set.
+A bare `docker run` without `HERMES_AUTOSTART_SERVICES=1` is shell-only.
+
+The entrypoint runs preparation/autostart and then execs the image's default
+`CMD ["sleep", "infinity"]`; it is not a daemon supervisor. Service failure does
+not terminate the development shell. Inspect `~/.hermes/logs/gateway.out` and,
+when enabled, `dashboard.out`; `hermes-start-services` is safe to rerun and
+reuses existing processes. Closing the attached VS Code window stops the
+Compose project (`shutdownAction: stopCompose`), rather than leaving it running.
+No custom sshd, port 2222, SSH host-key volume or SSH overlay remains.
 
 ## Webapp in VS Code
 
@@ -82,14 +76,17 @@ The image reuses `nousresearch/hermes-agent:main-desktop`, pinned to the
 multi-arch digest `sha256:cef6ca13cc35452215c5774c0563b0940b0a6ebaebad0d87174b27ca3d5c93d5`
 (commit `c419cf7c864ac0ee511dbd9f7091a8bba0b567ee`, after v0.22.5).
 Hermes and Webapp are already built upstream; our build adds development tools
-and SSH. CI caches these extra layers across validation and publication.
+including GitHub CLI (`gh`). It is baked into the image rather than installed
+by a Dev Container feature; common-utils and Azure Bicep features remain.
+CI caches the development-tool layers across validation and publication.
 The first pull still downloads the official image (about 1.3 GB compressed).
 Back up existing Hermes data before upgrading. Update Hermes by changing the
 pinned image digest and publishing/pulling a new devbox image, keeping backend
 and browser assets together. The separate AI Devbox template is unchanged.
 
-On a fresh volume, startup creates the local Webapp configuration and starts
-the service automatically. Model credentials can be configured separately;
+On a fresh volume, default Compose startup creates the local Webapp
+configuration and starts the service automatically. Model credentials can be
+configured separately;
 they are not required to open the interface. After **Reopen in Container**,
 run one command in that project's VS Code terminal (PowerShell or Bash):
 
@@ -100,7 +97,7 @@ hermes-webapp-open
 The image command waits for the Webapp, obtains a one-use sign-in link and
 sends it privately to the current VS Code window's browser opener. VS Code
 forwards **9120** to an available localhost port, preserving the sign-in link.
-Run the same command in each project's window: no SSH keys, manual tunnel,
+Run the same command in each project's window: no manual tunnel,
 password, link copying or port editing is needed. The command does not print
 the sign-in link or put it in process arguments. No host ports are published
 by the default Compose configuration.
@@ -159,7 +156,8 @@ docker run -d --init --name hermes-webapp \
 Open `http://<private-ip>:9120` and sign in. Without a configured auth provider,
 Hermes refuses remote Webapp access; inspect `hermes webapp --status` inside
 the container for the reason. Keep the signing secret to retain browser logins
-across restarts. The dashboard stays on container loopback.
+across restarts. The dashboard remains off unless explicitly enabled, and stays
+on container loopback when enabled.
 
 HTTP is for a trusted private network/VPN: it is unencrypted and browsers limit
 microphone, clipboard and bot-screen features. Public HTTPS hosting is a
@@ -180,9 +178,10 @@ Use Codex's file credential store, as described in the
 [Codex authentication documentation](https://learn.chatgpt.com/docs/auth).
 
 Named volumes keep Claude state, Codex settings/history, and Hermes config,
-sessions, memories and skills separate per project. `ssh-host-keys` keeps each
-project's SSH identity. `docker compose down -v` removes those volumes but
-does not remove host credentials. Hermes' code lives in the image.
+sessions, memories and skills separate per project. Keep `claude-data`,
+`codex-data` and `hermes-data` when recreating or upgrading; deleting them
+destroys their saved state. Host credentials remain in the host file.
+Hermes' code lives in the image.
 
 Hermes imports the Codex login into its own per-project authentication store.
 Git settings remain local to the container.
@@ -200,14 +199,30 @@ Git settings remain local to the container.
   Using multiple clients actively
   with the same imported login can invalidate a refresh token and require
   signing in again.
-- **Updating**: Docker caches `:latest`, so pull explicitly, then
+- **Updating**: back up your `.devcontainer/` settings and Hermes data first.
+  Docker caches `:latest`, so pull explicitly, then
   `devcontainer up --workspace-folder . --remove-existing-container --build-no-cache`.
   If the template's `.devcontainer/` changed too, re-run `templates apply` first
-  (it overwrites that directory — redo your edits; volumes survive).
-- **Validating the gateway** (on the Docker host, not inside a devcontainer):
-  `./scripts/validate-hermes-gateway.sh build` then `all` — checkpoints A–E
-  and G (Webapp), also run in CI. F (a real Hermes Desktop connection) and
-  opening the Webapp through VS Code are manual.
+  (it overwrites files — review/restore local edits; volumes survive). Follow
+  the migration below if you previously enabled the SSH overlay.
+- **Validation** (in the maintainer repo, on the Docker host): run
+  `npm test && npm run check` and
+  `python3 -B -m unittest discover -s scripts -p 'test_*hermes*.py' -v`.
+  Then run `./scripts/validate-hermes-runtime.sh build` and `all` (or one of
+  `A`, `B`, `C`, `D`, `E`, `G`). A checks raw shell/tools/no listeners; B default
+  services/dashboard opt-in; C isolated parallel projects/shared synthetic auth;
+  D real disposable `devcontainer up` with CLI 0.90.0, actual features and frozen
+  lockfile via `scripts/validate-hermes-devcontainer.sh`; E existing-volume
+  migration; G Webapp HTTP auth. VS Code browser opening remains manual;
+  SSH checkpoint F is removed.
+- **Smoke prerequisites**: checkpoint D also requires GNU coreutils `timeout`.
+  Commands and cleanup operations have deadlines; cancellation stops only the
+  owned child process group before cleaning the disposable project. Timeout
+  overrides are documented in the [maintainer README](../README.md#4-validation-and-tests).
+- **CI**: only `.github/workflows/publish-ai-hermes-devbox.yml` owns Hermes
+  preflight → validation → conditional deployment. Relevant pull requests/main
+  updates validate; only main pushes changing `src/ai-hermes-devbox/**` or
+  manual dispatch publish. There is no separate Hermes validation workflow.
 - **Prebuilt runtime**: the official `main-desktop` base includes browser and
   computer-use. There is no Hermes installer or frontend compilation in our build.
 - **Old `hermes-data` volumes** may still hold unused `~/.hermes/hermes-agent`
@@ -218,12 +233,54 @@ Source: [`src/ai-hermes-devbox/`](../src/ai-hermes-devbox/) ·
 [`publish-ai-hermes-devbox.yml`](../.github/workflows/publish-ai-hermes-devbox.yml) ·
 [in-template README](../src/ai-hermes-devbox/README.md)
 
+## Migration from the SSH-enabled devbox
+
+1. Back up `.devcontainer/` (including local `.env` settings) and important
+   Hermes data before applying the new template. Keep backups containing
+   credentials private. Record the existing Compose project name and named
+   volumes so the recreated container uses the same data.
+2. Reapply the template and review your local customizations. Applying it may
+   leave files deleted from the new payload behind: remove these obsolete files
+   from your project's `.devcontainer/` if present:
+   - `docker-compose.ssh.yml`
+   - `SSH-BACKEND.md`
+   - `hermes-ssh-info.sh`
+   - `sshd-hermes-gateway.conf`
+   - `scripts/connect-hermes-desktop.ps1`
+   - `scripts/find-devcontainer.sh`
+3. Remove the SSH overlay from `devcontainer.json`'s `dockerComposeFile`, leaving
+   `docker-compose.yml` and any unrelated local overlays. Remove
+   `HERMES_SSH_PORT`/`HERMES_SSH_CWD` settings from `.env`, Compose overrides and
+   host environment, and any old SSH port mappings, authorized-key mounts or
+   `ssh-host-keys` volume declarations. If you merge manually instead of
+   reapplying, bring over the current Compose, entrypoint, lockfile and Dev
+   Container configuration, including `shutdownAction: stopCompose`.
+4. Explicitly pull the new image on the Docker host; updating template files or
+   rebuilding from cached `:latest` alone does not replace the old runtime:
+
+   ```bash
+   docker pull ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox-image:latest
+   devcontainer up --workspace-folder . --remove-existing-container --build-no-cache
+   ```
+
+   Keep the same project name and `claude-data`, `codex-data`, `hermes-data`
+   volumes. Recreate containers only; do not delete the data volumes.
+5. Open the project in VS Code and run `hermes-webapp-open`. Remove any
+   devbox-only host SSH aliases or Hermes `terminal.backend: ssh` configuration
+   created for the old integration, after backing up those host settings. An
+   external Hermes Desktop SSH connection is no longer supported by this devbox.
+
+The old project-scoped `ssh-host-keys` volume becomes unused and is **not
+removed automatically**. It can be left alone or removed individually after
+you verify that no container needs it; preserve all agent data volumes.
+
 ### Existing Hermes data volumes
 
 Hermes source and its prepared Python environment live in `/opt/hermes`, outside
 the data volume. The devbox keeps UID/GID 1000, `/home/hermes/.hermes` and the
 existing named volumes, so no data move is needed. Optional plugin environments
 can still live under `~/.hermes/installs`. Startup checks the installed runtime;
-it does not reinstall Hermes. If the check fails, SSH remains available and
-logs advise pulling/recreating the image. Our SSH entrypoint replaces the
-official s6 startup, retaining `HERMES_AUTOSTART_SERVICES` and existing log paths.
+it does not reinstall Hermes. If the check fails, the development shell remains
+available and logs advise pulling/recreating the image. The custom preparation
+entrypoint replaces the official s6 startup, retaining the existing log paths;
+`sleep infinity` keeps the container alive independently of optional services.

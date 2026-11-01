@@ -6,23 +6,17 @@ services:
     # Dockerfile that does `FROM` this public image. Registry login is not required.
     image: ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox-image:latest
     init: true
-    # No `command:` override. The image's entrypoint runs sshd in the
-    # foreground, so the container stays up on its own and is a working SSH
-    # gateway whether it was started by Compose, `docker run`, or VS Code.
+    # No `command:` override. The image prepares user data and defaults to
+    # `sleep infinity` as hermes, keeping the development shell available.
     #
     # No host port bindings: several devcontainers can start without collisions.
-    # VS Code forwards the Webapp locally. External SSH is opt-in through
-    # docker-compose.ssh.yml; sshd remains available inside the image on 2222.
+    # VS Code forwards the Webapp locally.
     environment:
-      # Start the Hermes gateway (with Webapp) + dashboard; a bare
-      # `docker run` leaves this unset and gets sshd only.
-      HERMES_AUTOSTART_SERVICES: "1"
-      # Pins `hermes-ssh-info`'s suggested terminal.cwd to the workspace mount
-      # below instead of its /workspaces/*/ auto-detect glob, which falls back
-      # to /home/hermes if it ever can't find a match. Keep this in sync with
-      # workspaceFolder (devcontainer.json) and the bind mount target (below).
-      HERMES_SSH_CWD: "/workspaces"
-    # Dashboard (9119) and Webapp (9120) default to container loopback and
+      # Gateway/Webapp starts by default; dashboard is opt-in.
+      # Set HERMES_AUTOSTART_SERVICES=0 for the development shell only.
+      HERMES_AUTOSTART_SERVICES: "${HERMES_AUTOSTART_SERVICES:-1}"
+      HERMES_AUTOSTART_DASHBOARD: "${HERMES_AUTOSTART_DASHBOARD:-0}"
+    # Optional dashboard (9119) and Webapp (9120) default to container loopback and
     # are not published. VS Code forwards both locally; image users can opt
     # into remote Webapp access separately (see ../README.md).
     volumes:
@@ -42,13 +36,8 @@ services:
       # Persist Hermes configuration, sessions, plugins and dependency state.
       # Source code and the prepared runtime remain in the image at /opt/hermes.
       - hermes-data:/home/hermes/.hermes
-      # The container's own SSH host identity. Persisted so a rebuild or
-      # recreate does not change the fingerprint -- Hermes connects with
-      # StrictHostKeyChecking=accept-new and would refuse a changed key.
-      - ssh-host-keys:/var/lib/hermes-ssh/host_keys
 
 volumes:
   claude-data:
   codex-data:
   hermes-data:
-  ssh-host-keys:

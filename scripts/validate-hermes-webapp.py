@@ -100,10 +100,10 @@ def validate(image):
         docker("run", "-d", "--init", "--name", name,
                "-e", "HERMES_AUTOSTART_SERVICES=1",
                "-p", "127.0.0.1::9120", image)
-        # Wait until the image entrypoint has completed dependency preparation.
+        # The entrypoint finishes preparation before execing the idle dev shell.
         deadline = time.monotonic() + 240
         while time.monotonic() < deadline:
-            if docker("exec", name, "pgrep", "-x", "sshd", check=False).returncode == 0:
+            if docker("exec", name, "pgrep", "-x", "sleep", check=False).returncode == 0:
                 break
             time.sleep(2)
         else:

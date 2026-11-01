@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCES = (
     ROOT / "src/ai-hermes-devbox/.devcontainer/start-services.sh",
     ROOT / ".devcontainer/start-services.sh",
-    ROOT / "scripts/validate-hermes-gateway.sh",
+    ROOT / "scripts/validate-hermes-runtime.py",
 )
 OFFICIAL = (
     "/opt/hermes/.venv/bin/python -P -c import os, site, sys; "
@@ -25,7 +25,9 @@ class ServiceProcessTests(unittest.TestCase):
         # A real sleep process with the launcher's argv[0] exercises pgrep -f,
         # without starting a gateway or touching the operator's Hermes data.
         for source in SOURCES:
-            patterns = re.findall(r'pgrep -f(?:c)? "([^"]+)"', source.read_text())
+            text = source.read_text()
+            patterns = re.findall(r'pgrep -f(?:c)? "([^"]+)"', text)
+            patterns += re.findall(r'(?m)^(?:GATEWAY|DASHBOARD) = r"([^"]+)"', text)
             self.assertTrue(patterns, source)
             for pattern in patterns:
                 service = "dashboard" if "dashboard" in pattern else "gateway"
