@@ -145,6 +145,21 @@ class HermesWorkflowTests(unittest.TestCase):
         self.assertIn("run: bash scripts/validate-hermes-runtime.sh all", step)
         self.assertIn("cache-to: type=gha,mode=max,scope=ai-hermes-devbox", text)
 
+    def test_published_image_supports_apple_silicon_and_x86_64(self):
+        text = WORKFLOW.read_text()
+        deploy = text.split("  deploy:\n", 1)[1]
+        self.assertIn("uses: docker/setup-qemu-action@v3", deploy)
+        step = text.split("      - name: Build and push image\n", 1)[1]
+        self.assertIn("platforms: linux/amd64,linux/arm64", step)
+
+    def test_publication_checks_the_actual_pushed_index(self):
+        text = WORKFLOW.read_text()
+        step = text.split("      - name: Build and push image\n", 1)[1]
+        self.assertIn("id: image", step)
+        self.assertIn("${{ steps.image.outputs.digest }}", step)
+        self.assertIn('docker buildx imagetools inspect --raw "$IMAGE@$DIGEST"', step)
+        self.assertIn("python3 scripts/validate-hermes-image-platforms.py", step)
+
     def test_unit_tests_are_not_deferred_to_checkpoint_g(self):
         path = ROOT / "scripts/validate-hermes-runtime.sh"
         self.assertTrue(path.is_file(), "runtime validator is missing")
