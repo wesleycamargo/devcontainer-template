@@ -35,6 +35,12 @@ Azure tooling preconfigured, plus the
 
 The template and image are **public**. Apply directly; registry login is not required.
 
+The publishing workflow targets both `linux/amd64` and `linux/arm64` and checks
+the pushed index for both platforms. Older AMD64-only images fail on Apple
+Silicon with `no match for platform in manifest`; native ARM64 use requires a
+successful multi-platform publication. Runtime CI currently runs on AMD64;
+the manifest check does not replace testing the Dev Container on an ARM64 host.
+
 ```powershell
 devcontainer templates apply -w . -t ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox
 ```

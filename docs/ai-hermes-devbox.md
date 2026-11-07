@@ -6,6 +6,11 @@ The official [Hermes Agent](https://hermes-agent.nousresearch.com/) image with
 prebuilt Webapp, browser and computer-use, plus the development tools familiar
 from [AI Devbox](ai-devbox.md). Use the Webapp from the project's VS Code window;
 the devbox no longer includes a custom SSH server or external Desktop SSH backend.
+The publishing workflow targets both `linux/amd64` and `linux/arm64` and checks
+the pushed index for both platforms. Older AMD64-only images fail on Apple
+Silicon with `no match for platform in manifest`; native ARM64 use requires a
+successful multi-platform publication. Runtime CI currently runs on AMD64;
+the manifest check does not replace testing the Dev Container on an ARM64 host.
 
 ## Command line
 

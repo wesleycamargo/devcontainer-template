@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
 # Reuse the official, prebuilt Hermes runtime, Webapp and computer-use stack.
 # Multi-arch digest for main-desktop at 84a0301415edd6d1385207ec96e4d7f2b6c1fcd9.
+# The publishing workflow builds this image for linux/amd64 and linux/arm64.
 # Only development tools and our data/bootstrap lifecycle are layered on top.
 FROM nousresearch/hermes-agent:main-desktop@sha256:4566f80ee2f594cbd514719a6ba729426f9344eb545f3de4361d2af1a236c5be
 

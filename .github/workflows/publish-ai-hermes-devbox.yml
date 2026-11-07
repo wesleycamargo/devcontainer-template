@@ -216,6 +216,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -227,13 +230,24 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push image
+        id: image
         uses: docker/build-push-action@v6
         with:
           context: ./src/${{ env.TEMPLATE_ID }}/.devcontainer
           file: ./src/${{ env.TEMPLATE_ID }}/.devcontainer/Dockerfile
           push: true
+          platforms: linux/amd64,linux/arm64
           cache-from: type=gha,scope=ai-hermes-devbox
           cache-to: type=gha,mode=max,scope=ai-hermes-devbox
           tags: |
             ghcr.io/${{ github.repository }}/${{ env.TEMPLATE_ID }}-image:latest
             ghcr.io/${{ github.repository }}/${{ env.TEMPLATE_ID }}-image:${{ steps.version.outputs.version }}
+
+      - name: Verify published image platforms
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}/${{ env.TEMPLATE_ID }}-image
+          DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          set -euo pipefail
+          docker buildx imagetools inspect --raw "$IMAGE@$DIGEST" \
+            | python3 scripts/validate-hermes-image-platforms.py
