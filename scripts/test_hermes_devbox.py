@@ -110,7 +110,14 @@ class DashboardStartupTests(unittest.TestCase):
             workspaces.mkdir()
             for name in workspace_names:
                 (workspaces / name).mkdir()
-            env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+            # Preflight runs without Hermes installed. Supply only our command
+            # discovery fixture; launch_service below intercepts actual startup.
+            commands = home / "bin"
+            commands.mkdir()
+            hermes = commands / "hermes"
+            hermes.write_text("#!/bin/sh\nexit 99\n")
+            hermes.chmod(0o755)
+            env = {"PATH": str(commands),
                    "HOME": directory, "PYTHONPATH": directory}
             if dashboard is not None:
                 env["HERMES_AUTOSTART_DASHBOARD"] = dashboard
@@ -139,6 +146,12 @@ class DashboardStartupTests(unittest.TestCase):
                 raw_config=path.read_text() if path.exists() else None,
                 writes=writes.read_text().splitlines() if writes.exists() else [],
                 workdirs=workdirs, workspace_root=workspaces)
+
+    def test_starter_does_not_require_hermes_on_the_host_path(self):
+        with patch.dict(os.environ, {"PATH": "/nonexistent-hermes-test-path"}):
+            result = self.run_starter()
+        self.assertEqual(result.calls, ["hermes gateway"])
+        self.assertIn("filled missing local Webapp defaults", result.output)
 
     def test_default_only_starts_gateway(self):
         for config in CONFIGS:
