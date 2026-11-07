@@ -218,6 +218,12 @@ else:
 '
 
 exec_in bash -euc '
+  mapfile -t gateway_pids < <(pgrep -f "[h]ermes gateway([[:space:]]|$)|[h]ermes_cli[.]main.* gateway([[:space:]]|$)")
+  test "${#gateway_pids[@]}" -eq 1
+  test "$(readlink "/proc/${gateway_pids[0]}/cwd")" = "/workspaces/$1"
+' smoke "$PROJECT"
+
+exec_in bash -euc '
   if pgrep -f "[h]ermes dashboard([[:space:]]|$)|[h]ermes_cli[.]main.* dashboard([[:space:]]|$)"; then
     echo "FAIL dashboard started without opt-in" >&2
     exit 1

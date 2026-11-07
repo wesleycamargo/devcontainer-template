@@ -13,7 +13,6 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 CONFIGS = (ROOT / "src/ai-hermes-devbox/.devcontainer", ROOT / ".devcontainer")
 HARNESS = r"""
-cd() { builtin cd "$HOME"; }
 # Run the starter's actual inline Python against the disposable config adapter.
 # The fixed /opt/hermes interpreter is never invoked and no auth files exist.
 timeout() { "$FIXTURE_PYTHON" -B -; }
@@ -25,7 +24,7 @@ pgrep() {
     *) return 1 ;;
   esac
 }
-nohup() { printf '%s\n' "$*" >> "$CALLS"; }
+nohup() { printf '%s\n' "$*" >> "$CALLS"; printf '%s\n' "$PWD" >> "$WORKDIRS"; }
 kill() { printf 'kill %s\n' "$*" >> "$CALLS"; }
 pkill() { printf 'pkill %s\n' "$*" >> "$CALLS"; }
 trap 'wait' EXIT
@@ -52,7 +51,7 @@ def atomic_config_write(path, config):
 class DashboardStartupTests(unittest.TestCase):
     def run_starter(self, starter, dashboard=None, *, running_gateway=False,
                     running_dashboard=False, master=None, config=None,
-                    expected_code=0):
+                    workspace_names=("project",), expected_code=0):
         with tempfile.TemporaryDirectory(prefix="hermes-startup-") as directory:
             home = Path(directory)
             data = home / ".hermes"
@@ -68,12 +67,22 @@ class DashboardStartupTests(unittest.TestCase):
             (package / "__init__.py").touch()
             (package / "config.py").write_text(CONFIG_ADAPTER)
             calls = Path(directory) / "calls.txt"
+            workdirs = Path(directory) / "workdirs.txt"
+            workspaces = Path(directory) / "workspaces"
+            workspaces.mkdir()
+            for name in workspace_names:
+                (workspaces / name).mkdir()
+            script = starter.read_text().replace("/opt/hermes", str(home)).replace(
+                "/workspaces", str(workspaces))
+            fixture_starter = Path(directory) / "start-services.sh"
+            fixture_starter.write_text(script)
             env = {
                 "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
                 "HOME": directory,
                 "PYTHONPATH": directory,
                 "FIXTURE_PYTHON": sys.executable,
                 "CALLS": str(calls),
+                "WORKDIRS": str(workdirs),
                 "RUNNING_GATEWAY": str(int(running_gateway)),
                 "RUNNING_DASHBOARD": str(int(running_dashboard)),
             }
@@ -82,8 +91,8 @@ class DashboardStartupTests(unittest.TestCase):
             if master is not None:
                 env["HERMES_AUTOSTART_SERVICES"] = master
             result = subprocess.run(
-                ["bash", "-c", HARNESS, "startup-test", str(starter)],
-                env=env, text=True, capture_output=True, timeout=10,
+                ["bash", "-c", HARNESS, "startup-test", str(fixture_starter)],
+                cwd=home, env=env, text=True, capture_output=True, timeout=10,
             )
             self.assertEqual(result.returncode, expected_code, result.stdout + result.stderr)
             self.assertEqual(marker.read_text(), "fixture marker\n")
@@ -94,6 +103,8 @@ class DashboardStartupTests(unittest.TestCase):
                 calls=launched, output=result.stdout, error=result.stderr,
                 raw_config=path.read_text() if path.exists() else None,
                 writes=writes.read_text().splitlines() if writes.exists() else [],
+                workdirs=workdirs.read_text().splitlines() if workdirs.exists() else [],
+                workspace_root=workspaces,
             )
 
     def test_default_only_starts_gateway(self):
@@ -102,6 +113,12 @@ class DashboardStartupTests(unittest.TestCase):
                 result = self.run_starter(config / "start-services.sh")
                 self.assertEqual(result.calls, ["hermes gateway"])
                 self.assertIn("dashboard autostart disabled", result.output)
+
+    def test_gateway_starts_in_the_unique_devcontainer_workspace(self):
+        for config in CONFIGS:
+            with self.subTest(config=config):
+                result = self.run_starter(config / "start-services.sh", workspace_names=("example",))
+                self.assertEqual(result.workdirs, [str(result.workspace_root / "example")])
 
     def test_only_exact_one_opts_into_dashboard(self):
         for config in CONFIGS:

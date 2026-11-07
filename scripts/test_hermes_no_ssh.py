@@ -195,7 +195,7 @@ class NoSshConfigurationTests(unittest.TestCase):
                 self.assertEqual(set(re.findall(r"(?m)^  ([\w-]+):\s*$", volumes)),
                                  {"claude-data", "codex-data", "hermes-data"})
                 for retained in (
-                    "init: true", "../..:/workspaces:cached",
+                    "init: true",
                     "claude-data:/home/hermes/.claude", "codex-data:/home/hermes/.codex",
                     "hermes-data:/home/hermes/.hermes",
                     "source: ${DEVBOX_HOST_HOME:-${HOME:-/home/vscode}}/.codex/auth.json",
@@ -218,6 +218,9 @@ class NoSshConfigurationTests(unittest.TestCase):
                 self.assertEqual(config["forwardPorts"], [9119, 9120])
                 self.assertEqual(config["remoteUser"], "hermes")
                 self.assertEqual(config["workspaceFolder"], "/workspaces/${localWorkspaceFolderBasename}")
+                self.assertEqual(config["mounts"], [
+                    "source=${localWorkspaceFolder},target=/workspaces/${localWorkspaceFolderBasename},type=bind,consistency=cached",
+                ])
                 self.assertEqual(set(config["features"]), {
                     "ghcr.io/devcontainers/features/common-utils:2",
                     "ghcr.io/rchaganti/vsc-devcontainer-features/azurebicep:1",

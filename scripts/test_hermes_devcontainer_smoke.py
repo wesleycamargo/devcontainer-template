@@ -371,7 +371,7 @@ class DevcontainerSmokeTests(unittest.TestCase):
 
     def payloads(self, calls):
         commands = [call for call in calls if call["tool"] == "devcontainer" and call["args"][0] == "exec"]
-        self.assertEqual(len(commands), 3, "must execute tools, protected Webapp readiness, and absent-service checks")
+        self.assertEqual(len(commands), 4, "must execute tools, protected Webapp readiness, gateway cwd, and absent-service checks")
         up = next(call for call in calls if call["tool"] == "devcontainer" and call["args"][0] == "up")
         for command in commands:
             for option in ("--workspace-folder", "--id-label", "--user-data-folder"):
@@ -442,10 +442,39 @@ codex() { record_tool codex "$@"; }
         (runtime / "smoke-marker.txt").unlink()
         self.assertNotEqual(run().returncode, 0)
 
-    def test_absent_service_payload_rejects_dashboard_sshd_and_pgrep_errors(self):
+    def test_gateway_payload_requires_the_exact_workspace_cwd(self):
         result, calls = self.run_smoke()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         args = self.payloads(calls)[2]
+        code = args[args.index("bash") + 2]
+        prelude = r'''pgrep() {
+  case "${SIMULATED_GATEWAY:-one}" in
+    one) printf '%s\n' 4242 ;;
+    none) return 1 ;;
+    many) printf '%s\n%s\n' 4242 4243 ;;
+  esac
+}
+readlink() { printf '%s\n' "${SIMULATED_CWD:-/workspaces/$WORKSPACE_NAME}"; }
+'''
+        project = args[-1]
+        for gateway, cwd, expected in (
+            ("one", f"/workspaces/{project}", 0),
+            ("one", "/wrong", 1), ("none", f"/workspaces/{project}", 1),
+            ("many", f"/workspaces/{project}", 1),
+        ):
+            with self.subTest(gateway=gateway, cwd=cwd):
+                checked = subprocess.run(
+                    ["bash", "-euc", prelude + code, "gateway-cwd", project],
+                    env={**self.env, "SIMULATED_GATEWAY": gateway, "SIMULATED_CWD": cwd,
+                         "WORKSPACE_NAME": project},
+                    text=True, capture_output=True, timeout=10,
+                )
+                self.assertEqual(bool(checked.returncode), bool(expected), checked.stdout + checked.stderr)
+
+    def test_absent_service_payload_rejects_dashboard_sshd_and_pgrep_errors(self):
+        result, calls = self.run_smoke()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        args = self.payloads(calls)[3]
         code = args[args.index("bash") + 2]
         prelude = r'''
 pgrep() {
