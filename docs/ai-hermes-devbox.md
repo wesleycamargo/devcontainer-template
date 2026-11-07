@@ -73,8 +73,8 @@ No custom sshd, port 2222, SSH host-key volume or SSH overlay remains.
 ## Webapp in VS Code
 
 The image reuses `nousresearch/hermes-agent:main-desktop`, pinned to the
-multi-arch digest `sha256:cef6ca13cc35452215c5774c0563b0940b0a6ebaebad0d87174b27ca3d5c93d5`
-(commit `c419cf7c864ac0ee511dbd9f7091a8bba0b567ee`, after v0.22.5).
+multi-arch digest `sha256:4566f80ee2f594cbd514719a6ba729426f9344eb545f3de4361d2af1a236c5be`
+(commit `84a0301415edd6d1385207ec96e4d7f2b6c1fcd9`, built 2026-11-05).
 Hermes and Webapp are already built upstream; our build adds development tools
 including GitHub CLI (`gh`). It is baked into the image rather than installed
 by a Dev Container feature; common-utils and Azure Bicep features remain.
