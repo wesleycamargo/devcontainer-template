@@ -220,7 +220,7 @@ Git settings remain local to the container.
   manually and ask the agent to read their `SKILL.md`. Startup does not install
   or update project skills.
 - **Codex/ChatGPT shortcut**: on first start, Hermes imports a valid host Codex
-  login and defaults to `openai-codex` / `gpt-5.6-terra`. Explicit provider and
+  login and defaults to `openai-codex` / `gpt-6.1-sol` with medium reasoning. Explicit provider and
   model choices and existing Hermes logins are preserved. If the initial Codex
   access token has expired, renew it
   with Codex on the host and restart the container.

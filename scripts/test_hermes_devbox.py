@@ -22,6 +22,16 @@ runtime = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(runtime)
 
 class CodexSeedTests(unittest.TestCase):
+    def test_fresh_defaults_use_sol_with_medium_reasoning(self):
+        self.seed(existing={"tokens": {"access_token": "access", "refresh_token": "refresh"}})
+        self.config.set_config_value.assert_any_call("model.default", "gpt-6.1-sol")
+        self.config.set_config_value.assert_any_call("agent.reasoning_effort", "medium")
+
+    def test_saved_reasoning_effort_is_preserved(self):
+        self.seed(config={"agent": {"reasoning_effort": "high"}},
+                  existing={"tokens": {"access_token": "access", "refresh_token": "refresh"}})
+        self.config.set_config_value.assert_called_once_with("model.default", "gpt-6.1-sol")
+
     def seed(self, *, config=None, existing=None, imported=None):
         self.auth = types.SimpleNamespace(
             _auth_store_lock=contextlib.nullcontext,

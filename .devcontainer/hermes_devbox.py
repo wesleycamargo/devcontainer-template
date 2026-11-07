@@ -31,7 +31,14 @@ WORKSPACES = Path("/workspaces")
 GATEWAY = r"[h]ermes gateway([[:space:]]|$)|[h]ermes_cli[.]main.* gateway([[:space:]]|$)"
 DASHBOARD = r"[h]ermes dashboard([[:space:]]|$)|[h]ermes_cli[.]main.* dashboard([[:space:]]|$)"
 
-CODEX_SEED = """import sys
+# Maintainer defaults: edit here, then mirror this helper to root .devcontainer/.
+DEFAULT_CODEX_MODEL = "gpt-6.1-sol"
+DEFAULT_REASONING_EFFORT = "medium"
+
+CODEX_SEED = (
+    f"DEFAULT_MODEL = {DEFAULT_CODEX_MODEL!r}\n"
+    f"DEFAULT_EFFORT = {DEFAULT_REASONING_EFFORT!r}\n"
+    + """import sys
 try:
     from hermes_cli.auth import (
         _auth_store_lock, _load_auth_store, _load_provider_state,
@@ -56,9 +63,12 @@ with _auth_store_lock():
         _save_codex_tokens(tokens)
 _update_config_for_provider("openai-codex", _codex_base_url())
 if not model.get("default"):
-    set_config_value("model.default", "gpt-5.6-terra")
+    set_config_value("model.default", DEFAULT_MODEL)
+    agent = config.get("agent", {})
+    if isinstance(agent, dict) and "reasoning_effort" not in agent:
+        set_config_value("agent.reasoning_effort", DEFAULT_EFFORT)
 print("configured openai-codex; existing login and model choice preserved")
-"""
+""")
 
 ENV_DEFAULTS = """import os
 from urllib.parse import urlsplit
@@ -238,7 +248,7 @@ def seed_codex_default_model(home):
     if marker.is_file() or not auth.is_file() or not auth.stat().st_size or not os.access(PYTHON, os.X_OK):
         return
     print("hermes-start-services: seeding default model from ~/.codex/auth.json "
-          "(openai-codex / gpt-5.6-terra)")
+          f"(openai-codex / {DEFAULT_CODEX_MODEL}, {DEFAULT_REASONING_EFFORT} reasoning)")
     try:
         result = run_integration(CODEX_SEED)
         # Integration diagnostics stay in a private project log, never the terminal.
