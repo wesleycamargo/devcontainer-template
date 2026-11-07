@@ -30,6 +30,10 @@ RUNTIME_TMP = Path("/tmp/hermes-runtime")
 WORKSPACES = Path("/workspaces")
 GATEWAY = r"[h]ermes gateway([[:space:]]|$)|[h]ermes_cli[.]main.* gateway([[:space:]]|$)"
 DASHBOARD = r"[h]ermes dashboard([[:space:]]|$)|[h]ermes_cli[.]main.* dashboard([[:space:]]|$)"
+GITHUB_REPOSITORY = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*")
+SKILL_IDENTIFIER = re.compile(
+    r"[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*(?:/[A-Za-z0-9][A-Za-z0-9_.-]*)+"
+)
 
 # Maintainer defaults: edit here, then mirror this helper to root .devcontainer/.
 DEFAULT_CODEX_MODEL = "gpt-6.1-sol"
@@ -171,6 +175,60 @@ def runtime_environment(environ=None):
     return env
 
 
+def parse_skills_list(raw, *, pattern, label):
+    values = [value.strip() for value in raw.split(",") if value.strip()]
+    if len(values) != len(set(values)):
+        raise ValueError(f"duplicate {label} value")
+    if any(not pattern.fullmatch(value) for value in values):
+        raise ValueError(f"invalid {label} value")
+    return values
+
+
+def bootstrap_skills(home, environ=None):
+    env = dict(os.environ if environ is None else environ)
+    taps = parse_skills_list(env.get("HERMES_SKILLS_TAPS", ""),
+                             pattern=GITHUB_REPOSITORY, label="skills tap")
+    skills = parse_skills_list(env.get("HERMES_SKILLS_INSTALL", ""),
+                               pattern=SKILL_IDENTIFIER, label="skills install")
+    if not skills:
+        return True
+    sources = {"/".join(skill.split("/", 2)[:2]) for skill in skills}
+    if not sources.issubset(taps):
+        raise ValueError("skills install source is not configured as a tap")
+    data = Path(home) / ".hermes"
+    marker = data / ".skills-bootstrap.json"
+    state = {"taps": taps, "skills": skills}
+    try:
+        if json.loads(marker.read_text()) == state:
+            return True
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+    command_prefix = ["/usr/sbin/runuser", "-u", "hermes", "--", "env",
+                      f"HOME={home}", f"HERMES_HOME={data}", "/usr/local/bin/hermes", "skills"]
+    commands = ([*command_prefix, "tap", "add", tap] for tap in taps)
+    installs = ([*command_prefix, "install", skill, "--yes"] for skill in skills)
+    for command in (*commands, *installs):
+        try:
+            result = subprocess.run(command, check=False, timeout=120,
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except (OSError, subprocess.TimeoutExpired):
+            print("hermes-entrypoint: skills bootstrap failed; will retry next start")
+            return False
+        if result.returncode:
+            print("hermes-entrypoint: skills bootstrap failed; will retry next start")
+            return False
+    seeded = tempfile.NamedTemporaryFile(dir=data, prefix=".skills-bootstrap-", mode="w", delete=False)
+    try:
+        with seeded:
+            json.dump(state, seeded, sort_keys=True)
+            seeded.write("\n")
+            os.fchmod(seeded.fileno(), 0o600)
+        os.replace(seeded.name, marker)
+    finally:
+        Path(seeded.name).unlink(missing_ok=True)
+    return True
+
+
 def run_hermes(args):
     if os.geteuid() == 0:
         return os.execvp("/usr/sbin/runuser", ["/usr/sbin/runuser", "-u", "hermes", "--",
@@ -193,6 +251,10 @@ def entrypoint(args):
     for name in ("cron", "sessions", "logs", "pairing", "hooks", "image_cache",
                  "audio_cache", "memories", "skills"):
         prepare(data / name)
+    try:
+        bootstrap_skills(HOME)
+    except ValueError:
+        print("hermes-entrypoint: invalid skills bootstrap configuration; will retry next start")
     template = RUNTIME / ".env.example"
     if not (data / ".env").is_file() and template.is_file():
         # Publish a prepared inode: never follow a destination symlink as root.
