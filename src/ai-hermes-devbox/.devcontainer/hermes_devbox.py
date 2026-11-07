@@ -130,7 +130,7 @@ def entrypoint(args):
         print("hermes-entrypoint: seeded ~/.hermes/.env from the installed template")
     for legacy in ("hermes-agent", "node"):
         if (data / legacy).exists():
-            print(f"hermes-entrypoint: legacy Hermes data notice: ~/.hermes/{legacy} is unused; "
+            print(f"hermes-entrypoint: legacy Hermes data notice: ~/.hermes/{legacy} is leftover from an older image and is unused; "
                   "active source is /opt/hermes. Remove old files manually only after review.")
     user_command = ["runuser", "-u", "hermes", "--", "env", f"HOME={HOME}"]
     try:
@@ -152,6 +152,9 @@ def entrypoint(args):
             print("hermes-entrypoint: hermes-start-services reported a problem; development shell is unaffected")
     else:
         print("hermes-entrypoint: HERMES_AUTOSTART_SERVICES is not 1; development shell only")
+    # exec replaces Python without flushing its buffered container diagnostics.
+    sys.stdout.flush()
+    sys.stderr.flush()
     command = args or ["sleep", "infinity"]
     if command == ["sleep", "infinity"]:
         return os.execvp("runuser", ["runuser", "-u", "hermes", "--", *command])
