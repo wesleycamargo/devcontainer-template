@@ -50,6 +50,8 @@ curl -fsSL 'https://gist.githubusercontent.com/wesleycamargo/06b58b472fe0cded2e6
 BASH
 
 ARG TERMINAL_ICONS_VERSION=0.11.0
+ARG AZ_ACCOUNTS_VERSION=4.0.2
+ARG PESTER_VERSION=5.2.2
 # PowerShell writes both ~/.local/share and $XDG_RUNTIME_DIR/.dotnet even
 # without a profile. Isolate root's setup so Claude and PSReadLine can run as hermes.
 RUN install -d -m 700 /root/.cache/powershell-runtime \
@@ -57,6 +59,8 @@ RUN install -d -m 700 /root/.cache/powershell-runtime \
        pwsh -NoLogo -NoProfile -NonInteractive -File /dev/stdin <<'PWSH'
 $ErrorActionPreference = 'Stop'
 Install-Module -Name Terminal-Icons -RequiredVersion $env:TERMINAL_ICONS_VERSION -Force -Scope AllUsers
+Install-Module -Name Az.Accounts -RequiredVersion $env:AZ_ACCOUNTS_VERSION -Force -Scope AllUsers
+Install-Module -Name Pester -RequiredVersion $env:PESTER_VERSION -Force -Scope AllUsers
 @'
 if (-not [Console]::IsInputRedirected) {
     Import-Module Terminal-Icons
@@ -112,7 +116,7 @@ RUN --network=none timeout 60 runuser -u hermes -- hermes --version </dev/null \
     && timeout 30 runuser -u hermes -- claude --version </dev/null \
     && timeout 30 runuser -u hermes -- codex --version </dev/null \
     && runuser -u hermes -- gh --version \
-    && runuser -u hermes -- pwsh -NoLogo -NoProfile -NonInteractive -Command '$ErrorActionPreference = "Stop"; Import-Module Terminal-Icons; $mutex = [System.Threading.Mutex]::new($false, "HermesPSReadLineSmoke"); $mutex.Dispose()' \
+    && runuser -u hermes -- pwsh -NoLogo -NoProfile -NonInteractive -Command '$ErrorActionPreference = "Stop"; Import-Module Terminal-Icons; Import-Module Az.Accounts; Import-Module Pester; $mutex = [System.Threading.Mutex]::new($false, "HermesPSReadLineSmoke"); $mutex.Dispose()' \
     && node --version
 
 # Keep data/bootstrap preparation and Compose init, not the upstream s6 entrypoint.

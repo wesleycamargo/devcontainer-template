@@ -71,6 +71,21 @@ class HermesTemplateConfigTests(unittest.TestCase):
         self.assertRegex(dockerfile, r"(?m)^ARG GITHUB_CLI_VERSION=\S+$")
         self.assertIn("gh_${GITHUB_CLI_VERSION}_linux_", dockerfile)
 
+    def test_azure_and_pester_modules_are_pinned_and_imported_by_the_image(self):
+        dockerfile = (SOURCE / "Dockerfile").read_text()
+        self.assertIn("ARG AZ_ACCOUNTS_VERSION=4.0.2", dockerfile)
+        self.assertIn("ARG PESTER_VERSION=5.2.2", dockerfile)
+        self.assertIn(
+            "Install-Module -Name Az.Accounts -RequiredVersion $env:AZ_ACCOUNTS_VERSION -Force -Scope AllUsers",
+            dockerfile,
+        )
+        self.assertIn(
+            "Install-Module -Name Pester -RequiredVersion $env:PESTER_VERSION -Force -Scope AllUsers",
+            dockerfile,
+        )
+        self.assertIn("Import-Module Az.Accounts", dockerfile)
+        self.assertIn("Import-Module Pester", dockerfile)
+
     def test_feature_lock_matches_manifest(self):
         expected_pins = {
             "ghcr.io/devcontainers/features/common-utils:2": (
