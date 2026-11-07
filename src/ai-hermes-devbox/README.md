@@ -6,6 +6,14 @@ Azure tooling preconfigured, plus the
 
 ## What's included
 
+The `.devcontainer/` payload is exactly seven files: `.env.example`,
+`.gitignore`, `Dockerfile`, `devcontainer-lock.json`, `devcontainer.json`,
+`docker-compose.yml` and `hermes_devbox.py`. The Dockerfile remains the image
+recipe. One standard-library-only Python helper implements preparation,
+CLI wrapping, service startup and Webapp opening; the image installs it at
+`/usr/local/lib/hermes_devbox.py` with command symlinks. Existing commands
+`hermes`, `hermes-start-services` and `hermes-webapp-open` remain unchanged.
+
 - PowerShell installed in the image, set as the default
   integrated terminal, with Oh My Posh and Terminal-Icons.
 - Azure Bicep CLI (`azurebicep` feature) and image-baked GitHub CLI (`gh`).
@@ -310,6 +318,28 @@ followed by your `RUN`/`COPY` lines, and point `docker-compose.yml` at it
 with a `build:` block instead of `image:` — your layers sit on top of the
 prebuilt image, so rebuilds stay fast.
 
+### Migration to the Python runtime
+
+Back up `.devcontainer/`, any bundled `.agents/` files and important Hermes
+data before reapplying the template; keep credential-bearing backups private.
+Reapplying does not automatically clean existing projects. Compare the following
+obsolete files with the template version you originally applied, and manually
+remove only unmodified copies:
+
+- `.devcontainer/entrypoint.sh`
+- `.devcontainer/hermes.sh`
+- `.devcontainer/start-services.sh`
+- `.devcontainer/webapp-open.py`
+- `.devcontainer/scripts/configure-project-skills.sh`
+- Old bundled files under `.agents/`.
+
+Preserve user-created or edited files, reviewing and porting any needed
+customizations before deciding what to retain. Keep the `Dockerfile` and the
+other seven-file payload entries listed above. Pull the new image and recreate
+the container using the update instructions above; keep the same Compose
+project and named data volumes. The runtime commands are image-owned, so
+updating template files alone does not update their implementation.
+
 ### Migration from the SSH-enabled devbox
 
 Back up your `.devcontainer/`, local `.env`, Hermes data and any host settings
@@ -384,7 +414,10 @@ start in that same directory; no template edits are required.
 
 ## AI-native SDLC framework
 
-Project skills are included in `.agents/skills`. Container startup does not install or update them.
+Fresh templates include no bundled `.agents/` skills or project-skills
+configuration hook. The framework is optional: manually add the skills you need
+and ask the agent to read the relevant `SKILL.md` before use. Container startup
+does not install or update project skills.
 
 ## Existing Hermes data volumes
 

@@ -61,6 +61,18 @@ development tools and development-shell lifecycle directly on the pinned officia
 `nousresearch/hermes-agent:main-desktop` image; it does not derive from
 `ai-devbox-image`.
 
+The Hermes template keeps its `Dockerfile` and ships exactly seven
+`.devcontainer/` files: `.env.example`, `.gitignore`, `Dockerfile`,
+`devcontainer-lock.json`, `devcontainer.json`, `docker-compose.yml` and
+`hermes_devbox.py`. One standard-library-only Python helper implements the
+devbox runtime, installed in the image behind the unchanged `hermes`,
+`hermes-start-services` and `hermes-webapp-open` commands. Fresh Hermes templates
+include no bundled `.agents/` skills or project-skills configuration hook.
+Reapplying does not automatically remove old project files; compare obsolete
+helpers and bundled skills with their previous template versions and remove
+only unmodified copies. See the
+[Python runtime migration](docs/ai-hermes-devbox.md#migration-to-the-python-runtime).
+
 Hermes includes GitHub CLI (`gh`) in its image; common-utils and Azure Bicep
 remain Dev Container features. Its entrypoint prepares state and autostarts
 requested services before `sleep infinity` keeps the development shell alive;

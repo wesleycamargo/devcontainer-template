@@ -66,8 +66,8 @@ templates and images.
   (workflow token permissions, package visibility check). Requires `gh`
   authenticated with `packages` scope.
 - `scripts/sync-template-agents.sh` — maintainer-only: mirrors the canonical
-  root `.agents/` into `src/ai-devbox/.agents/`, `src/ai-hermes-devbox/.agents/`
-  and `src/ai-esp32-devbox/.agents/`, and keeps the Hermes hook (`configure-project-skills.sh`) copy identical. Run
+  root `.agents/` into `src/ai-devbox/.agents/` and
+  `src/ai-esp32-devbox/.agents/`. Run
   it (`--check` to only report) after any change under `.agents/`. It only
   mirrors files between the maintainer repo and template payloads.
 - `scripts/setup-devcontainer-client.ps1` — one-time client-side setup for
@@ -111,6 +111,14 @@ installer or rebuild Webapp in this Dockerfile. Its development-tool versions
 are maintained alongside ai-devbox's. Bake GitHub CLI into the image; retain
 the common-utils and Azure Bicep Dev Container features and their lockfile.
 
+The Hermes consumer payload is exactly seven `.devcontainer/` files:
+`.env.example`, `.gitignore`, `Dockerfile`, `devcontainer-lock.json`,
+`devcontainer.json`, `docker-compose.yml` and `hermes_devbox.py`. Retain the
+Dockerfile. The standard-library-only Python helper owns preparation, service
+startup, CLI wrapping and Webapp opening; the image installs it at
+`/usr/local/lib/hermes_devbox.py` with command symlinks. Public commands remain
+`hermes`, `hermes-start-services` and `hermes-webapp-open`.
+
 The custom entrypoint prepares data and optionally starts services, then execs
 the image's `CMD ["sleep", "infinity"]`. This keeps a development shell alive;
 it is not a daemon supervisor. Retain Compose `init: true`. Compose defaults to
@@ -138,4 +146,13 @@ project and named volumes. The old SSH host-key volume is not auto-deleted.
 
 ## Project skills
 
-Create reusable project skills in `.agents/skills/<skill-name>/`. Templates include these files; container startup does not download, update, or install skills. Agents with repository-local discovery can read them directly; otherwise ask the agent to read the desired `SKILL.md`.
+Create reusable project skills in `.agents/skills/<skill-name>/`. AI Devbox and
+AI ESP32 Devbox include this tree; fresh AI Hermes Devbox templates include
+neither bundled `.agents/` skills nor a project-skills configuration hook.
+Container startup does not download, update, or install project skills. For
+optional manual use, ask the agent to read the desired `SKILL.md`.
+
+Reapplying the Hermes template does not automatically clean existing projects.
+Follow the migration in `docs/ai-hermes-devbox.md`: compare obsolete helpers,
+the old hook and bundled `.agents/` files with their previous template versions;
+remove only unmodified copies and preserve user-created or edited files.

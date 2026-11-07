@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Maintainer script for this repo: mirror the canonical root .agents/ into the
-# published template payloads (src/<id>/.agents/), and keep the Hermes hook
-# copy identical to the published Hermes hook when a root hook exists.
+# published template payloads (src/<id>/.agents/).
 #
 # Usage: scripts/sync-template-agents.sh [--check] [--force]
 set -euo pipefail
@@ -18,8 +17,7 @@ done
 repo=$(cd -P "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
 # Exclude generated agent display metadata from published payloads.
 rsync_excludes=(--exclude='agents/openai.yaml' --exclude='agents/openai.yml')
-templates=(ai-devbox ai-hermes-devbox ai-esp32-devbox)
-hook_rel=.devcontainer/scripts/configure-project-skills.sh
+templates=(ai-devbox ai-esp32-devbox)
 
 drift=0
 
@@ -33,12 +31,6 @@ for t in "${templates[@]}"; do
     ((check)) || { mkdir -p "$dest/.agents"; rsync -ac --delete "${rsync_excludes[@]}" "$repo/.agents/" "$dest/.agents/"; }
   fi
 done
-
-if [ -f "$repo/$hook_rel" ] && ! cmp -s "$repo/$hook_rel" "$repo/src/ai-hermes-devbox/$hook_rel"; then
-  drift=1
-  echo "hook: src/ai-hermes-devbox/$hook_rel differs from root"
-  ((check)) || install -m 755 "$repo/$hook_rel" "$repo/src/ai-hermes-devbox/$hook_rel"
-fi
 
 if ((drift)); then
   ((check)) && { echo "out of sync (run without --check to fix)"; exit 1; }

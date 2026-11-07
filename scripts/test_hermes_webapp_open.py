@@ -17,7 +17,7 @@ from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location(
     "webapp_open", Path(__file__).resolve().parents[1]
-    / "src/ai-hermes-devbox/.devcontainer/webapp-open.py")
+    / "src/ai-hermes-devbox/.devcontainer/hermes_devbox.py")
 opener = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(opener)
 
@@ -78,6 +78,17 @@ class WebappOpenTests(unittest.TestCase):
             opener.open_webapp()
         self.assertNotIn(self.ticket, output.getvalue())
         self.assertEqual(cli.call_args.args[0], ["hermes", "webapp", "--no-open"])
+
+    def test_authenticated_readiness_closes_http_error_response(self):
+        window = self.window("vscode.sock")
+        error = opener.urllib.error.HTTPError(
+            "http://127.0.0.1/api/sessions", 401, "Unauthorized", {}, io.BytesIO(b"{}"))
+        browser = unittest.mock.Mock()
+        browser.open.side_effect = error
+        with (patch.object(opener.urllib.request, "build_opener", return_value=browser),
+              patch.object(error, "close", wraps=error.close) as close):
+            self.run_opener(window)
+        close.assert_called_once()
 
     def test_sends_complete_link_to_current_window_without_logging_ticket(self):
         window = self.window("vscode.sock")

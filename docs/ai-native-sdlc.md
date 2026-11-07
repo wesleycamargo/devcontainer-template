@@ -160,4 +160,6 @@ This is conceptual rather than one-to-one. A large intent can later be split, bu
 
 ## Cross-agent skill discovery
 
-Create reusable skills in .agents/skills/<skill-name>/. The AI Devbox template exposes that same tree to Claude Code through .claude/skills, a symlink, so additions are available immediately without copying or a watcher. AI Hermes Devbox also exposes .hermes/skills and configures Hermes to discover and create skills in .agents/skills, while preserving the user profile at ~/.hermes/skills.
+Create reusable skills in `.agents/skills/<skill-name>/`. The AI Devbox template exposes that same tree to Claude Code through `.claude/skills`, a symlink, so additions are available immediately without copying or a watcher.
+
+Fresh AI Hermes Devbox templates do not bundle `.agents/` skills or configure project-skill discovery. This framework is optional there: manually add the skills you want and ask the agent to read the relevant `SKILL.md` before use. Existing projects keep previously applied skills until you review them; compare against the previous template and remove only unmodified bundled files, preserving your own additions and edits.

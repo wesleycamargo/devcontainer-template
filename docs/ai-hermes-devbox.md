@@ -55,6 +55,14 @@ start in that same directory; no hardcoded repository-name edits are required.
 
 ## What runs
 
+The template keeps its `Dockerfile`. Its `.devcontainer/` payload contains
+exactly seven files: `.env.example`, `.gitignore`, `Dockerfile`,
+`devcontainer-lock.json`, `devcontainer.json`, `docker-compose.yml` and
+`hermes_devbox.py`. The standard-library-only Python helper implements
+preparation, CLI wrapping, service startup and Webapp opening. The image installs
+it at `/usr/local/lib/hermes_devbox.py` and creates command symlinks;
+`hermes`, `hermes-start-services` and `hermes-webapp-open` remain unchanged.
+
 | Service | Address | Notes |
 | --- | --- | --- |
 | Development shell | `sleep infinity` keeps the container alive | Custom entrypoint prepares state and optionally starts services; Compose retains `init: true` |
@@ -193,8 +201,10 @@ Git settings remain local to the container.
 
 ## Notes
 
-- **Project skills**: files are included in `.agents/skills`; startup does not
-  install or update skills.
+- **Project skills**: fresh templates include no bundled `.agents/` tree or
+  project-skills configuration hook. Skills are optional: add the ones you need
+  manually and ask the agent to read their `SKILL.md`. Startup does not install
+  or update project skills.
 - **Codex/ChatGPT shortcut**: on first start, Hermes imports a valid host Codex
   login and defaults to `openai-codex` / `gpt-5.6-terra`. Explicit provider and
   model choices and existing Hermes logins are preserved. If the initial Codex
@@ -237,6 +247,29 @@ Source: [`src/ai-hermes-devbox/`](../src/ai-hermes-devbox/) ·
 [`Dockerfile`](../src/ai-hermes-devbox/.devcontainer/Dockerfile) ·
 [`publish-ai-hermes-devbox.yml`](../.github/workflows/publish-ai-hermes-devbox.yml) ·
 [in-template README](../src/ai-hermes-devbox/README.md)
+
+## Migration to the Python runtime
+
+Back up `.devcontainer/`, any bundled `.agents/` files and important Hermes
+data before reapplying the template. Keep credential-bearing backups private.
+Reapplying does not automatically clean existing projects: obsolete files can
+remain even though fresh templates no longer ship them.
+
+Compare these files with the template version you originally applied, and
+manually remove only unmodified copies:
+
+- `.devcontainer/entrypoint.sh`
+- `.devcontainer/hermes.sh`
+- `.devcontainer/start-services.sh`
+- `.devcontainer/webapp-open.py`
+- `.devcontainer/scripts/configure-project-skills.sh`
+- Old bundled files under `.agents/`.
+
+Preserve user-created or edited files; review and port any needed customizations
+before deciding what to retain. Keep the `Dockerfile` and the other seven-file
+payload entries listed above. Pull the new image and recreate the container as
+described under **Updating**, retaining the same Compose project and named data
+volumes. Updating template files alone does not change the image-owned runtime.
 
 ## Migration from the SSH-enabled devbox
 

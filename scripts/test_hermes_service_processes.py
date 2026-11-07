@@ -1,6 +1,7 @@
 """Check service detection against real processes with upstream launcher argv."""
 
 import os
+import importlib.util
 from pathlib import Path
 import re
 import subprocess
@@ -9,10 +10,19 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = (
-    ROOT / "src/ai-hermes-devbox/.devcontainer/start-services.sh",
-    ROOT / ".devcontainer/start-services.sh",
+    ROOT / "src/ai-hermes-devbox/.devcontainer/hermes_devbox.py",
+    ROOT / ".devcontainer/hermes_devbox.py",
     ROOT / "scripts/validate-hermes-runtime.py",
 )
+
+
+def service_patterns(source):
+    spec = importlib.util.spec_from_file_location("service_patterns", source)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return (module.GATEWAY, module.DASHBOARD)
+
+
 OFFICIAL = (
     "/opt/hermes/.venv/bin/python -P -c import os, site, sys; "
     "sys.argv[0]='hermes'; site.addsitedir(os.environ['HERMES_SITE']); "
@@ -25,9 +35,7 @@ class ServiceProcessTests(unittest.TestCase):
         # A real sleep process with the launcher's argv[0] exercises pgrep -f,
         # without starting a gateway or touching the operator's Hermes data.
         for source in SOURCES:
-            text = source.read_text()
-            patterns = re.findall(r'pgrep -f(?:c)? "([^"]+)"', text)
-            patterns += re.findall(r'(?m)^(?:GATEWAY|DASHBOARD) = r"([^"]+)"', text)
+            patterns = service_patterns(source)
             self.assertTrue(patterns, source)
             for pattern in patterns:
                 service = "dashboard" if "dashboard" in pattern else "gateway"

@@ -97,7 +97,12 @@ RUN install -d -o hermes -g hermes /home/hermes/.local \
 
 # The wrapper supplies the same runtime environment to Docker exec and shells,
 # including env -i; root invocations drop to hermes before touching user data.
-COPY --chmod=755 hermes.sh /usr/local/bin/hermes
+COPY --chmod=755 hermes_devbox.py /usr/local/lib/hermes_devbox.py
+RUN ln -sf /usr/local/lib/hermes_devbox.py /usr/local/bin/hermes \
+    && ln -sf /usr/local/lib/hermes_devbox.py /usr/local/bin/hermes-entrypoint \
+    && ln -sf /usr/local/lib/hermes_devbox.py /usr/local/bin/hermes-start-services \
+    && ln -sf /usr/local/lib/hermes_devbox.py /usr/local/bin/hermes-webapp-open \
+    && /opt/hermes/.venv/bin/python -m py_compile /usr/local/lib/hermes_devbox.py
 RUN ln -s /opt/hermes/.venv/bin/hermes-acp /usr/local/bin/hermes-acp \
     && ln -s /opt/hermes/.venv/bin/hermes-agent /usr/local/bin/hermes-agent
 
@@ -111,12 +116,5 @@ RUN --network=none timeout 60 runuser -u hermes -- hermes --version </dev/null \
     && node --version
 
 # Keep data/bootstrap preparation and Compose init, not the upstream s6 entrypoint.
-COPY --chmod=755 entrypoint.sh /usr/local/bin/hermes-entrypoint
-COPY --chmod=755 start-services.sh /usr/local/bin/hermes-start-services
-COPY --chmod=755 webapp-open.py /usr/local/bin/hermes-webapp-open
-RUN bash -n /usr/local/bin/hermes-entrypoint \
-    && bash -n /usr/local/bin/hermes-start-services \
-    && sh -n /usr/local/bin/hermes
-
 ENTRYPOINT ["/usr/local/bin/hermes-entrypoint"]
 CMD ["sleep", "infinity"]

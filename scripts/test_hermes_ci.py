@@ -118,6 +118,16 @@ class HermesRealGitDecisionTests(unittest.TestCase):
 
 
 class HermesWorkflowTests(unittest.TestCase):
+    def test_preflight_compiles_the_consolidated_runtime(self):
+        text = WORKFLOW.read_text()
+        preflight = text.split("  validate:\n", 1)[0]
+        self.assertIn(
+            "python3 -m py_compile src/ai-hermes-devbox/.devcontainer/hermes_devbox.py",
+            preflight,
+        )
+        for obsolete in ("entrypoint.sh", "start-services.sh", "hermes.sh", "webapp-open.py"):
+            self.assertNotIn(obsolete, preflight)
+
     def test_only_publish_workflow_owns_hermes_triggers(self):
         self.assertFalse((ROOT / ".github/workflows/validate-hermes-gateway.yml").exists())
         text = WORKFLOW.read_text()

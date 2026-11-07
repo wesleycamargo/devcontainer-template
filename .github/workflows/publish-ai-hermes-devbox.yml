@@ -63,12 +63,13 @@ jobs:
         run: npm test && npm run check
       - name: Run fast Hermes tests
         run: python3 -B -m unittest discover -s scripts -p 'test_*hermes*.py' -v
-      - name: Check shell syntax and whitespace
+      - name: Check runtime syntax and whitespace
         run: |
-          bash -n src/ai-hermes-devbox/.devcontainer/entrypoint.sh
-          bash -n src/ai-hermes-devbox/.devcontainer/start-services.sh
+          python3 -m py_compile src/ai-hermes-devbox/.devcontainer/hermes_devbox.py
+          python3 -m py_compile .devcontainer/hermes_devbox.py
           bash -n scripts/validate-hermes-runtime.sh
           bash -n scripts/validate-hermes-devcontainer.sh
+          bash -n scripts/sync-template-agents.sh
           git diff --check
       - name: Decide whether this event publishes the template
         id: publish

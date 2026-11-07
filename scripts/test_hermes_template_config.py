@@ -9,6 +9,15 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "src/ai-hermes-devbox/.devcontainer"
 CONFIG_DIRS = (ROOT / ".devcontainer", SOURCE)
+EXPECTED_DEVCONTAINER_FILES = {
+    ".env.example",
+    ".gitignore",
+    "Dockerfile",
+    "devcontainer-lock.json",
+    "devcontainer.json",
+    "docker-compose.yml",
+    "hermes_devbox.py",
+}
 
 
 def read_jsonc(path):
@@ -17,6 +26,40 @@ def read_jsonc(path):
 
 
 class HermesTemplateConfigTests(unittest.TestCase):
+    def test_devcontainer_payloads_contain_exactly_seven_files(self):
+        for directory in CONFIG_DIRS:
+            with self.subTest(directory=str(directory.relative_to(ROOT))):
+                actual = {
+                    path.relative_to(directory).as_posix()
+                    for path in directory.rglob("*") if path.is_file()
+                }
+                self.assertEqual(actual, EXPECTED_DEVCONTAINER_FILES)
+
+    def test_published_template_contains_only_consumer_payload(self):
+        directory = SOURCE.parent
+        actual = {
+            path.relative_to(directory).as_posix()
+            for path in directory.rglob("*") if path.is_file()
+        }
+        expected = {"README.md", "devcontainer-template.json"} | {
+            f".devcontainer/{name}" for name in EXPECTED_DEVCONTAINER_FILES
+        }
+        self.assertEqual(actual, expected)
+
+    def test_bundled_skills_and_unused_hooks_are_absent(self):
+        self.assertFalse((SOURCE.parent / ".agents").exists())
+        for directory in CONFIG_DIRS:
+            with self.subTest(directory=str(directory.relative_to(ROOT))):
+                self.assertFalse(
+                    (directory / "scripts/configure-project-skills.sh").exists(),
+                )
+
+    def test_skill_sync_targets_only_remaining_bundled_templates(self):
+        script = (ROOT / "scripts/sync-template-agents.sh").read_text()
+        self.assertIn("templates=(ai-devbox ai-esp32-devbox)", script)
+        self.assertNotIn("ai-hermes-devbox", script)
+        self.assertNotIn("configure-project-skills", script)
+
     def test_github_cli_is_only_installed_by_image(self):
         for directory in CONFIG_DIRS:
             with self.subTest(directory=str(directory.relative_to(ROOT))):
@@ -58,7 +101,8 @@ class HermesTemplateConfigTests(unittest.TestCase):
             ["git", "ls-files", "-z", ".devcontainer/"], cwd=ROOT,
         ).decode().split("\0")
         self.assertTrue(any(paths))
-        for relative in filter(None, paths):
+        expected_paths = {f".devcontainer/{name}" for name in EXPECTED_DEVCONTAINER_FILES}
+        for relative in sorted(set(filter(None, paths)) | expected_paths):
             with self.subTest(path=relative):
                 source = ROOT / relative
                 mirror = ROOT / "src/ai-hermes-devbox" / relative
