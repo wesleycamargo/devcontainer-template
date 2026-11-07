@@ -20,7 +20,6 @@ services:
     # are not published. VS Code forwards both locally; image users can opt
     # into remote Webapp access separately (see ../README.md).
     volumes:
-      - ../..:/workspaces:cached
       # Docker creates the named volumes on demand and initializes them from
       # the image. Settings/history survive rebuilds; Codex auth comes from
       # the host file mounted below.
