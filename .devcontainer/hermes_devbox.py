@@ -31,7 +31,14 @@ WORKSPACES = Path("/workspaces")
 GATEWAY = r"[h]ermes gateway([[:space:]]|$)|[h]ermes_cli[.]main.* gateway([[:space:]]|$)"
 DASHBOARD = r"[h]ermes dashboard([[:space:]]|$)|[h]ermes_cli[.]main.* dashboard([[:space:]]|$)"
 
-CODEX_SEED = """import sys
+# Maintainer defaults: edit here, then mirror this helper to root .devcontainer/.
+DEFAULT_CODEX_MODEL = "gpt-6.1-sol"
+DEFAULT_REASONING_EFFORT = "medium"
+
+CODEX_SEED = (
+    f"DEFAULT_MODEL = {DEFAULT_CODEX_MODEL!r}\n"
+    f"DEFAULT_EFFORT = {DEFAULT_REASONING_EFFORT!r}\n"
+    + """import sys
 try:
     from hermes_cli.auth import (
         _auth_store_lock, _load_auth_store, _load_provider_state,
@@ -56,8 +63,79 @@ with _auth_store_lock():
         _save_codex_tokens(tokens)
 _update_config_for_provider("openai-codex", _codex_base_url())
 if not model.get("default"):
-    set_config_value("model.default", "gpt-5.6-terra")
+    set_config_value("model.default", DEFAULT_MODEL)
+    agent = config.get("agent", {})
+    if isinstance(agent, dict) and "reasoning_effort" not in agent:
+        set_config_value("agent.reasoning_effort", DEFAULT_EFFORT)
 print("configured openai-codex; existing login and model choice preserved")
+""")
+
+ENV_DEFAULTS = """import os
+from urllib.parse import urlsplit
+from hermes_cli.config import (
+    atomic_config_write, get_config_path, require_readable_config_before_write,
+)
+
+mapping = {
+    "HERMES_MODEL_PROVIDER": ("model", "provider"),
+    "HERMES_DEFAULT_MODEL": ("model", "default"),
+    "HERMES_MODEL_BASE_URL": ("model", "base_url"),
+    "HERMES_TERMINAL_CWD": ("terminal", "cwd"),
+    "HERMES_TERMINAL_BACKEND": ("terminal", "backend"),
+    "HERMES_TERMINAL_TIMEOUT": ("terminal", "timeout"),
+    "HERMES_WEBAPP_ENABLED": ("webapp", "enabled"),
+    "HERMES_WEBAPP_HOST": ("webapp", "host"),
+    "HERMES_WEBAPP_PORT": ("webapp", "port"),
+}
+path = get_config_path()
+config = require_readable_config_before_write(path) if any(
+    os.environ.get(name, "").strip() for name in mapping) else {}
+updates = {}
+for name, (section, key) in mapping.items():
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        continue
+    current = config.get(section, {})
+    if not isinstance(current, dict):
+        raise ValueError("bootstrap section must be a mapping")
+    value = raw
+    if name in {"HERMES_TERMINAL_TIMEOUT", "HERMES_WEBAPP_PORT"}:
+        if not raw.isascii() or not raw.isdecimal():
+            raise ValueError("bootstrap value must be a positive integer")
+        value = int(raw)
+        if value < 1 or (name == "HERMES_WEBAPP_PORT" and value > 65535):
+            raise ValueError("bootstrap integer is out of range")
+    elif name == "HERMES_WEBAPP_ENABLED":
+        booleans = {"true": True, "1": True, "false": False, "0": False}
+        if raw.lower() not in booleans:
+            raise ValueError("bootstrap boolean is invalid")
+        value = booleans[raw.lower()]
+    elif name == "HERMES_WEBAPP_HOST":
+        if raw not in {"127.0.0.1", "localhost", "::1"}:
+            raise ValueError("bootstrap Webapp host must be loopback")
+    elif name == "HERMES_TERMINAL_CWD":
+        if not raw.startswith("/") or raw.startswith("//"):
+            raise ValueError("bootstrap cwd must be an absolute target path")
+    elif name == "HERMES_MODEL_BASE_URL":
+        url = urlsplit(raw)
+        if (url.scheme not in {"http", "https"} or not url.hostname or
+                url.username is not None or url.password is not None or "?" in raw or "#" in raw or
+                any(char.isspace() or ord(char) < 32 for char in raw)):
+            raise ValueError("bootstrap model URL is invalid")
+        url.port
+    if key not in current:
+        updates.setdefault(section, {})[key] = value
+
+model_updates = updates.get("model", {})
+if os.environ.get("HERMES_MODEL_BASE_URL", "").strip():
+    provider = config.get("model", {}).get("provider", model_updates.get("provider"))
+    if provider != "custom":
+        raise ValueError("bootstrap model URL requires the custom provider")
+if updates:
+    for section, leaves in updates.items():
+        config[section] = {**config.get(section, {}), **leaves}
+    atomic_config_write(path, config)
+    print("hermes-start-services: filled missing environment defaults")
 """
 
 ENV_DEFAULTS = """import os
@@ -241,7 +319,7 @@ def seed_codex_default_model(home):
     if marker.is_file() or not auth.is_file() or not auth.stat().st_size or not os.access(PYTHON, os.X_OK):
         return
     print("hermes-start-services: seeding default model from ~/.codex/auth.json "
-          "(openai-codex / gpt-5.6-terra)")
+          f"(openai-codex / {DEFAULT_CODEX_MODEL}, {DEFAULT_REASONING_EFFORT} reasoning)")
     try:
         result = run_integration(CODEX_SEED)
         # Integration diagnostics stay in a private project log, never the terminal.

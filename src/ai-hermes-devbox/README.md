@@ -88,7 +88,7 @@ alone and prints cleanup guidance in `docker compose logs devcontainer`; they
 are no longer used by the active `hermes` executable.
 
 **Codex / ChatGPT shortcut.** On first start, `hermes-start-services` imports
-the valid host Codex login and defaults to `openai-codex` / `gpt-5.6-terra`.
+the valid host Codex login and defaults to `openai-codex` / `gpt-6.1-sol` with medium reasoning.
 Explicit provider and model choices and existing Hermes logins are preserved.
 Each project imports the host Codex credentials into its own Hermes store.
 No interactive Hermes login is started.
