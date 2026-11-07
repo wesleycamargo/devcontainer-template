@@ -394,6 +394,74 @@ class NoSshEntrypointTests(unittest.TestCase):
                 self.assertEqual(calls[0][-1], "--version")
                 self.assertIn("legacy Hermes data notice", output)
 
+    def test_old_volume_notices_survive_real_exec_with_piped_stdout(self):
+        # A StringIO capture or mocked exec hides Python's lost stdout buffer.
+        child = r'''
+import importlib.util
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+from types import SimpleNamespace
+from unittest.mock import patch
+
+spec = importlib.util.spec_from_file_location("entrypoint_fixture", sys.argv[1])
+runtime = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(runtime)
+fixture = Path(sys.argv[2])
+real_exec = os.execvp
+
+def execute(program, args):
+    (fixture / "exec.json").write_text(json.dumps([program, args]))
+    # Intercept user switching/keepalive only; still replace this interpreter.
+    real_exec(sys.executable, [sys.executable, "-c", "print('exec replacement reached')"])
+
+with (patch.object(runtime, "HOME", fixture / "home"),
+      patch.object(runtime, "RUNTIME", fixture / "upstream"),
+      patch.object(runtime, "RUNTIME_TMP", fixture / "runtime"),
+      patch.object(runtime.pwd, "getpwnam", return_value=SimpleNamespace(
+          pw_uid=os.getuid(), pw_gid=os.getgid())),
+      patch.object(runtime.subprocess, "run", return_value=subprocess.CompletedProcess(
+          [], 1, "synthetic-private-access-token", "synthetic-private-refresh-token")),
+      patch.object(runtime.os, "execvp", side_effect=execute)):
+    runtime.entrypoint(json.loads(sys.argv[3]))
+raise AssertionError("exec returned instead of replacing the interpreter")
+'''
+        for directory in (SOURCE, ROOT / ".devcontainer"):
+            for command in (["sleep", "infinity"], ["custom-command", "literal argument"]):
+                with self.subTest(directory=directory, command=command), tempfile.TemporaryDirectory() as temporary:
+                    fixture = Path(temporary)
+                    data = fixture / "home/.hermes"
+                    for legacy in ("hermes-agent", "node"):
+                        (data / legacy).mkdir(parents=True)
+                        (data / legacy / "keep.txt").write_text("legacy data\n")
+                    (fixture / "upstream").mkdir()
+                    (fixture / "upstream/.env.example").write_text("SYNTHETIC_SECRET=do-not-log\n")
+                    result = subprocess.run(
+                        [sys.executable, "-B", "-c", child, str(directory / "hermes_devbox.py"),
+                         temporary, json.dumps(command)],
+                        env={"PATH": os.defpath, "HERMES_AUTOSTART_SERVICES": "1"},
+                        capture_output=True, text=True, timeout=10)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn("exec replacement reached", result.stdout)
+                    for legacy in ("hermes-agent", "node"):
+                        self.assertIn(f"~/.hermes/{legacy}", result.stdout)
+                        self.assertEqual((data / legacy / "keep.txt").read_text(), "legacy data\n")
+                    self.assertIn("leftover from an older image", result.stdout)
+                    self.assertIn("active source is /opt/hermes", result.stdout)
+                    self.assertIn("seeded ~/.hermes/.env", result.stdout)
+                    self.assertIn("runtime check failed", result.stdout)
+                    self.assertIn("reported a problem", result.stdout)
+                    self.assertLess(result.stdout.index("leftover from an older image"),
+                                    result.stdout.index("exec replacement reached"))
+                    for secret in ("do-not-log", "synthetic-private-access-token", "synthetic-private-refresh-token"):
+                        self.assertNotIn(secret, result.stdout + result.stderr)
+                    expected = (["runuser", "-u", "hermes", "--", *command]
+                                if command == ["sleep", "infinity"] else command)
+                    self.assertEqual(json.loads((fixture / "exec.json").read_text()),
+                                     [expected[0], expected])
+
     def test_existing_data_is_not_replaced_during_restart(self):
         for directory in CONFIGS:
             with self.subTest(directory=directory):
