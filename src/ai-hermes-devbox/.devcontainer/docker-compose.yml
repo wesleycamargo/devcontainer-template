@@ -16,6 +16,16 @@ services:
       # Set HERMES_AUTOSTART_SERVICES=0 for the development shell only.
       HERMES_AUTOSTART_SERVICES: "${HERMES_AUTOSTART_SERVICES:-1}"
       HERMES_AUTOSTART_DASHBOARD: "${HERMES_AUTOSTART_DASHBOARD:-0}"
+      # Optional bootstrap defaults; blank means no requested value.
+      HERMES_MODEL_PROVIDER: "${HERMES_MODEL_PROVIDER:-}"
+      HERMES_DEFAULT_MODEL: "${HERMES_DEFAULT_MODEL:-}"
+      HERMES_MODEL_BASE_URL: "${HERMES_MODEL_BASE_URL:-}"
+      HERMES_TERMINAL_CWD: "${HERMES_TERMINAL_CWD:-}"
+      HERMES_TERMINAL_BACKEND: "${HERMES_TERMINAL_BACKEND:-}"
+      HERMES_TERMINAL_TIMEOUT: "${HERMES_TERMINAL_TIMEOUT:-}"
+      HERMES_WEBAPP_ENABLED: "${HERMES_WEBAPP_ENABLED:-}"
+      HERMES_WEBAPP_HOST: "${HERMES_WEBAPP_HOST:-}"
+      HERMES_WEBAPP_PORT: "${HERMES_WEBAPP_PORT:-}"
     # Optional dashboard (9119) and Webapp (9120) default to container loopback and
     # are not published. VS Code forwards both locally; image users can opt
     # into remote Webapp access separately (see ../README.md).

@@ -52,6 +52,13 @@ class Runtime:
             "HERMES_AUTOSTART_DASHBOARD": "0",
         }
 
+        for key in (
+            "HERMES_MODEL_PROVIDER", "HERMES_DEFAULT_MODEL", "HERMES_MODEL_BASE_URL",
+            "HERMES_TERMINAL_CWD", "HERMES_TERMINAL_BACKEND", "HERMES_TERMINAL_TIMEOUT",
+            "HERMES_WEBAPP_ENABLED", "HERMES_WEBAPP_HOST", "HERMES_WEBAPP_PORT",
+        ):
+            self.env.pop(key, None)
+
     def __enter__(self):
         def terminate(number, frame):
             raise SystemExit(128 + number)
@@ -196,10 +203,21 @@ def check_a(runtime):
 
 
 def check_b(runtime):
+    runtime.env.update(HERMES_MODEL_PROVIDER="custom", HERMES_DEFAULT_MODEL="fixture-model",
+                       HERMES_MODEL_BASE_URL="http://127.0.0.1:8000/v1",
+                       HERMES_TERMINAL_TIMEOUT="240")
+
     runtime.compose("default", "up", "-d")
     name = runtime.compose_id("default")
     runtime.idle(name)
     runtime.webapp(name)
+    for key, expected in (("model.provider", "custom"), ("model.default", "fixture-model"),
+                          ("model.base_url", "http://127.0.0.1:8000/v1"), ("terminal.timeout", "240")):
+        actual = runtime.user(name, "hermes", "config", "get", key).stdout.strip()
+        assert actual == expected, (key, actual)
+    runtime.user(name, "hermes", "config", "set", "model.default", "operator-choice")
+    runtime.user(name, "hermes-start-services")
+    assert runtime.user(name, "hermes", "config", "get", "model.default").stdout.strip() == "operator-choice"
     runtime.isolated(name)
     assert runtime.count(name, DASHBOARD) == 0
     count = runtime.count(name, GATEWAY)

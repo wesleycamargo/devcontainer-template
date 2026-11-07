@@ -7,6 +7,21 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 CONFIGS = (ROOT / "src/ai-hermes-devbox/.devcontainer", ROOT / ".devcontainer")
 class ComposeStartupTests(unittest.TestCase):
+    def test_bootstrap_inputs_are_explicit_and_documented(self):
+        names = (
+            "HERMES_MODEL_PROVIDER", "HERMES_DEFAULT_MODEL", "HERMES_MODEL_BASE_URL",
+            "HERMES_TERMINAL_CWD", "HERMES_TERMINAL_BACKEND", "HERMES_TERMINAL_TIMEOUT",
+            "HERMES_WEBAPP_ENABLED", "HERMES_WEBAPP_HOST", "HERMES_WEBAPP_PORT",
+        )
+        for directory in CONFIGS:
+            compose = (directory / "docker-compose.yml").read_text()
+            example = (directory / ".env.example").read_text()
+            with self.subTest(directory=directory):
+                for name in names:
+                    self.assertIn(f'{name}: "${{{name}:-}}"', compose)
+                    self.assertIn(f"# {name}=", example)
+                self.assertNotIn("env_file:", compose)
+
     def test_env_example_exposes_both_startup_policies(self):
         for config in CONFIGS:
             with self.subTest(config=config):

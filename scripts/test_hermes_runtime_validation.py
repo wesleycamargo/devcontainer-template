@@ -24,6 +24,17 @@ class RuntimeFixtureTests(unittest.TestCase):
         spec.loader.exec_module(module)
         return module
 
+    def test_runtime_does_not_inherit_operator_bootstrap_inputs(self):
+        module = self.module()
+        with patch.dict(os.environ, {"HERMES_MODEL_PROVIDER": "operator-provider",
+                                    "HERMES_WEBAPP_PORT": "9999"}):
+            runtime = module.Runtime("fixture:image")
+            try:
+                self.assertNotIn("HERMES_MODEL_PROVIDER", runtime.env)
+                self.assertNotIn("HERMES_WEBAPP_PORT", runtime.env)
+            finally:
+                runtime.temp.cleanup()
+
     def test_runtime_wrapper_is_executable(self):
         wrapper = ROOT / "scripts/validate-hermes-runtime.sh"
         self.assertEqual(wrapper.stat().st_mode & 0o777, 0o755)
