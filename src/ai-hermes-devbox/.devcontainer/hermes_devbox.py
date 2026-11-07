@@ -256,6 +256,14 @@ def seed_codex_default_model(home):
           "(see ~/.hermes/logs/codex-seed.out)")
 
 
+def ensure_env_defaults():
+    result = run_integration(ENV_DEFAULTS)
+    if result.returncode:
+        raise RuntimeError("could not apply environment defaults; check bootstrap settings")
+    if result.stdout:
+        print(result.stdout, end="")
+
+
 def ensure_webapp_defaults(home):
     # HOME is inherited unchanged by the official config API, just as for hermes.
     result = run_integration(WEBAPP_DEFAULTS)
@@ -291,6 +299,11 @@ def start_services():
     home = Path(os.environ.get("HOME") or HOME)
     logs = home / ".hermes/logs"
     logs.mkdir(parents=True, exist_ok=True)
+    try:
+        ensure_env_defaults()
+    except (RuntimeError, OSError, subprocess.TimeoutExpired):
+        print("hermes-start-services: could not apply environment defaults; check bootstrap settings and config.yaml")
+        return 1
     seed_codex_default_model(home)
     try:
         ensure_webapp_defaults(home)
