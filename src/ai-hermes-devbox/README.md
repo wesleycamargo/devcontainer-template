@@ -362,9 +362,9 @@ credentials intact. Git settings remain local to the container.
 
 ### Workspace location
 
-The parent directory containing the applied repository is mounted at
-`/workspaces`. VS Code automatically opens
-`/workspaces/<your-repository-directory-name>`; no template edits are required.
+The Dev Container mounts the applied repository directly at
+`/workspaces/<your-repository-directory-name>`. VS Code and the Hermes gateway
+start in that same directory; no template edits are required.
 
 ## Troubleshooting
 

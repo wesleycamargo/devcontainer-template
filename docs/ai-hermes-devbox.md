@@ -44,9 +44,9 @@ locally, choosing an available port for each project.
 
 ## Workspace location
 
-Compose mounts the parent directory at `/workspaces`; VS Code opens
-`/workspaces/${localWorkspaceFolderBasename}`. No hardcoded repository-name
-edits are required.
+The Dev Container mounts the opened repository directly at
+`/workspaces/${localWorkspaceFolderBasename}`. VS Code and the Hermes gateway
+start in that same directory; no hardcoded repository-name edits are required.
 
 ## What runs
 
