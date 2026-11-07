@@ -102,6 +102,20 @@ PY
   exit 1
 fi
 
+# The local terminal backend uses the gateway process's current directory.
+# Dev Containers mount the opened project as the sole child of /workspaces, so
+# start the gateway from that exact project rather than from the image runtime.
+workspace_dirs=()
+for candidate in /workspaces/*; do
+  [ -d "$candidate" ] && workspace_dirs+=("$candidate")
+done
+if [ "${#workspace_dirs[@]}" -eq 1 ]; then
+  cd "${workspace_dirs[0]}" || exit 1
+  echo "hermes-start-services: using Dev Container workspace $PWD"
+else
+  echo "hermes-start-services: expected one Dev Container workspace under /workspaces; keeping $PWD"
+fi
+
 # The official launcher execs Python with an inline hermes_cli.main import,
 # not a literal `hermes gateway` argv. Match both official and legacy launchers.
 if pgrep -f "[h]ermes gateway([[:space:]]|$)|[h]ermes_cli[.]main.* gateway([[:space:]]|$)" >/dev/null 2>&1; then
