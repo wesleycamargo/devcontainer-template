@@ -163,6 +163,19 @@ Logs remain `~/.hermes/logs/gateway.out` and, when enabled, `dashboard.out`.
 Closing the attached VS Code window stops the Compose project via
 `shutdownAction: stopCompose` instead of leaving services running.
 
+## Optional Hermes defaults
+
+Copy `.devcontainer/.env.example` to `.devcontainer/.env` before opening or recreating the container. Uncomment `HERMES_MODEL_PROVIDER` and `HERMES_DEFAULT_MODEL`, replacing the model ID with one supported by that provider. Uncomment other entries only when needed: `HERMES_MODEL_BASE_URL`, `HERMES_TERMINAL_CWD`, `HERMES_TERMINAL_BACKEND`, `HERMES_TERMINAL_TIMEOUT`, `HERMES_WEBAPP_ENABLED`, `HERMES_WEBAPP_HOST`, and `HERMES_WEBAPP_PORT`.
+
+These are initial defaults, not forced overrides. Saved Hermes settings always win, including false or empty values; blank environment inputs do nothing. Later edits to this file do not replace saved choices. Use `hermes model` or `hermes config set model.default YOUR_MODEL_ID` to change an existing model, and recreate after active work finishes while retaining named volumes.
+
+The custom endpoint input requires provider `custom` and must not contain credentials. Workspace paths are absolute paths inside the target environment, not host paths or VS Code substitution variables. Selecting a backend does not provision or authenticate it. Webapp host bootstrap accepts loopback only; remote access still follows the separate authenticated procedure. A different Webapp port may require changing VS Code forwarding too.
+
+Credentials belong in Hermes' private secret store, not Compose's `.env`. Provider settings do not authenticate you, and the existing host Codex file mount prerequisite remains unchanged. Without these optional inputs, existing Codex model seeding and local Webapp fallback defaults remain unchanged. In shell-only mode, bootstrap runs when you explicitly start services. Changed Compose environment inputs require container recreation, not a process restart.
+
+Environment bootstrap runs before Codex seeding and Webapp fallbacks. Unrequested, missing Webapp settings still receive true/127.0.0.1/9120.
+
+
 ## Webapp in VS Code
 
 The image reuses `nousresearch/hermes-agent:main-desktop`, pinned to the
@@ -198,7 +211,8 @@ the image still supports `hermes webapp --no-open` and authenticated remote
 access below. The opener uses VS Code's
 [remote CLI browser protocol](https://github.com/microsoft/vscode/blob/main/src/vs/workbench/api/browser/mainThreadCLICommands.ts).
 
-Startup fills only missing `webapp.enabled`, `webapp.host` and `webapp.port`
+Environment bootstrap runs first. Startup fallbacks then fill only missing
+`webapp.enabled`, `webapp.host` and `webapp.port`
 with `true`, `127.0.0.1` and `9120`. Existing settings, including an explicit
 `enabled: false`, are preserved. If an older gateway was already running,
 restart the container after chats finish. The opener also forwards custom

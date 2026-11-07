@@ -60,6 +60,74 @@ if not model.get("default"):
 print("configured openai-codex; existing login and model choice preserved")
 """
 
+ENV_DEFAULTS = """import os
+from urllib.parse import urlsplit
+from hermes_cli.config import (
+    atomic_config_write, get_config_path, require_readable_config_before_write,
+)
+
+mapping = {
+    "HERMES_MODEL_PROVIDER": ("model", "provider"),
+    "HERMES_DEFAULT_MODEL": ("model", "default"),
+    "HERMES_MODEL_BASE_URL": ("model", "base_url"),
+    "HERMES_TERMINAL_CWD": ("terminal", "cwd"),
+    "HERMES_TERMINAL_BACKEND": ("terminal", "backend"),
+    "HERMES_TERMINAL_TIMEOUT": ("terminal", "timeout"),
+    "HERMES_WEBAPP_ENABLED": ("webapp", "enabled"),
+    "HERMES_WEBAPP_HOST": ("webapp", "host"),
+    "HERMES_WEBAPP_PORT": ("webapp", "port"),
+}
+path = get_config_path()
+config = require_readable_config_before_write(path) if any(
+    os.environ.get(name, "").strip() for name in mapping) else {}
+updates = {}
+for name, (section, key) in mapping.items():
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        continue
+    current = config.get(section, {})
+    if not isinstance(current, dict):
+        raise ValueError("bootstrap section must be a mapping")
+    value = raw
+    if name in {"HERMES_TERMINAL_TIMEOUT", "HERMES_WEBAPP_PORT"}:
+        if not raw.isascii() or not raw.isdecimal():
+            raise ValueError("bootstrap value must be a positive integer")
+        value = int(raw)
+        if value < 1 or (name == "HERMES_WEBAPP_PORT" and value > 65535):
+            raise ValueError("bootstrap integer is out of range")
+    elif name == "HERMES_WEBAPP_ENABLED":
+        booleans = {"true": True, "1": True, "false": False, "0": False}
+        if raw.lower() not in booleans:
+            raise ValueError("bootstrap boolean is invalid")
+        value = booleans[raw.lower()]
+    elif name == "HERMES_WEBAPP_HOST":
+        if raw not in {"127.0.0.1", "localhost", "::1"}:
+            raise ValueError("bootstrap Webapp host must be loopback")
+    elif name == "HERMES_TERMINAL_CWD":
+        if not raw.startswith("/") or raw.startswith("//"):
+            raise ValueError("bootstrap cwd must be an absolute target path")
+    elif name == "HERMES_MODEL_BASE_URL":
+        url = urlsplit(raw)
+        if (url.scheme not in {"http", "https"} or not url.hostname or
+                url.username is not None or url.password is not None or "?" in raw or "#" in raw or
+                any(char.isspace() or ord(char) < 32 for char in raw)):
+            raise ValueError("bootstrap model URL is invalid")
+        url.port
+    if key not in current:
+        updates.setdefault(section, {})[key] = value
+
+model_updates = updates.get("model", {})
+if os.environ.get("HERMES_MODEL_BASE_URL", "").strip():
+    provider = config.get("model", {}).get("provider", model_updates.get("provider"))
+    if provider != "custom":
+        raise ValueError("bootstrap model URL requires the custom provider")
+if updates:
+    for section, leaves in updates.items():
+        config[section] = {**config.get(section, {}), **leaves}
+    atomic_config_write(path, config)
+    print("hermes-start-services: filled missing environment defaults")
+"""
+
 WEBAPP_DEFAULTS = """from hermes_cli.config import (
     atomic_config_write, get_config_path, require_readable_config_before_write,
 )
@@ -188,6 +256,14 @@ def seed_codex_default_model(home):
           "(see ~/.hermes/logs/codex-seed.out)")
 
 
+def ensure_env_defaults():
+    result = run_integration(ENV_DEFAULTS)
+    if result.returncode:
+        raise RuntimeError("could not apply environment defaults; check bootstrap settings")
+    if result.stdout:
+        print(result.stdout, end="")
+
+
 def ensure_webapp_defaults(home):
     # HOME is inherited unchanged by the official config API, just as for hermes.
     result = run_integration(WEBAPP_DEFAULTS)
@@ -223,6 +299,11 @@ def start_services():
     home = Path(os.environ.get("HOME") or HOME)
     logs = home / ".hermes/logs"
     logs.mkdir(parents=True, exist_ok=True)
+    try:
+        ensure_env_defaults()
+    except (RuntimeError, OSError, subprocess.TimeoutExpired):
+        print("hermes-start-services: could not apply environment defaults; check bootstrap settings and config.yaml")
+        return 1
     seed_codex_default_model(home)
     try:
         ensure_webapp_defaults(home)

@@ -92,7 +92,7 @@ def atomic_config_write(path, config):
 class DashboardStartupTests(unittest.TestCase):
     def run_starter(self, dashboard=None, *, running_gateway=False,
                     running_dashboard=False, master=None, config=None,
-                    workspace_names=("project",), expected_code=0):
+                    workspace_names=("project",), expected_code=0, extra_env=None):
         with tempfile.TemporaryDirectory(prefix="hermes-startup-") as directory:
             home = Path(directory)
             data = home / ".hermes"
@@ -119,6 +119,7 @@ class DashboardStartupTests(unittest.TestCase):
             hermes.chmod(0o755)
             env = {"PATH": str(commands),
                    "HOME": directory, "PYTHONPATH": directory}
+            env.update(extra_env or {})
             if dashboard is not None:
                 env["HERMES_AUTOSTART_DASHBOARD"] = dashboard
             if master is not None:
@@ -146,6 +147,32 @@ class DashboardStartupTests(unittest.TestCase):
                 raw_config=path.read_text() if path.exists() else None,
                 writes=writes.read_text().splitlines() if writes.exists() else [],
                 workdirs=workdirs, workspace_root=workspaces)
+
+    def test_environment_defaults_precede_fallbacks(self):
+        result = self.run_starter(extra_env={
+            "HERMES_MODEL_PROVIDER": "custom", "HERMES_DEFAULT_MODEL": "fixture-model",
+            "HERMES_WEBAPP_ENABLED": "false", "HERMES_WEBAPP_PORT": "9130",
+        })
+        self.assertEqual(json.loads(result.raw_config), {
+            "model": {"provider": "custom", "default": "fixture-model"},
+            "webapp": {"enabled": False, "host": "127.0.0.1", "port": 9130},
+        })
+
+    def test_invalid_env_prevents_seed_and_service_start(self):
+        with patch.object(runtime, "seed_codex_default_model") as seed:
+            result = self.run_starter(extra_env={"HERMES_WEBAPP_PORT": "invalid"}, expected_code=1)
+        seed.assert_not_called()
+        self.assertEqual(result.calls, [])
+        self.assertIsNone(result.raw_config)
+
+    def test_bootstrap_precedes_codex_import(self):
+        events = []
+        def seed(home):
+            saved = json.loads((Path(home) / ".hermes/config.json").read_text())
+            events.append(saved["model"]["provider"])
+        with patch.object(runtime, "seed_codex_default_model", side_effect=seed):
+            self.run_starter(extra_env={"HERMES_MODEL_PROVIDER": "custom"})
+        self.assertEqual(events, ["custom"])
 
     def test_starter_does_not_require_hermes_on_the_host_path(self):
         with patch.dict(os.environ, {"PATH": "/nonexistent-hermes-test-path"}):
