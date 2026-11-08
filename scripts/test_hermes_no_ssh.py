@@ -65,15 +65,18 @@ class NoSshConfigurationTests(unittest.TestCase):
                 settings = config["customizations"]["vscode"]["settings"]
                 self.assertEqual(settings["terminal.integrated.defaultProfile.linux"], "pwsh")
 
-    def test_env_example_only_exposes_host_home_and_service_startup(self):
+    def test_env_example_exposes_service_startup_and_public_skills(self):
         for directory in CONFIGS:
             with self.subTest(directory=directory):
                 text = (directory / ".env.example").read_text()
                 self.assertNotRegex(text.lower(), r"ssh|2222|authorized_keys")
                 assignments = dict(re.findall(r"(?m)^([A-Z_]+)=(.*)$", text))
-                self.assertEqual(assignments, {
-                    "HERMES_AUTOSTART_SERVICES": "1", "HERMES_AUTOSTART_DASHBOARD": "0",
+                self.assertEqual(set(assignments), {
+                    "HERMES_AUTOSTART_SERVICES", "HERMES_AUTOSTART_DASHBOARD",
+                    "HERMES_SKILLS_TAPS", "HERMES_SKILLS_INSTALL",
                 })
+                self.assertEqual(assignments["HERMES_AUTOSTART_SERVICES"], "1")
+                self.assertEqual(assignments["HERMES_AUTOSTART_DASHBOARD"], "0")
                 self.assertIn("DEVBOX_HOST_HOME", text)
                 self.assertIn("recreate to apply", text)
 

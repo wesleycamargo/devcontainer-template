@@ -213,6 +213,107 @@ Hermes' code lives in the image.
 Hermes imports the Codex login into its own per-project authentication store.
 Git settings remain local to the container.
 
+## Workspace write access
+
+The image, Compose service and CLI wrapper allow file-tool writes to
+`/home/hermes/.hermes` and the mounted `/workspaces` tree by default through
+`HERMES_WRITE_SAFE_ROOT`. Explicit scope overrides are preserved; credential and
+sealed-runtime protections remain enabled. Recreate the container to apply
+Compose changes; image-only changes also require a rebuilt/pulled image.
+
+## Skills bootstrap
+
+For **new projects with a fresh `hermes-data` volume**, AI Hermes Devbox registers
+these public taps and installs this 18-skill starter baseline:
+
+- **`wesleycamargo/skills`** (six skills):
+  - `sdlc-create-intent`
+  - `sdlc-create-spec`
+  - `sdlc-create-plan`
+  - `sdlc-execute-plan`
+  - `sdlc-validate-implementation`
+  - `write-for-me`
+- **`mattpocock/skills`** (twelve skills):
+  - Engineering: `wayfinder`, `code-review`, `codebase-design`, `diagnosing-bugs`,
+    `grill-with-docs`, `improve-codebase-architecture`, `prototype`, `research`,
+    `wizard`.
+  - Productivity: `handoff`, `wait-what`, `teach`.
+
+### Configure before first startup
+
+Copy `.devcontainer/.env.example` to `.devcontainer/.env` and customize the public,
+non-secret `HERMES_SKILLS_TAPS` and `HERMES_SKILLS_INSTALL` lists before launching
+the new project. Both are ordered, comma-separated lists. Install identifiers are
+source-qualified: for example, `wesleycamargo/skills/write-for-me` or
+`mattpocock/skills/skills/engineering/code-review`. Matt's engineering and
+productivity entries retain their nested repository-relative paths; each skill's
+source must also appear in the taps list. Do not put credentials in these inputs.
+
+To disable starter installation, set an **explicit empty value**:
+
+```dotenv
+HERMES_SKILLS_INSTALL=
+```
+
+A blank install list on the fresh volume's first startup disables automatic
+enrollment, not just that one attempt. Later setting a nonblank list does not
+automatically enroll that volume. Existing projects/data volumes are never
+silently enrolled or changed by this bootstrap; manual skill installation remains
+available on both existing and initially disabled volumes, for example:
+
+```bash
+hermes skills install wesleycamargo/skills/write-for-me --yes
+```
+
+### Persistence, retries and upgrades
+
+A fresh volume with a nonblank list is enrolled before the first install attempt,
+recorded by `~/.hermes/.skills-bootstrap-enrolled`. Only a completely successful
+batch writes `~/.hermes/.skills-bootstrap.json` with the requested taps and skills.
+A matching success marker makes later startup a no-op: no repeated tap/install
+commands, marker rewrite or skill update. Existing success markers are recognized
+as enrolled for compatibility.
+
+For an enrolled volume, deliberately changing the taps/install configuration and
+recreating the container triggers another attempt. Failures warn without blocking
+the development shell; partial installs may remain, but no new success marker is
+written. A failed changed configuration preserves the previous success marker and
+is retried on later startup until successful. Public GitHub rate limits can
+interrupt a large first batch; already installed copies are preserved on retry.
+Startup never runs
+`hermes skills update`, uses `--force`, overwrites installed/user-edited skills, or
+removes skills omitted from a changed list.
+
+Tap registrations, installed copies and markers persist in the project-scoped
+`hermes-data` volume. Keep that volume during normal upgrades. Removing it destroys
+Hermes settings, sessions and skills as well as bootstrap state; it is not a normal
+upgrade or retry step.
+
+Check for updates, then choose an explicit manual update when wanted:
+
+```bash
+hermes skills check
+hermes skills update
+hermes skills update <name>
+```
+
+`update` without a name targets all outdated installed hub skills; replace
+`<name>` with one installed skill to target only that skill. Do not add `--force`
+unless you deliberately intend to replace local edits. To publish a small personal
+change to the Wesley repository, with the required GitHub access:
+
+```bash
+hermes skills publish ~/.hermes/skills/<name> --to github --repo wesleycamargo/skills
+```
+
+Replace `<name>` with your installed skill directory. Prefer normal Git branches
+and pull requests for reviewed multi-skill changes.
+
+This starter set lives in Hermes' user data, not the project: the template still
+ships no bundled `.agents/` tree or project-skills configuration hook. Optional
+repository-local skills remain separate and are not installed or updated at
+container startup.
+
 ## Notes
 
 - **Project skills**: fresh templates include no bundled `.agents/` tree or

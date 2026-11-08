@@ -12,6 +12,8 @@ services:
     # No host port bindings: several devcontainers can start without collisions.
     # VS Code forwards the Webapp locally.
     environment:
+      # Keep Hermes state and the mounted workspace writable; credential guards remain.
+      HERMES_WRITE_SAFE_ROOT: "${HERMES_WRITE_SAFE_ROOT:-/home/hermes/.hermes:/workspaces}"
       # Gateway/Webapp starts by default; dashboard is opt-in.
       # Set HERMES_AUTOSTART_SERVICES=0 for the development shell only.
       HERMES_AUTOSTART_SERVICES: "${HERMES_AUTOSTART_SERVICES:-1}"
@@ -26,6 +28,8 @@ services:
       HERMES_WEBAPP_ENABLED: "${HERMES_WEBAPP_ENABLED:-}"
       HERMES_WEBAPP_HOST: "${HERMES_WEBAPP_HOST:-}"
       HERMES_WEBAPP_PORT: "${HERMES_WEBAPP_PORT:-}"
+      HERMES_SKILLS_TAPS: "${HERMES_SKILLS_TAPS:-wesleycamargo/skills,mattpocock/skills}"
+      HERMES_SKILLS_INSTALL: "${HERMES_SKILLS_INSTALL-wesleycamargo/skills/sdlc-create-intent,wesleycamargo/skills/sdlc-create-spec,wesleycamargo/skills/sdlc-create-plan,wesleycamargo/skills/sdlc-execute-plan,wesleycamargo/skills/sdlc-validate-implementation,wesleycamargo/skills/write-for-me,mattpocock/skills/skills/engineering/wayfinder,mattpocock/skills/skills/engineering/code-review,mattpocock/skills/skills/engineering/codebase-design,mattpocock/skills/skills/engineering/diagnosing-bugs,mattpocock/skills/skills/engineering/grill-with-docs,mattpocock/skills/skills/engineering/improve-codebase-architecture,mattpocock/skills/skills/engineering/prototype,mattpocock/skills/skills/engineering/research,mattpocock/skills/skills/engineering/wizard,mattpocock/skills/skills/productivity/handoff,mattpocock/skills/skills/productivity/wait-what,mattpocock/skills/skills/productivity/teach}"
     # Optional dashboard (9119) and Webapp (9120) default to container loopback and
     # are not published. VS Code forwards both locally; image users can opt
     # into remote Webapp access separately (see ../README.md).

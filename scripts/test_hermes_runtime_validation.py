@@ -27,11 +27,20 @@ class RuntimeFixtureTests(unittest.TestCase):
     def test_runtime_does_not_inherit_operator_bootstrap_inputs(self):
         module = self.module()
         with patch.dict(os.environ, {"HERMES_MODEL_PROVIDER": "operator-provider",
-                                    "HERMES_WEBAPP_PORT": "9999"}):
+                                    "HERMES_WEBAPP_PORT": "9999",
+                                    "HERMES_SKILLS_INSTALL": "operator/repo/skill",
+                                    "HERMES_SKILLS_TAPS": "operator/repo"}):
             runtime = module.Runtime("fixture:image")
             try:
                 self.assertNotIn("HERMES_MODEL_PROVIDER", runtime.env)
                 self.assertNotIn("HERMES_WEBAPP_PORT", runtime.env)
+                self.assertEqual(runtime.env["HERMES_SKILLS_INSTALL"], "")
+                self.assertEqual(runtime.env["HERMES_SKILLS_TAPS"], "")
+                with patch.object(runtime, "docker") as docker:
+                    runtime.container("isolated")
+                    args = docker.call_args.args
+                    self.assertIn("HERMES_SKILLS_INSTALL=", args)
+                    self.assertIn("HERMES_SKILLS_TAPS=", args)
             finally:
                 runtime.temp.cleanup()
 

@@ -66,6 +66,9 @@ export COMPOSE_PROJECT_NAME="$PROJECT"
 export DEVBOX_HOST_HOME="$WORK/host-home"
 export HERMES_AUTOSTART_SERVICES=1
 export HERMES_AUTOSTART_DASHBOARD=0
+# Catalog/network acceptance belongs exclusively to runtime checkpoint H.
+export HERMES_SKILLS_INSTALL=
+export HERMES_SKILLS_TAPS=
 # Inherited Compose overrides can refer to the operator's private env/config.
 unset COMPOSE_FILE COMPOSE_ENV_FILES
 export COMPOSE_DISABLE_ENV_FILE=1

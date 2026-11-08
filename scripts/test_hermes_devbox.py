@@ -309,7 +309,8 @@ class DashboardStartupTests(unittest.TestCase):
 class NoSshEntrypointTests(unittest.TestCase):
     def run_entrypoint(self, directory, *, command=("sleep", "infinity"),
                        master=None, runtime_status=0, service_status=0, existing=False,
-                       env_symlink=None):
+                       env_symlink=None, skills_env=None, fresh=False, enrolled=False,
+                       skills_failure=None, marker_failure=False):
         spec = importlib.util.spec_from_file_location("entrypoint_fixture", directory / "hermes_devbox.py")
         runtime = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(runtime)
@@ -318,6 +319,10 @@ class NoSshEntrypointTests(unittest.TestCase):
             home = fixture / "home"
             data = home / ".hermes"
             data.mkdir(parents=True)
+            if fresh:
+                (data / ".devbox-new-volume").touch()
+            if enrolled:
+                (data / ".skills-bootstrap-enrolled").touch()
             upstream = fixture / "upstream"
             upstream.mkdir()
             (upstream / ".env.example").write_text("BOOTSTRAP=fixture\n")
@@ -338,28 +343,44 @@ class NoSshEntrypointTests(unittest.TestCase):
                     outside_before = outside.stat()
                 (data / ".env").symlink_to(outside)
             env = {"HOME": str(home), "HERMES_AUTOSTART_DASHBOARD": "1"}
+            env.update(skills_env or {})
             if master is not None:
                 env["HERMES_AUTOSTART_SERVICES"] = master
             recorded = []
             def run(args, **kwargs):
                 recorded.append(["run", *args])
+                if "skills" in args:
+                    return subprocess.CompletedProcess(args, skills_failure or 0)
                 status = service_status if "hermes-start-services" in args[-1] else runtime_status
                 return subprocess.CompletedProcess(args, status)
             def execute(program, args):
                 recorded.append(["exec", *args])
             output = io.StringIO()
+            original_bootstrap = runtime.bootstrap_skills
+            def bootstrap_call(*args, **kwargs):
+                recorded.append(["bootstrap"])
+                if marker_failure:
+                    with patch.object(runtime.tempfile, "NamedTemporaryFile", side_effect=OSError("private marker error")):
+                        return original_bootstrap(*args, **kwargs)
+                return original_bootstrap(*args, **kwargs)
+            bootstrap_patch = (patch.object(runtime, "bootstrap_skills", side_effect=bootstrap_call)
+                               if skills_env is not None else
+                               patch.object(runtime, "bootstrap_skills", return_value=True))
             with (patch.dict(os.environ, env, clear=True),
                   patch.object(runtime, "HOME", home),
                   patch.object(runtime, "RUNTIME", upstream),
                   patch.object(runtime, "RUNTIME_TMP", fixture / "runtime"),
                   patch.object(runtime.pwd, "getpwnam", return_value=SimpleNamespace(pw_uid=os.getuid(), pw_gid=os.getgid())),
                   patch.object(runtime.subprocess, "run", side_effect=run),
-                  patch.object(runtime, "bootstrap_skills", return_value=True) as bootstrap,
+                  bootstrap_patch as bootstrap,
                   patch.object(runtime.os, "execvp", side_effect=execute),
                   contextlib.redirect_stdout(output)):
                 runtime.entrypoint(list(command))
             self.bootstrap_calls = bootstrap.call_args_list
             self.bootstrap_home = home
+            self.skills_marker_exists = (data / ".skills-bootstrap.json").exists()
+            self.skills_enrolled = (data / ".skills-bootstrap-enrolled").exists()
+            self.fresh_marker_exists = (data / ".devbox-new-volume").exists()
             self.assertEqual(marker.read_text(), "existing session\n")
             for legacy in ("hermes-agent", "node"):
                 self.assertEqual((data / legacy / "keep.txt").read_text(), "legacy data\n")
@@ -502,8 +523,54 @@ raise AssertionError("exec returned instead of replacing the interpreter")
     def test_entrypoint_bootstraps_skills_before_preflight(self):
         for directory in CONFIGS:
             with self.subTest(directory=directory):
-                calls, _ = self.run_entrypoint(directory)
+                calls, _ = self.run_entrypoint(directory, fresh=True, skills_env={
+                    "HERMES_SKILLS_TAPS": "wesleycamargo/skills",
+                    "HERMES_SKILLS_INSTALL": "wesleycamargo/skills/write-for-me"})
                 self.assertEqual(self.bootstrap_calls, [((self.bootstrap_home,), {})])
+                self.assertEqual(calls[0], ["bootstrap"])
+                self.assertTrue(self.skills_enrolled)
+                self.assertTrue(self.skills_marker_exists)
+                self.assertFalse(self.fresh_marker_exists)
+
+    def test_existing_unmarked_projects_never_install_starter_skills(self):
+        calls, _ = self.run_entrypoint(SOURCE, existing=True, skills_env={
+            "HERMES_SKILLS_TAPS": "wesleycamargo/skills",
+            "HERMES_SKILLS_INSTALL": "wesleycamargo/skills/write-for-me"})
+        self.assertEqual(self.bootstrap_calls, [])
+        self.assertFalse(self.skills_enrolled)
+        self.assertFalse(self.skills_marker_exists)
+        self.assertFalse(any("skills" in call for call in calls))
+
+    def test_blank_first_start_consumes_fresh_marker_without_enrolling(self):
+        self.run_entrypoint(SOURCE, fresh=True, skills_env={"HERMES_SKILLS_INSTALL": ""})
+        self.assertEqual(self.bootstrap_calls, [])
+        self.assertFalse(self.skills_enrolled)
+        self.assertFalse(self.fresh_marker_exists)
+
+    def test_enrolled_projects_retry_bootstrap_without_a_success_marker(self):
+        self.run_entrypoint(SOURCE, enrolled=True, skills_env={
+            "HERMES_SKILLS_TAPS": "wesleycamargo/skills",
+            "HERMES_SKILLS_INSTALL": "wesleycamargo/skills/write-for-me"})
+        self.assertEqual(len(self.bootstrap_calls), 1)
+        self.assertTrue(self.skills_marker_exists)
+
+    def test_bootstrap_failures_and_marker_io_errors_preserve_the_shell(self):
+        valid = {"HERMES_SKILLS_TAPS": "wesleycamargo/skills",
+                 "HERMES_SKILLS_INSTALL": "wesleycamargo/skills/write-for-me"}
+        cases = [({**valid, "HERMES_SKILLS_INSTALL": "bad;input"}, None, False),
+                 (valid, 1, False), (valid, None, True)]
+        for master in ("0", "1"):
+            for env, failure, marker_failure in cases:
+                with self.subTest(master=master, failure=failure, marker_failure=marker_failure):
+                    calls, output = self.run_entrypoint(
+                        SOURCE, master=master, existing=True, fresh=True, skills_env=env,
+                        skills_failure=failure, marker_failure=marker_failure)
+                    self.assertEqual(calls[-1], ["exec", "runuser", "-u", "hermes", "--", "sleep", "infinity"])
+                    self.assertTrue(self.skills_enrolled)
+                    self.assertFalse(self.skills_marker_exists)
+                    self.assertIn("will retry next start", output)
+                    self.assertNotIn("private", output)
+                    self.assertEqual(any("/usr/local/bin/hermes-start-services" in call for call in calls), master == "1")
 
     def test_only_exact_one_enables_master_autostart(self):
         for directory in CONFIGS:
@@ -535,73 +602,180 @@ raise AssertionError("exec returned instead of replacing the interpreter")
 
 
 class SkillsBootstrapTests(unittest.TestCase):
-    def test_new_volume_registers_taps_and_installs_the_requested_baseline(self):
-        with tempfile.TemporaryDirectory(prefix="hermes-skills-") as directory:
-            home = Path(directory)
-            (home / ".hermes").mkdir()
-            skills = [
-                "wesleycamargo/skills/sdlc-create-intent",
-                "wesleycamargo/skills/sdlc-create-spec",
-                "wesleycamargo/skills/sdlc-create-plan",
-                "wesleycamargo/skills/sdlc-execute-plan",
-                "wesleycamargo/skills/sdlc-validate-implementation",
-                "wesleycamargo/skills/write-for-me",
-                "mattpocock/skills/skills/engineering/wayfinder",
-                "mattpocock/skills/skills/engineering/code-review",
-                "mattpocock/skills/skills/engineering/codebase-design",
-                "mattpocock/skills/skills/engineering/diagnosing-bugs",
-                "mattpocock/skills/skills/engineering/grill-with-docs",
-                "mattpocock/skills/skills/engineering/improve-codebase-architecture",
-                "mattpocock/skills/skills/engineering/prototype",
-                "mattpocock/skills/skills/engineering/research",
-                "mattpocock/skills/skills/engineering/wizard",
-                "mattpocock/skills/skills/productivity/handoff",
-                "mattpocock/skills/skills/productivity/wait-what",
-                "mattpocock/skills/skills/productivity/teach",
-            ]
-            env = {
-                "HOME": str(home),
-                "HERMES_HOME": str(home / ".hermes"),
-                "HERMES_SKILLS_TAPS": "wesleycamargo/skills,mattpocock/skills",
-                "HERMES_SKILLS_INSTALL": ",".join(skills),
-            }
-            calls = []
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix="hermes-skills-policy-")
+        self.addCleanup(temporary.cleanup)
+        self.home = Path(temporary.name)
+        self.data = self.home / ".hermes"
+        self.data.mkdir()
+        self.marker = self.data / ".skills-bootstrap.json"
+        self.env = {
+            "HERMES_SKILLS_TAPS": "wesleycamargo/skills",
+            "HERMES_SKILLS_INSTALL": "wesleycamargo/skills/write-for-me",
+        }
 
-            def run(args, **kwargs):
-                calls.append((args, kwargs))
-                return subprocess.CompletedProcess(args, 0)
+    def test_lists_trim_valid_identifiers_preserving_order_and_allow_exact_blank(self):
+        for pattern, values in (
+                (runtime.GITHUB_REPOSITORY, ["wesleycamargo/skills", "mattpocock/skills"]),
+                (runtime.SKILL_IDENTIFIER, ["mattpocock/skills/skills/engineering/wayfinder",
+                                            "mattpocock/skills/skills/productivity/teach"])):
+            self.assertEqual(runtime.parse_skills_list("", pattern=pattern, label="fixture"), [])
+            self.assertEqual(runtime.parse_skills_list(" , ".join(" " + value + " " for value in values),
+                                                     pattern=pattern, label="fixture"), values)
 
-            with patch.object(runtime.subprocess, "run", side_effect=run):
-                self.assertTrue(runtime.bootstrap_skills(home, environ=env))
+    def test_malformed_identifiers_duplicates_and_unknown_sources_make_no_calls(self):
+        invalid = [
+            {"HERMES_SKILLS_TAPS": value} for value in (
+                "https://github.com/owner/repo", "owner/repo;echo", "owner/../repo",
+                "owner//repo", "owner/-repo", "owner/repo,owner/repo")
+        ] + [
+            {"HERMES_SKILLS_INSTALL": value} for value in (
+                "owner/repo/skill", "wesleycamargo/skills/../skill",
+                "wesleycamargo/skills/./skill", "wesleycamargo/skills//skill",
+                "wesleycamargo/skills/-skill", "wesleycamargo/skills/skill;echo",
+                "wesleycamargo/skills/write-for-me,wesleycamargo/skills/write-for-me")
+        ]
+        for override in invalid:
+            with self.subTest(override=override), patch.object(runtime.subprocess, "run") as run:
+                with self.assertRaises(ValueError):
+                    runtime.bootstrap_skills(self.home, {**self.env, **override})
+                run.assert_not_called()
+                self.assertFalse(self.marker.exists())
 
-            expected = [
-                ["/usr/sbin/runuser", "-u", "hermes", "--", "env", f"HOME={home}",
-                 f"HERMES_HOME={home / '.hermes'}", "/usr/local/bin/hermes", "skills", "tap", "add", tap]
-                for tap in ("wesleycamargo/skills", "mattpocock/skills")
-            ] + [
-                ["/usr/sbin/runuser", "-u", "hermes", "--", "env", f"HOME={home}",
-                 f"HERMES_HOME={home / '.hermes'}", "/usr/local/bin/hermes", "skills", "install",
-                 skill, "--yes"]
-                for skill in skills
-            ]
-            self.assertEqual([args for args, _ in calls], expected)
-            self.assertTrue(all(kwargs.get("check") is False for _, kwargs in calls))
-            self.assertTrue(all("shell" not in kwargs for _, kwargs in calls))
+    def test_matching_marker_does_not_run_commands_or_rewrite_state(self):
+        with patch.object(runtime.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as run:
+            self.assertTrue(runtime.bootstrap_skills(self.home, self.env))
+            self.assertEqual(json.loads(self.marker.read_text()), {
+                "taps": ["wesleycamargo/skills"], "skills": ["wesleycamargo/skills/write-for-me"]})
+            before = self.marker.read_bytes(), self.marker.stat().st_mtime_ns
+            run.reset_mock()
+            self.assertTrue(runtime.bootstrap_skills(self.home, self.env))
+            run.assert_not_called()
+            self.assertEqual((self.marker.read_bytes(), self.marker.stat().st_mtime_ns), before)
 
-    def test_timeout_leaves_no_marker_and_is_retryable(self):
-        with tempfile.TemporaryDirectory(prefix="hermes-skills-") as directory:
-            home = Path(directory)
-            (home / ".hermes").mkdir()
-            env = {
-                "HERMES_SKILLS_TAPS": "wesleycamargo/skills",
-                "HERMES_SKILLS_INSTALL": "wesleycamargo/skills/write-for-me",
-            }
-            with patch.object(runtime.subprocess, "run", side_effect=subprocess.TimeoutExpired("hermes", 120)):
-                self.assertFalse(runtime.bootstrap_skills(home, environ=env))
-            self.assertFalse((home / ".hermes/.skills-bootstrap.json").exists())
+    def test_blank_install_list_makes_no_calls_and_no_marker(self):
+        with patch.object(runtime.subprocess, "run") as run:
+            self.assertTrue(runtime.bootstrap_skills(self.home, {**self.env, "HERMES_SKILLS_INSTALL": ""}))
+        run.assert_not_called()
+        self.assertFalse(self.marker.exists())
+
+    def test_duplicate_skill_names_from_different_sources_are_rejected(self):
+        env = {"HERMES_SKILLS_TAPS": "owner/one,owner/two",
+               "HERMES_SKILLS_INSTALL": "owner/one/example,owner/two/skills/example"}
+        with patch.object(runtime.subprocess, "run") as run:
+            with self.assertRaises(ValueError):
+                runtime.bootstrap_skills(self.home, env)
+        run.assert_not_called()
+
+    def test_existing_unregistered_skill_is_never_sent_to_the_installer(self):
+        skill = self.data / "skills/write-for-me/SKILL.md"
+        skill.parent.mkdir(parents=True)
+        skill.write_text("user-edited unregistered skill")
+        with patch.object(runtime.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as run:
+            self.assertTrue(runtime.bootstrap_skills(self.home, self.env))
+        self.assertEqual([call.args[0][-3:] for call in run.call_args_list],
+                         [["tap", "add", "wesleycamargo/skills"]])
+        self.assertEqual(skill.read_text(), "user-edited unregistered skill")
+        self.assertTrue(self.marker.is_file())
+
+    def test_invalid_existing_skill_target_is_not_reported_as_success(self):
+        target = self.data / "skills/write-for-me"
+        target.mkdir(parents=True)
+        with patch.object(runtime.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)):
+            self.assertFalse(runtime.bootstrap_skills(self.home, self.env))
+        self.assertFalse(self.marker.exists())
+
+    def test_changed_configuration_is_attempted_without_deleting_user_skills(self):
+        sentinel = self.data / "skills/custom/SKILL.md"
+        sentinel.parent.mkdir(parents=True)
+        sentinel.write_text("user-edited skill")
+        with patch.object(runtime.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)):
+            runtime.bootstrap_skills(self.home, self.env)
+        old = self.marker.read_bytes()
+        changed = {"HERMES_SKILLS_TAPS": "mattpocock/skills",
+                   "HERMES_SKILLS_INSTALL": "mattpocock/skills/skills/productivity/teach"}
+        with patch.object(runtime.subprocess, "run", return_value=subprocess.CompletedProcess([], 1)):
+            self.assertFalse(runtime.bootstrap_skills(self.home, changed))
+        self.assertEqual(self.marker.read_bytes(), old)
+        with patch.object(runtime.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as run:
+            self.assertTrue(runtime.bootstrap_skills(self.home, changed))
+            self.assertEqual(run.call_count, 2)
+            self.assertEqual(run.call_args.args[0][-2:], [changed["HERMES_SKILLS_INSTALL"], "--yes"])
+        self.assertEqual(json.loads(self.marker.read_text())["skills"], [changed["HERMES_SKILLS_INSTALL"]])
+        self.assertEqual(sentinel.read_text(), "user-edited skill")
+
+    def test_malformed_marker_is_replaced_only_after_success(self):
+        self.marker.write_text("not json")
+        with patch.object(runtime.subprocess, "run", return_value=subprocess.CompletedProcess([], 1)):
+            self.assertFalse(runtime.bootstrap_skills(self.home, self.env))
+        self.assertEqual(self.marker.read_text(), "not json")
+        with patch.object(runtime.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)):
+            self.assertTrue(runtime.bootstrap_skills(self.home, self.env))
+        self.assertEqual(json.loads(self.marker.read_text())["taps"], ["wesleycamargo/skills"])
+
+    def test_command_failures_at_each_phase_leave_no_marker_and_retry(self):
+        for phase in (0, 1):
+            for failure in (subprocess.CompletedProcess([], 1), OSError("private detail"),
+                            subprocess.TimeoutExpired("private detail", 120)):
+                with self.subTest(phase=phase, failure=type(failure).__name__):
+                    self.marker.unlink(missing_ok=True)
+                    results = [subprocess.CompletedProcess([], 0)] * phase + [failure]
+                    output = io.StringIO()
+                    with patch.object(runtime.subprocess, "run", side_effect=results) as run, contextlib.redirect_stdout(output):
+                        self.assertFalse(runtime.bootstrap_skills(self.home, self.env))
+                    self.assertEqual(run.call_count, phase + 1)
+                    self.assertFalse(self.marker.exists())
+                    self.assertIn("will retry next start", output.getvalue())
+                    self.assertNotIn("private detail", output.getvalue())
+                    with patch.object(runtime.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)):
+                        self.assertTrue(runtime.bootstrap_skills(self.home, self.env))
+
+    def test_lists_reject_empty_members_instead_of_silently_dropping_them(self):
+        for pattern, valid in (
+                (runtime.GITHUB_REPOSITORY, "wesleycamargo/skills"),
+                (runtime.SKILL_IDENTIFIER, "wesleycamargo/skills/write-for-me")):
+            for raw in (" ", ",", valid + ",", "," + valid,
+                        valid + ",," + valid, valid + ",   "):
+                with self.subTest(raw=raw, pattern=pattern.pattern):
+                    with self.assertRaises(ValueError):
+                        runtime.parse_skills_list(raw, pattern=pattern, label="fixture")
+
+    def test_registers_taps_and_installs_requested_skills_in_order(self):
+        skills = ["wesleycamargo/skills/write-for-me",
+                  "mattpocock/skills/skills/productivity/teach"]
+        env = {**self.env, "HERMES_SKILLS_TAPS": "wesleycamargo/skills,mattpocock/skills",
+               "HERMES_SKILLS_INSTALL": ",".join(skills)}
+        with patch.object(runtime.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as run:
+            self.assertTrue(runtime.bootstrap_skills(self.home, env))
+        prefix = ["/usr/sbin/runuser", "-u", "hermes", "--", "env", f"HOME={self.home}",
+                  f"HERMES_HOME={self.data}", "/usr/local/bin/hermes", "skills"]
+        expected = [
+            [*prefix, "tap", "add", tap] for tap in ("wesleycamargo/skills", "mattpocock/skills")
+        ] + [[*prefix, "install", skill, "--yes"] for skill in skills]
+        self.assertEqual([call.args[0] for call in run.call_args_list], expected)
+        for call in run.call_args_list:
+            self.assertIs(call.kwargs["check"], False)
+            self.assertEqual(call.kwargs["timeout"], 120)
+            self.assertFalse(call.kwargs.get("shell", False))
 
 
 class DispatchAndWrapperTests(unittest.TestCase):
+    def test_image_marks_only_new_data_volumes_after_build_time_checks(self):
+        for directory in (SOURCE, ROOT / ".devcontainer"):
+            with self.subTest(directory=directory):
+                text = (directory / "Dockerfile").read_text()
+                sentinel = "install -o hermes -g hermes -m 600 /dev/null /home/hermes/.hermes/.devbox-new-volume"
+                self.assertIn(sentinel, text)
+                self.assertGreater(text.index(sentinel), text.index("hermes webapp --build-only"))
+
+    def test_image_and_compose_allow_workspace_writes_without_removing_home_scope(self):
+        for directory in (SOURCE, ROOT / ".devcontainer"):
+            with self.subTest(directory=directory):
+                self.assertIn("HERMES_WRITE_SAFE_ROOT=/home/hermes/.hermes:/workspaces",
+                              (directory / "Dockerfile").read_text())
+                self.assertIn('HERMES_WRITE_SAFE_ROOT: "${HERMES_WRITE_SAFE_ROOT:-/home/hermes/.hermes:/workspaces}"',
+                              (directory / "docker-compose.yml").read_text())
+
     def test_dispatch_aliases_and_unknown_name(self):
         for name, function in (("hermes", runtime.run_hermes),
                                ("hermes-entrypoint", runtime.entrypoint),
@@ -632,7 +806,7 @@ class DispatchAndWrapperTests(unittest.TestCase):
         self.assertEqual(actual, [program, *args])
         self.assertEqual(env["HOME"], "/home/hermes")
         self.assertEqual(env["HERMES_HOME"], "/home/hermes/.hermes")
-        self.assertEqual(env["HERMES_WRITE_SAFE_ROOT"], env["HERMES_HOME"])
+        self.assertEqual(env["HERMES_WRITE_SAFE_ROOT"], env["HERMES_HOME"] + os.pathsep + "/workspaces")
         for key, value in {"HERMES_PYTHON": "/opt/hermes/.venv/bin/python",
                            "HERMES_RUNTIME_DIR": "/opt/hermes/tools",
                            "PLAYWRIGHT_BROWSERS_PATH": "/opt/hermes/tools",

@@ -9,7 +9,7 @@ USER root
 SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
 ENV HOME=/home/hermes \
     HERMES_HOME=/home/hermes/.hermes \
-    HERMES_WRITE_SAFE_ROOT=/home/hermes/.hermes \
+    HERMES_WRITE_SAFE_ROOT=/home/hermes/.hermes:/workspaces \
     PATH="/usr/local/bin:/home/hermes/.local/bin:/opt/hermes/.venv/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin" \
     DISABLE_AUTOUPDATER=1
 WORKDIR /home/hermes
@@ -118,6 +118,10 @@ RUN --network=none timeout 60 runuser -u hermes -- hermes --version </dev/null \
     && runuser -u hermes -- gh --version \
     && runuser -u hermes -- pwsh -NoLogo -NoProfile -NonInteractive -Command '$ErrorActionPreference = "Stop"; Import-Module Terminal-Icons; Import-Module Az.Accounts; Import-Module Pester; $mutex = [System.Threading.Mutex]::new($false, "HermesPSReadLineSmoke"); $mutex.Dispose()' \
     && node --version
+
+# Only newly initialized Docker volumes receive this one-use enrollment sentinel.
+# Write it after build-time CLI checks, never into an existing consumer volume.
+RUN install -o hermes -g hermes -m 600 /dev/null /home/hermes/.hermes/.devbox-new-volume
 
 # Keep data/bootstrap preparation and Compose init, not the upstream s6 entrypoint.
 ENTRYPOINT ["/usr/local/bin/hermes-entrypoint"]

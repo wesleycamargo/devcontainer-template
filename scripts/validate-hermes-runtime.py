@@ -50,6 +50,8 @@ class Runtime:
             "DEVBOX_HOST_HOME": str(self.work / "host-home"),
             "HERMES_AUTOSTART_SERVICES": "1",
             "HERMES_AUTOSTART_DASHBOARD": "0",
+            "HERMES_SKILLS_INSTALL": "",
+            "HERMES_SKILLS_TAPS": "",
         }
 
         for key in (
@@ -118,7 +120,9 @@ class Runtime:
         name = self.prefix + "-" + suffix
         self.containers.append(name)  # Also clean up a partially successful run.
         self.docker("run", "-d", "--init", "--name", name,
-                    "--label", f"hermes.validation={self.prefix}", *flags, self.image)
+                    "--label", f"hermes.validation={self.prefix}",
+                    "-e", "HERMES_SKILLS_INSTALL=", "-e", "HERMES_SKILLS_TAPS=",
+                    *flags, self.image)
         return name
 
     def compose_command(self, project, *args, check=True):

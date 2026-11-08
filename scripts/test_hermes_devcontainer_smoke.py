@@ -35,6 +35,7 @@ state = json.loads(state_path.read_text()) if state_path.exists() else {}
 project = os.environ.get("COMPOSE_PROJECT_NAME")
 record = {"tool": tool, "args": args, "cwd": os.getcwd(), "env": {
     key: os.environ.get(key) for key in (
+        "HERMES_SKILLS_INSTALL", "HERMES_SKILLS_TAPS",
         "COMPOSE_PROJECT_NAME", "DEVBOX_HOST_HOME", "HERMES_AUTOSTART_SERVICES",
         "HERMES_AUTOSTART_DASHBOARD", "COMPOSE_FILE", "COMPOSE_ENV_FILES", "COMPOSE_DISABLE_ENV_FILE",
     )
@@ -196,6 +197,15 @@ class DevcontainerSmokeTests(unittest.TestCase):
             ["volume", "ls", "-q", "--filter", f"label=com.docker.compose.project={project}"],
         ], "cleanup may touch only this exact project; no global or foreign cleanup")
         self.assertFalse(fixture.parent.exists())
+
+    def test_skills_bootstrap_is_disabled_despite_operator_settings(self):
+        self.env.update(HERMES_SKILLS_INSTALL="operator/repo/skill",
+                        HERMES_SKILLS_TAPS="operator/repo")
+        result, calls = self.run_smoke()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        up = next(c for c in calls if c["tool"] == "devcontainer" and c["args"][0] == "up")
+        self.assertEqual(up["env"]["HERMES_SKILLS_INSTALL"], "")
+        self.assertEqual(up["env"]["HERMES_SKILLS_TAPS"], "")
 
     def test_partial_up_failure_propagates_after_exact_project_cleanup(self):
         result, calls = self.run_smoke("up-fail")

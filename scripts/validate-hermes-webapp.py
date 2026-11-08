@@ -99,6 +99,7 @@ def validate(image):
     try:
         docker("run", "-d", "--init", "--name", name,
                "-e", "HERMES_AUTOSTART_SERVICES=1",
+               "-e", "HERMES_SKILLS_INSTALL=", "-e", "HERMES_SKILLS_TAPS=",
                "-p", "127.0.0.1::9120", image)
         # The entrypoint finishes preparation before execing the idle dev shell.
         deadline = time.monotonic() + 240

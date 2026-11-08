@@ -164,7 +164,8 @@ def runtime_environment(environ=None):
     env = dict(os.environ if environ is None else environ)
     env["HOME"] = env.get("HOME") or str(HOME)
     env["HERMES_HOME"] = env.get("HERMES_HOME") or str(Path(env["HOME"]) / ".hermes")
-    env["HERMES_WRITE_SAFE_ROOT"] = env.get("HERMES_WRITE_SAFE_ROOT") or env["HERMES_HOME"]
+    env["HERMES_WRITE_SAFE_ROOT"] = env.get("HERMES_WRITE_SAFE_ROOT") or os.pathsep.join(
+        (env["HERMES_HOME"], str(WORKSPACES)))
     env.update(HERMES_PYTHON=PYTHON, HERMES_RUNTIME_DIR=str(RUNTIME / "tools"),
                PLAYWRIGHT_BROWSERS_PATH=str(RUNTIME / "tools"),
                HERMES_WEB_DIST=str(RUNTIME / "hermes_cli/web_dist"),
@@ -176,11 +177,13 @@ def runtime_environment(environ=None):
 
 
 def parse_skills_list(raw, *, pattern, label):
-    values = [value.strip() for value in raw.split(",") if value.strip()]
+    if raw == "":
+        return []
+    values = [value.strip() for value in raw.split(",")]
+    if any(not value or not pattern.fullmatch(value) for value in values):
+        raise ValueError(f"invalid {label} value")
     if len(values) != len(set(values)):
         raise ValueError(f"duplicate {label} value")
-    if any(not pattern.fullmatch(value) for value in values):
-        raise ValueError(f"invalid {label} value")
     return values
 
 
@@ -195,6 +198,9 @@ def bootstrap_skills(home, environ=None):
     sources = {"/".join(skill.split("/", 2)[:2]) for skill in skills}
     if not sources.issubset(taps):
         raise ValueError("skills install source is not configured as a tap")
+    names = [skill.rsplit("/", 1)[-1] for skill in skills]
+    if len(names) != len(set(names)):
+        raise ValueError("duplicate skills install name")
     data = Path(home) / ".hermes"
     marker = data / ".skills-bootstrap.json"
     state = {"taps": taps, "skills": skills}
@@ -206,7 +212,17 @@ def bootstrap_skills(home, environ=None):
     command_prefix = ["/usr/sbin/runuser", "-u", "hermes", "--", "env",
                       f"HOME={home}", f"HERMES_HOME={data}", "/usr/local/bin/hermes", "skills"]
     commands = ([*command_prefix, "tap", "add", tap] for tap in taps)
-    installs = ([*command_prefix, "install", skill, "--yes"] for skill in skills)
+    installs = []
+    for skill, name in zip(skills, names):
+        target = data / "skills" / name
+        if target.exists() or target.is_symlink():
+            if target.is_symlink() or not (target / "SKILL.md").is_file():
+                print("hermes-entrypoint: skills target unavailable; will retry next start")
+                return False
+            # Unregistered local skills are not protected by the upstream hub lock.
+            # Never pass an existing user copy to its potentially replacing installer.
+            continue
+        installs.append([*command_prefix, "install", skill, "--yes"])
     for command in (*commands, *installs):
         try:
             result = subprocess.run(command, check=False, timeout=120,
@@ -227,6 +243,21 @@ def bootstrap_skills(home, environ=None):
     finally:
         Path(seeded.name).unlink(missing_ok=True)
     return True
+
+
+def prepare_skills_bootstrap(home):
+    data = Path(home) / ".hermes"
+    fresh = data / ".devbox-new-volume"
+    enrolled = data / ".skills-bootstrap-enrolled"
+    # Docker copies the image sentinel only when initializing a new data volume.
+    # Persist enrollment before network work so partial failures remain retryable.
+    if fresh.is_file():
+        if os.environ.get("HERMES_SKILLS_INSTALL", "") != "" and not enrolled.exists():
+            with enrolled.open("x"):
+                pass
+        fresh.unlink()
+    if enrolled.is_file() or (data / ".skills-bootstrap.json").is_file():
+        bootstrap_skills(home)
 
 
 def run_hermes(args):
@@ -252,9 +283,11 @@ def entrypoint(args):
                  "audio_cache", "memories", "skills"):
         prepare(data / name)
     try:
-        bootstrap_skills(HOME)
+        prepare_skills_bootstrap(HOME)
     except ValueError:
         print("hermes-entrypoint: invalid skills bootstrap configuration; will retry next start")
+    except OSError:
+        print("hermes-entrypoint: skills bootstrap state unavailable; will retry next start")
     template = RUNTIME / ".env.example"
     if not (data / ".env").is_file() and template.is_file():
         # Publish a prepared inode: never follow a destination symlink as root.

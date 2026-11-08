@@ -39,6 +39,7 @@ class RestartReplay:
         output = ""
         action = args[1]
         if action == "run":
+            self.run_args = args
             self.name = args[args.index("--name") + 1]
         elif action == "port":
             output = f"127.0.0.1:{self.port}\n"
@@ -91,6 +92,13 @@ class WebappRestartTests(unittest.TestCase):
               contextlib.redirect_stdout(io.StringIO()),
               contextlib.redirect_stderr(io.StringIO())):
             validation.validate("unused:test")
+
+    def test_skills_bootstrap_is_disabled(self):
+        scenario = RestartReplay()
+        with self.assertRaises(ReachedLogin):
+            self.replay(scenario)
+        self.assertIn("HERMES_SKILLS_INSTALL=", scenario.run_args)
+        self.assertIn("HERMES_SKILLS_TAPS=", scenario.run_args)
 
     def test_refreshes_port_after_restart(self):
         with self.assertRaises(ReachedLogin):
