@@ -63,6 +63,16 @@ preparation, CLI wrapping, service startup and Webapp opening. The image install
 it at `/usr/local/lib/hermes_devbox.py` and creates command symlinks;
 `hermes`, `hermes-start-services` and `hermes-webapp-open` remain unchanged.
 
+**No shell-script helpers in the template.** Custom entrypoint, startup,
+CLI-wrapper and skills-bootstrap logic belongs in `hermes_devbox.py`, not new
+`.sh` files. The root `.devcontainer/` mirror follows the same rule. The public
+commands above are symlinks to Python, not shell scripts.
+
+The maintainer repository still has existing Docker-host/CI validators such as
+`scripts/validate-hermes-runtime.sh` and `scripts/validate-hermes-devcontainer.sh`.
+They are not part of the seven-file consumer payload and are not copied into
+the image as runtime helpers. References to them below are maintainer-only.
+
 | Service | Address | Notes |
 | --- | --- | --- |
 | Development shell | `sleep infinity` keeps the container alive | Custom entrypoint prepares state and optionally starts services; Compose retains `init: true` |
@@ -339,11 +349,12 @@ container startup.
   `npm test && npm run check` and
   `python3 -B -m unittest discover -s scripts -p 'test_*hermes*.py' -v`.
   Then run `./scripts/validate-hermes-runtime.sh build` and `all` (or one of
-  `A`, `B`, `C`, `D`, `E`, `G`). A checks raw shell/tools/no listeners; B default
+  `A`, `B`, `C`, `D`, `E`, `G`, `H`). A checks raw shell/tools/no listeners; B default
   services/dashboard opt-in; C isolated parallel projects/shared synthetic auth;
   D real disposable `devcontainer up` with CLI 0.90.0, actual features and frozen
   lockfile via `scripts/validate-hermes-devcontainer.sh`; E existing-volume
-  migration; G Webapp HTTP auth. VS Code browser opening remains manual;
+  migration; G Webapp HTTP auth; H representative flat-path/nested-path skill
+  installation. Bootstrap policy is covered by unit tests. VS Code browser opening remains manual;
   SSH checkpoint F is removed.
 - **Smoke prerequisites**: checkpoint D also requires GNU coreutils `timeout`.
   Commands and cleanup operations have deadlines; cancellation stops only the

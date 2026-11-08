@@ -139,13 +139,23 @@ stops the Compose project (`shutdownAction: stopCompose`).
 
 ### 4. Validation and tests
 
+AI Hermes Devbox ships no `.sh` helpers in its template or root `.devcontainer/`
+mirror. Its custom lifecycle and skills bootstrap use `hermes_devbox.py`;
+`hermes`, `hermes-start-services` and `hermes-webapp-open` are Python command
+symlinks. Keep new runtime/helper logic in that Python module rather than adding
+shell-script files.
+
+The `.sh` validators listed below are existing maintainer-only Docker-host/CI
+tools. They are not shipped in the Hermes consumer template or installed as its
+runtime helpers; modifying a host validator does not add a consumer shell script.
+
 Run these on the **WSL host** where Docker runs, not inside the devcontainer:
 
 ```bash
 npm test && npm run check
 python3 -B -m unittest discover -s scripts -p 'test_*hermes*.py' -v
 ./scripts/validate-hermes-runtime.sh build   # build the test image first
-./scripts/validate-hermes-runtime.sh all     # or a single checkpoint: A, B, C, D, E, G
+./scripts/validate-hermes-runtime.sh all     # or a single checkpoint: A, B, C, D, E, G, H
 bash scripts/test_ai_openhands_devbox.sh     # static config checks (any shell)
 ```
 
@@ -153,7 +163,8 @@ Checkpoint A checks raw image shell/tools with no listeners; B checks the defaul
 gateway/Webapp and dashboard opt-in; C checks isolated projects sharing synthetic
 Codex auth; D runs a disposable `devcontainer up` with CLI 0.90.0, actual features
 and a frozen lockfile; E checks existing-volume migration; G checks Webapp HTTP
-authentication. D uses `scripts/validate-hermes-devcontainer.sh`. Opening the
+authentication; H smoke-tests one flat-path skill and one nested-path skill. D uses
+`scripts/validate-hermes-devcontainer.sh`. Opening the
 browser through the VS Code opener remains manual; there is no SSH checkpoint F.
 
 Checkpoint D also requires GNU coreutils `timeout`. Its commands and each cleanup
@@ -190,7 +201,7 @@ message overrides) and republishes the template and its image.
 | Script                                          | Where it runs        | Purpose                                                     |
 | ----------------------------------------------- | -------------------- | ----------------------------------------------------------- |
 | `scripts/setup-devcontainer-client.ps1`         | Windows host         | Install prerequisites + `gh`/Docker ghcr.io login           |
-| `scripts/validate-hermes-runtime.sh`            | Docker host          | Hermes runtime checks (`build`, `all`, `A`, `B`, `C`, `D`, `E`, `G`) |
+| `scripts/validate-hermes-runtime.sh`            | Docker host          | Hermes runtime checks (`build`, `all`, `A`, `B`, `C`, `D`, `E`, `G`, `H`) |
 | `scripts/validate-hermes-devcontainer.sh`       | Docker host          | Disposable Dev Container CLI validation with real features and frozen lockfile |
 | `scripts/test_ai_openhands_devbox.sh`           | anywhere             | Static config checks for the OpenHands template             |
 | `scripts/setup_github_publishing.py`            | anywhere with `gh`   | One-time GitHub publishing setup                            |

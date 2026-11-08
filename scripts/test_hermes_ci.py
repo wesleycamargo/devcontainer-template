@@ -149,7 +149,7 @@ class HermesWorkflowTests(unittest.TestCase):
     def test_runtime_features_can_extend_the_daemon_local_validation_image(self):
         text = WORKFLOW.read_text()
         step = text.split(
-            "      - name: Run runtime checkpoints A through E and Webapp checkpoint G\n", 1
+            "      - name: Run runtime checkpoints A through E, Webapp G and skills H\n", 1
         )[1].split("\n\n", 1)[0]
         self.assertIn("        env:\n          BUILDX_BUILDER: default\n", step)
         self.assertIn("run: bash scripts/validate-hermes-runtime.sh all", step)

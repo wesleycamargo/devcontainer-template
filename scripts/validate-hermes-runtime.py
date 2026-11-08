@@ -156,9 +156,9 @@ class Runtime:
             time.sleep(2)
         raise AssertionError("Timed out waiting for " + label)
 
-    def idle(self, name):
+    def idle(self, name, timeout=120):
         self.wait(lambda: self.docker("exec", name, "pgrep", "-x", "sleep",
-                                      check=False).returncode == 0, "development shell")
+                                      check=False).returncode == 0, "development shell", timeout=timeout)
 
     def webapp(self, name):
         self.wait(lambda: "Serving at http://127.0.0.1:9120" in self.user(
@@ -301,8 +301,33 @@ done
     print("PASS E: existing state and unused legacy runtime preserved", flush=True)
 
 
+def check_h(runtime):
+    """Smoke-test one flat and one nested skill; unit tests own bootstrap policy."""
+    skills = ("wesleycamargo/skills/write-for-me",
+              "mattpocock/skills/skills/productivity/teach")
+    name = runtime.container(
+        "skills", "-e", "HERMES_AUTOSTART_SERVICES=0",
+        "-e", "HERMES_SKILLS_TAPS=wesleycamargo/skills,mattpocock/skills",
+        "-e", "HERMES_SKILLS_INSTALL=" + ",".join(skills))
+    runtime.idle(name, timeout=600)
+    runtime.docker("exec", name, "python3", "-c", r"""
+import json, sys
+from pathlib import Path
+state = json.loads(Path("/home/hermes/.hermes/.skills-bootstrap.json").read_text())
+assert state["taps"] == ["wesleycamargo/skills", "mattpocock/skills"]
+assert state["skills"] == sys.argv[1:]
+""", *skills)
+    runtime.user(name, "python3", "-c", r"""
+import sys
+from pathlib import Path
+assert all((Path.home() / ".hermes/skills" / skill.rsplit("/", 1)[-1] / "SKILL.md").is_file()
+           for skill in sys.argv[1:])
+""", *skills)
+    print("PASS H: representative flat-path and nested-path skills installed", flush=True)
+
+
 def validate(image, checkpoint):
-    checks = {"A": check_a, "B": check_b, "C": check_c, "E": check_e}
+    checks = {"A": check_a, "B": check_b, "C": check_c, "E": check_e, "H": check_h}
     with Runtime(image) as runtime:
         checks[checkpoint](runtime)
 

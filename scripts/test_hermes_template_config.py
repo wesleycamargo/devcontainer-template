@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import re
 import subprocess
+import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,27 +21,56 @@ EXPECTED_DEVCONTAINER_FILES = {
 }
 
 
+def payload_inventory(root, directory):
+    """List tracked and unignored new payload files, excluding pending deletions."""
+    paths = subprocess.check_output([
+        "git", "ls-files", "-z", "--cached", "--others", "--exclude-standard",
+        "--", directory.relative_to(root).as_posix() + "/",
+    ], cwd=root).decode().split("\0")
+    return {
+        (root / relative).relative_to(directory).as_posix()
+        for relative in set(filter(None, paths))
+        if (root / relative).is_file()
+    }
+
+
 def read_jsonc(path):
     # The checked-in manifests use whole-line // comments only.
     return json.loads(re.sub(r"(?m)^\s*//.*$", "", path.read_text()))
 
 
+class PayloadInventoryTests(unittest.TestCase):
+    def test_inventory_uses_git_ignore_rules_and_filters_deleted_paths(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            subprocess.run(["git", "init", "--quiet", str(root)], check=True)
+            payload = root / "payload"
+            payload.mkdir()
+            (payload / ".gitignore").write_text(".env\n__pycache__/\n")
+            (payload / "tracked.txt").write_text("tracked")
+            (payload / "deleted.txt").write_text("deleted")
+            subprocess.run(["git", "add", "--", "payload"], cwd=root, check=True)
+            (payload / "deleted.txt").unlink()
+            (payload / ".env").write_text("ignored secret")
+            (payload / "unexpected.env").write_text("not ignored")
+            (payload / "__pycache__").mkdir()
+            (payload / "__pycache__/cache.pyc").write_bytes(b"ignored")
+            self.assertEqual(payload_inventory(root, payload), {
+                ".gitignore", "tracked.txt", "unexpected.env",
+            })
+
+
 class HermesTemplateConfigTests(unittest.TestCase):
+
     def test_devcontainer_payloads_contain_exactly_seven_files(self):
         for directory in CONFIG_DIRS:
             with self.subTest(directory=str(directory.relative_to(ROOT))):
-                actual = {
-                    path.relative_to(directory).as_posix()
-                    for path in directory.rglob("*") if path.is_file()
-                }
+                actual = payload_inventory(ROOT, directory)
                 self.assertEqual(actual, EXPECTED_DEVCONTAINER_FILES)
 
     def test_published_template_contains_only_consumer_payload(self):
         directory = SOURCE.parent
-        actual = {
-            path.relative_to(directory).as_posix()
-            for path in directory.rglob("*") if path.is_file()
-        }
+        actual = payload_inventory(ROOT, directory)
         expected = {"README.md", "devcontainer-template.json"} | {
             f".devcontainer/{name}" for name in EXPECTED_DEVCONTAINER_FILES
         }

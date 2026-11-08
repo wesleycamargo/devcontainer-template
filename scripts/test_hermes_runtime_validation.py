@@ -44,9 +44,57 @@ class RuntimeFixtureTests(unittest.TestCase):
             finally:
                 runtime.temp.cleanup()
 
+    def test_h_dispatch_uses_the_owned_runtime(self):
+        module = self.module()
+        with patch.object(module, "check_h", create=True) as check:
+            with patch.object(module.Runtime, "docker", return_value=subprocess.CompletedProcess([], 0, "", "")):
+                module.validate("fixture:image", "H")
+        check.assert_called_once()
+        self.assertFalse(check.call_args.args[0].work.exists())
+
+    def test_h_requests_only_a_flat_and_a_nested_skill(self):
+        module = self.module()
+        runtime = module.Runtime("fixture:image")
+        try:
+            with patch.object(runtime, "docker"), patch.object(
+                    runtime, "container", side_effect=RuntimeError("captured launch")) as launch:
+                with self.assertRaisesRegex(RuntimeError, "captured launch"):
+                    module.check_h(runtime)
+            self.assertIn("HERMES_SKILLS_INSTALL=wesleycamargo/skills/write-for-me,"
+                          "mattpocock/skills/skills/productivity/teach", launch.call_args.args)
+            self.assertNotIn("--entrypoint", launch.call_args.args)
+            self.assertEqual(runtime.volumes, [])
+        finally:
+            runtime.temp.cleanup()
+
+    def test_shell_dispatches_h_once_in_all_and_accepts_h_alone(self):
+        module = self.module()
+        with tempfile.TemporaryDirectory() as directory:
+            work = Path(directory)
+            log = work / "calls"
+            for tool in ("docker", "python3", "bash"):
+                path = work / tool
+                path.write_text('#!/bin/sh\nprintf "%s\\n" "$(basename "$0") $*" >> "$CALLS"\n')
+                path.chmod(0o755)
+            for checkpoint, expected in (("H", ["H"]), ("all", ["A", "B", "C", "E", "H"])):
+                log.write_text("")
+                result = subprocess.run(["/bin/bash", str(ROOT / "scripts/validate-hermes-runtime.sh"), checkpoint],
+                    env={**os.environ, "PATH": str(work) + ":/usr/bin:/bin", "CALLS": str(log)},
+                    text=True, capture_output=True, timeout=10)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                dispatched = [line.rsplit(" ", 1)[1] for line in log.read_text().splitlines()
+                              if "validate-hermes-runtime.py" in line]
+                self.assertEqual(dispatched, expected)
+
     def test_runtime_wrapper_is_executable(self):
         wrapper = ROOT / "scripts/validate-hermes-runtime.sh"
-        self.assertEqual(wrapper.stat().st_mode & 0o777, 0o755)
+        # WSL bind mounts may expose every file as 0777 regardless of chmod.
+        # Check the portable publication contract and actual execute access.
+        mode = subprocess.check_output(
+            ["git", "ls-files", "--stage", "--", str(wrapper.relative_to(ROOT))], cwd=ROOT,
+            text=True).split()[0]
+        self.assertEqual(mode, "100755")
+        self.assertTrue(os.access(wrapper, os.X_OK))
 
     def test_signals_clean_owned_resources_ignore_repeated_signals_and_restore_handlers(self):
         driver = r'''

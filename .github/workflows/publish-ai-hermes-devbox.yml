@@ -107,7 +107,7 @@ jobs:
           cache-from: type=gha,scope=ai-hermes-devbox
           cache-to: type=gha,mode=max,scope=ai-hermes-devbox
 
-      - name: Run runtime checkpoints A through E and Webapp checkpoint G
+      - name: Run runtime checkpoints A through E, Webapp G and skills H
         # Features extend the image loaded into dockerd. The isolated cache
         # builder cannot resolve that daemon-local tag as a FROM image.
         env:

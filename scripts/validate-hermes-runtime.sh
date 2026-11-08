@@ -15,8 +15,8 @@ do_G() {
 
 checkpoint="${1:-all}"
 case "$checkpoint" in
-  build|all|A|B|C|D|E|G) ;;
-  *) echo "usage: $0 [build|all|A|B|C|D|E|G]" >&2; exit 2 ;;
+  build|all|A|B|C|D|E|G|H) ;;
+  *) echo "usage: $0 [build|all|A|B|C|D|E|G|H]" >&2; exit 2 ;;
 esac
 command -v docker >/dev/null || { echo 'Docker is required; run on the Docker host.' >&2; exit 1; }
 docker info >/dev/null
@@ -26,7 +26,7 @@ if [ "$checkpoint" = build ]; then
 fi
 steps=("$checkpoint")
 if [ "$checkpoint" = all ]; then
-  steps=(A B C D E G)
+  steps=(A B C D E G H)
 fi
 for step in "${steps[@]}"; do
   printf '\n== %s: Hermes runtime ==\n' "$step"

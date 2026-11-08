@@ -14,6 +14,16 @@ CLI wrapping, service startup and Webapp opening; the image installs it at
 `/usr/local/lib/hermes_devbox.py` with command symlinks. Existing commands
 `hermes`, `hermes-start-services` and `hermes-webapp-open` remain unchanged.
 
+**No shell-script helpers in the template.** Custom entrypoint, startup,
+CLI-wrapper and skills-bootstrap logic belongs in `hermes_devbox.py`, not new
+`.sh` files. The root `.devcontainer/` mirror follows the same rule. The public
+commands above are symlinks to Python, not shell scripts.
+
+The maintainer repository still has existing Docker-host/CI validators such as
+`scripts/validate-hermes-runtime.sh` and `scripts/validate-hermes-devcontainer.sh`.
+They are not part of the seven-file consumer payload and are not copied into
+the image as runtime helpers. References to them below are maintainer-only.
+
 - PowerShell installed in the image, set as the default
   integrated terminal, with Oh My Posh and Terminal-Icons.
 - Azure Bicep CLI (`azurebicep` feature) and image-baked GitHub CLI (`gh`).
@@ -113,7 +123,7 @@ python3 -B -m unittest discover -s scripts -p 'test_*hermes*.py' -v
 ```
 
 The build uses the public official Hermes image, pinned by digest. The runtime
-validator accepts `build`, `all`, or one checkpoint: `A`, `B`, `C`, `D`, `E`, `G`.
+validator accepts `build`, `all`, or one checkpoint: `A`, `B`, `C`, `D`, `E`, `G`, `H`.
 
 - **A**: raw image development shell/tools with no listeners.
 - **B**: default Compose gateway/Webapp and dashboard opt-in.
@@ -122,6 +132,8 @@ validator accepts `build`, `all`, or one checkpoint: `A`, `B`, `C`, `D`, `E`, `G
   a frozen lockfile, via `scripts/validate-hermes-devcontainer.sh`.
 - **E**: migration over an existing Hermes data volume.
 - **G**: prebuilt Webapp HTTP authentication and optional remote password login.
+- **H**: smoke-test one flat-path skill and one nested-path skill from different
+  repositories. Unit tests cover bootstrap policy; no full-baseline download.
 
 Checkpoint D also needs GNU coreutils `timeout`. Commands and cleanup operations
 are bounded, and cancellation stops the owned child process group before cleaning
