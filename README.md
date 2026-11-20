@@ -104,12 +104,8 @@ extensions, Docker Engine **inside WSL** (never Docker Desktop), the
 
 On Linux it only checks and prints install instructions. The repo's own
 devcontainer pulls the public `ai-hermes-devbox-image`; registry login is not
-required for it. Before first start, authenticate Codex on the Docker host so
-the required credential file exists:
-
-```bash
-codex -c 'cli_auth_credentials_store="file"' login
-```
+required for it. Authenticate Codex inside the devcontainer when you want to
+use the Codex provider.
 
 ### 2. Clone and open the devcontainer
 
@@ -128,10 +124,8 @@ There is no build step — `docker-compose.yml` pulls the prebuilt image.
 
 ### 3. Credentials and persistence
 
-The root configuration mirrors AI Hermes Devbox. Compose uses
-`DEVBOX_HOST_HOME` (falling back to host `HOME`) to mount only
-`~/.codex/auth.json`; it must exist before Compose starts. Claude state, Codex
-configuration/history and Hermes state are per-project Docker
+The root configuration mirrors AI Hermes Devbox. Claude state, Codex
+credentials/configuration/history, and Hermes state are per-project Docker
 named volumes. See [AI Hermes Devbox](docs/ai-hermes-devbox.md) for the Webapp,
 VS Code opener, shell-only mode, migration, and volume details. Gateway/Webapp
 starts by default; the dashboard is opt-in. Closing the attached VS Code window
@@ -160,8 +154,8 @@ bash scripts/test_ai_openhands_devbox.sh     # static config checks (any shell)
 ```
 
 Checkpoint A checks raw image shell/tools with no listeners; B checks the default
-gateway/Webapp and dashboard opt-in; C checks isolated projects sharing synthetic
-Codex auth; D runs a disposable `devcontainer up` with CLI 0.90.0, actual features
+gateway/Webapp and dashboard opt-in; C checks isolated projects with separate
+Codex credentials; D runs a disposable `devcontainer up` with CLI 0.90.0, actual features
 and a frozen lockfile; E checks existing-volume migration; G checks Webapp HTTP
 authentication; H smoke-tests one flat-path skill and one nested-path skill. D uses
 `scripts/validate-hermes-devcontainer.sh`. Opening the

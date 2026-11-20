@@ -142,6 +142,31 @@ if updates:
     print("hermes-start-services: filled missing environment defaults")
 """
 
+CONFIG_SHAPES = """from hermes_cli.config import get_config_path, require_readable_config_before_write
+
+config = require_readable_config_before_write(get_config_path())
+for section in ("terminal", "webapp"):
+    value = config.get(section, {})
+    if not isinstance(value, dict):
+        raise ValueError(f"{section} must be a mapping")
+"""
+
+WORKSPACE_DEFAULT = """import sys
+from hermes_cli.config import (
+    atomic_config_write, get_config_path, require_readable_config_before_write,
+)
+
+path = get_config_path()
+config = require_readable_config_before_write(path)
+terminal = config.get("terminal", {})
+if not isinstance(terminal, dict):
+    raise ValueError("terminal must be a mapping")
+if "cwd" not in terminal:
+    config["terminal"] = {**terminal, "cwd": sys.argv[1]}
+    atomic_config_write(path, config)
+    print("hermes-start-services: filled missing Dev Container workspace default")
+"""
+
 WEBAPP_DEFAULTS = """from hermes_cli.config import (
     atomic_config_write, get_config_path, require_readable_config_before_write,
 )
@@ -334,8 +359,8 @@ def entrypoint(args):
     return os.execvp(command[0], command)
 
 
-def run_integration(code):
-    return subprocess.run([PYTHON, "-"], input=code, text=True, capture_output=True,
+def run_integration(code, *args):
+    return subprocess.run([PYTHON, "-", *map(str, args)], input=code, text=True, capture_output=True,
                           cwd=RUNTIME, timeout=30)
 
 
@@ -368,6 +393,20 @@ def ensure_env_defaults():
     result = run_integration(ENV_DEFAULTS)
     if result.returncode:
         raise RuntimeError("could not apply environment defaults; check bootstrap settings")
+    if result.stdout:
+        print(result.stdout, end="")
+
+
+def ensure_config_shapes():
+    result = run_integration(CONFIG_SHAPES)
+    if result.returncode:
+        raise RuntimeError("could not validate Hermes configuration")
+
+
+def ensure_workspace_default(cwd):
+    result = run_integration(WORKSPACE_DEFAULT, cwd)
+    if result.returncode:
+        raise RuntimeError("could not configure terminal workspace")
     if result.stdout:
         print(result.stdout, end="")
 
@@ -407,6 +446,12 @@ def start_services():
     home = Path(os.environ.get("HOME") or HOME)
     logs = home / ".hermes/logs"
     logs.mkdir(parents=True, exist_ok=True)
+    cwd = select_workspace()
+    try:
+        ensure_config_shapes()
+    except (RuntimeError, OSError, subprocess.TimeoutExpired):
+        print("hermes-start-services: could not validate Hermes configuration; check config.yaml")
+        return 1
     try:
         ensure_env_defaults()
     except (RuntimeError, OSError, subprocess.TimeoutExpired):
@@ -418,7 +463,11 @@ def start_services():
     except (RuntimeError, OSError, subprocess.TimeoutExpired):
         print("hermes-start-services: could not configure Webapp; check config.yaml and Hermes dependencies")
         return 1
-    cwd = select_workspace()
+    try:
+        ensure_workspace_default(cwd)
+    except (RuntimeError, OSError, subprocess.TimeoutExpired):
+        print("hermes-start-services: could not configure terminal workspace; check config.yaml")
+        return 1
     if process_running(GATEWAY):
         print("hermes-start-services: gateway already running")
     else:

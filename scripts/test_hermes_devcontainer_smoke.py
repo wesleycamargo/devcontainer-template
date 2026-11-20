@@ -51,18 +51,15 @@ if tool == "docker" and args[0] == "compose" and "down" in args and os.environ.g
 if tool == "devcontainer" and args[0] == "up":
     fixture = pathlib.Path(args[args.index("--workspace-folder") + 1])
     config = fixture / ".devcontainer"
-    auth = pathlib.Path(os.environ["DEVBOX_HOST_HOME"]) / ".codex/auth.json"
     record["snapshot"] = {
         "files": sorted(str(p.relative_to(fixture)) for p in fixture.rglob("*") if p.is_file()),
         "config": json.loads((config / "devcontainer.json").read_text()),
         "lock": (config / "devcontainer-lock.json").read_text(),
         "override": json.loads((config / "docker-compose.test.yml").read_text()),
-        "auth": json.loads(auth.read_text()), "auth_mode": stat.S_IMODE(auth.stat().st_mode),
-        "auth_path": str(auth), "marker": (fixture / "smoke-marker.txt").read_text(),
+        "marker": (fixture / "smoke-marker.txt").read_text(),
         "tracked": (config / "nested/tracked file.txt").read_text(),
         "modes": {name: stat.S_IMODE(path.stat().st_mode) for name, path in {
             "parent": fixture.parent, "workspace": fixture, "config": config,
-            "host_home": auth.parent.parent, "codex": auth.parent,
             "marker": fixture / "smoke-marker.txt",
         }.items()},
     }
@@ -156,15 +153,12 @@ class DevcontainerSmokeTests(unittest.TestCase):
         os.mkfifo(self.config / ".env")
         (self.repo / ".env").write_text("COMPOSE_PROJECT_NAME=must-not-use\n")
         self.operator_home = self.work / "operator-home"
-        (self.operator_home / ".codex").mkdir(parents=True)
-        os.mkfifo(self.operator_home / ".codex/auth.json")
         self.scratch = self.work / "scratch"
         self.scratch.mkdir()
         self.log = self.work / "calls.jsonl"
         self.env = {
             "PATH": str(self.bin) + os.pathsep + os.environ.get("PATH", "/usr/bin:/bin"),
-            "HOME": str(self.operator_home), "TMPDIR": str(self.scratch),
-            "DEVBOX_HOST_HOME": str(self.operator_home),
+            "HOME": str(self.work / "operator-home"), "TMPDIR": str(self.scratch),
             "COMPOSE_PROJECT_NAME": "must-not-use", "HERMES_AUTOSTART_SERVICES": "0",
             "HERMES_AUTOSTART_DASHBOARD": "1", "SMOKE_LOG": str(self.log),
             "SMOKE_STATE": str(self.work / "state.json"),
@@ -559,7 +553,7 @@ pgrep() {
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         up = next(call for call in calls if "snapshot" in call)
         modes = up["snapshot"]["modes"]
-        for name in ("parent", "workspace", "config", "host_home", "codex"):
+        for name in ("parent", "workspace", "config"):
             with self.subTest(path=name):
                 self.assertEqual(modes[name] & 0o005, 0o005, "container UID must traverse the mounted workspace")
         self.assertEqual(modes["marker"] & 0o004, 0o004)
@@ -615,7 +609,7 @@ pgrep() {
         self.assertEqual([(call["tool"], call["args"]) for call in calls], [("docker", ["info"])])
         self.assertEqual(list(self.scratch.iterdir()), [])
 
-    def test_up_uses_only_tracked_fixture_synthetic_auth_and_real_feature_contract(self):
+    def test_up_uses_only_tracked_fixture_and_real_feature_contract(self):
         result, calls = self.run_smoke(image='fixture:image-with-"quote')
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assert_exact_cleanup(calls)
@@ -629,10 +623,7 @@ pgrep() {
         self.assertEqual(up["cwd"], str(fixture))
         self.assertEqual(up["env"]["HERMES_AUTOSTART_SERVICES"], "1")
         self.assertEqual(up["env"]["HERMES_AUTOSTART_DASHBOARD"], "0")
-        self.assertEqual(snapshot["auth"], {"tokens": None})
-        self.assertEqual(snapshot["auth_mode"], 0o666)
-        self.assertTrue(Path(snapshot["auth_path"]).is_relative_to(fixture.parent))
-        self.assertNotEqual(up["env"]["DEVBOX_HOST_HOME"], str(self.operator_home))
+        self.assertIsNone(up["env"]["DEVBOX_HOST_HOME"])
         self.assertNotIn(".devcontainer/.env", snapshot["files"])
         self.assertNotIn(".env", snapshot["files"])
         self.assertEqual(snapshot["tracked"], "tracked working-tree contents\n")
@@ -649,7 +640,6 @@ pgrep() {
         self.assertNotIn("--no-lockfile", args)
         self.assertFalse(fixture.parent.exists(), "temporary fixture and CLI state must be removed")
         self.assertTrue((self.config / ".env").is_fifo())
-        self.assertTrue((self.operator_home / ".codex/auth.json").is_fifo())
 
 
 if __name__ == "__main__":

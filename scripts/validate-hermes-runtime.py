@@ -28,10 +28,6 @@ class Runtime:
         self.containers = []
         self.projects = []
         self.volumes = []
-        self.auth = self.work / "host-home/.codex/auth.json"
-        self.auth.parent.mkdir(parents=True)
-        self.auth.write_text('{"tokens": null}\n')
-        self.auth.chmod(0o666)  # Synthetic fixture only; CI UID may differ.
         workspace = self.work / "workspaces/project"
         workspace.mkdir(parents=True)
         (workspace / "marker.txt").write_text("fixture workspace\n")
@@ -47,7 +43,6 @@ class Runtime:
         }))
         self.env = {
             **os.environ,
-            "DEVBOX_HOST_HOME": str(self.work / "host-home"),
             "HERMES_AUTOSTART_SERVICES": "1",
             "HERMES_AUTOSTART_DASHBOARD": "0",
             "HERMES_SKILLS_INSTALL": "",
@@ -58,6 +53,7 @@ class Runtime:
             "HERMES_MODEL_PROVIDER", "HERMES_DEFAULT_MODEL", "HERMES_MODEL_BASE_URL",
             "HERMES_TERMINAL_CWD", "HERMES_TERMINAL_BACKEND", "HERMES_TERMINAL_TIMEOUT",
             "HERMES_WEBAPP_ENABLED", "HERMES_WEBAPP_HOST", "HERMES_WEBAPP_PORT",
+            "DEVBOX_HOST_HOME",
         ):
             self.env.pop(key, None)
 
@@ -259,16 +255,13 @@ def check_c(runtime):
 import json
 from pathlib import Path
 path = Path.home() / ".codex/auth.json"
-assert json.loads(path.read_text()) == {"tokens": None}
-path.write_text(json.dumps({"tokens": None, "fixture": "shared"}) + "\n")
+path.write_text(json.dumps({"fixture": "project-one"}) + "\n")
 ''')
-    assert json.loads(runtime.auth.read_text())["fixture"] == "shared"
     runtime.user(names[1], "python3", "-c", '''
-import json
 from pathlib import Path
-assert json.loads((Path.home() / ".codex/auth.json").read_text())["fixture"] == "shared"
+assert not (Path.home() / ".codex/auth.json").exists()
 ''')
-    print("PASS C: parallel projects, separate state and synthetic host credential sharing", flush=True)
+    print("PASS C: parallel projects keep Codex credentials isolated", flush=True)
 
 
 def check_e(runtime):

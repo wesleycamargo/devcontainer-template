@@ -63,7 +63,6 @@ PROJECT="hermes-smoke-$(python3 -c 'import secrets; print(secrets.token_hex(6))'
 FIXTURE="$WORK/$PROJECT"
 CONFIG="$FIXTURE/.devcontainer"
 export COMPOSE_PROJECT_NAME="$PROJECT"
-export DEVBOX_HOST_HOME="$WORK/host-home"
 export HERMES_AUTOSTART_SERVICES=1
 export HERMES_AUTOSTART_DASHBOARD=0
 # Catalog/network acceptance belongs exclusively to runtime checkpoint H.
@@ -108,10 +107,7 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-mkdir -p "$CONFIG" "$DEVBOX_HOST_HOME/.codex"
-printf '{"tokens": null}\n' > "$DEVBOX_HOST_HOME/.codex/auth.json"
-# This is a synthetic fixture only; the host and container UIDs may differ.
-chmod 666 "$DEVBOX_HOST_HOME/.codex/auth.json"
+mkdir -p "$CONFIG"
 printf 'disposable workspace\n' > "$FIXTURE/smoke-marker.txt"
 
 git -C "$ROOT" ls-files -z -- src/ai-hermes-devbox/.devcontainer/ > "$WORK/tracked-files"

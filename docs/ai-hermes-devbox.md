@@ -19,16 +19,16 @@ the manifest check does not replace testing the Dev Container on an ARM64 host.
 devcontainer templates apply -w . -t ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox
 ```
 
-Before opening the container, authenticate once with Codex CLI on the Docker
-host (WSL when Docker runs in WSL):
+Open the devcontainer first. Then authenticate in its VS Code terminal:
 
 ```bash
 codex -c 'cli_auth_credentials_store="file"' login
+hermes-start-services
 ```
 
-This creates the required `~/.codex/auth.json` host file. Then **Reopen in
-Container** and run `hermes-webapp-open` in its terminal. Hermes imports the
-OpenAI login automatically; there is no separate Hermes OpenAI login step.
+Codex credentials remain in the project-scoped `codex-data` volume. Hermes
+imports the OpenAI login after `hermes-start-services`; there is no separate
+Hermes OpenAI login step.
 
 The default devcontainer publishes no host ports. VS Code forwards the Webapp
 locally, choosing an available port for each project.
@@ -44,14 +44,16 @@ locally, choosing an available port for each project.
    ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox
    ```
 
-3. Complete the host Codex login above, then **Reopen in Container** and run
+3. **Reopen in Container**, run the in-container Codex login above, then run
    `hermes-webapp-open` in its VS Code terminal.
 
 ## Workspace location
 
 The Dev Container mounts the opened repository directly at
-`/workspaces/${localWorkspaceFolderBasename}`. VS Code and the Hermes gateway
-start in that same directory; no hardcoded repository-name edits are required.
+`/workspaces/${localWorkspaceFolderBasename}`. VS Code, the Hermes gateway,
+and the first-start Hermes `terminal.cwd` default use that same directory; no
+hardcoded repository-name edits are required. A saved `terminal.cwd` or an
+explicit `HERMES_TERMINAL_CWD` value remains unchanged.
 
 ## What runs
 
@@ -101,7 +103,7 @@ These are initial defaults, not forced overrides. Saved Hermes settings always w
 
 The custom endpoint input requires provider `custom` and must not contain credentials. Workspace paths are absolute paths inside the target environment, not host paths or VS Code substitution variables. Selecting a backend does not provision or authenticate it. Webapp host bootstrap accepts loopback only; remote access still follows the separate authenticated procedure. A different Webapp port may require changing VS Code forwarding too.
 
-Credentials belong in Hermes' private secret store, not Compose's `.env`. Provider settings do not authenticate you, and the existing host Codex file mount prerequisite remains unchanged. Without these optional inputs, existing Codex model seeding and local Webapp fallback defaults remain unchanged. In shell-only mode, bootstrap runs when you explicitly start services. Changed Compose environment inputs require container recreation, not a process restart.
+Credentials belong in Hermes' private secret store, not Compose's `.env`. Provider settings do not authenticate you. Codex credentials are stored in the project-scoped `codex-data` volume after an in-container login. Without these optional inputs, existing Codex model seeding and local Webapp fallback defaults remain unchanged. In shell-only mode, bootstrap runs when you explicitly start services. Changed Compose environment inputs require container recreation, not a process restart.
 
 Environment bootstrap runs before Codex seeding and Webapp fallbacks. Unrequested, missing Webapp settings still receive true/127.0.0.1/9120.
 
@@ -205,20 +207,15 @@ See [Hermes Webapp documentation](https://hermes-agent.nousresearch.com/docs/use
 
 ## Persistence
 
-The host `~/.codex/auth.json` is mounted read/write into each container at
-`/home/hermes/.codex/auth.json`. Existing host credentials are immediately
-available; Codex logins inside the container also update the host file.
-
-Set `DEVBOX_HOST_HOME` in `.devcontainer/.env` if Compose should use a different
-host home. The host credential file must exist before creating the container.
-Use Codex's file credential store, as described in the
-[Codex authentication documentation](https://learn.chatgpt.com/docs/auth).
+Codex credentials are stored in the project-scoped `codex-data` named volume.
+Run the Codex login command from the attached devcontainer terminal; no host
+credential file is mounted. Use Codex's file credential store, as described in
+the [Codex authentication documentation](https://learn.chatgpt.com/docs/auth).
 
 Named volumes keep Claude state, Codex settings/history, and Hermes config,
 sessions, memories and skills separate per project. Keep `claude-data`,
 `codex-data` and `hermes-data` when recreating or upgrading; deleting them
-destroys their saved state. Host credentials remain in the host file.
-Hermes' code lives in the image.
+destroys their saved state. Hermes' code lives in the image.
 
 Hermes imports the Codex login into its own per-project authentication store.
 Git settings remain local to the container.
@@ -330,11 +327,11 @@ container startup.
   project-skills configuration hook. Skills are optional: add the ones you need
   manually and ask the agent to read their `SKILL.md`. Startup does not install
   or update project skills.
-- **Codex/ChatGPT shortcut**: on first start, Hermes imports a valid host Codex
-  login and defaults to `openai-codex` / `gpt-6.1-sol` with medium reasoning. Explicit provider and
+- **Codex/ChatGPT shortcut**: after signing into Codex inside the container,
+  run `hermes-start-services` to import that login and default to
+  `openai-codex` / `gpt-6.1-sol` with medium reasoning. Explicit provider and
   model choices and existing Hermes logins are preserved. If the initial Codex
-  access token has expired, renew it
-  with Codex on the host and restart the container.
+  access token has expired, renew it in the container and run the command again.
 - **Refresh limitation**: Hermes and Codex CLI renew credentials separately.
   Using multiple clients actively
   with the same imported login can invalidate a refresh token and require
@@ -350,7 +347,7 @@ container startup.
   `python3 -B -m unittest discover -s scripts -p 'test_*hermes*.py' -v`.
   Then run `./scripts/validate-hermes-runtime.sh build` and `all` (or one of
   `A`, `B`, `C`, `D`, `E`, `G`, `H`). A checks raw shell/tools/no listeners; B default
-  services/dashboard opt-in; C isolated parallel projects/shared synthetic auth;
+  services/dashboard opt-in; C isolated parallel projects/separate Codex credentials;
   D real disposable `devcontainer up` with CLI 0.90.0, actual features and frozen
   lockfile via `scripts/validate-hermes-devcontainer.sh`; E existing-volume
   migration; G Webapp HTTP auth; H representative flat-path/nested-path skill

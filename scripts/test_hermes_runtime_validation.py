@@ -180,7 +180,7 @@ finally:
         self.assertIn(["docker", "rm", "-f", "-v", created], calls)
         self.assertFalse(any("prune" in args for args in calls))
 
-    def test_compose_uses_synthetic_auth_workspace_and_explicit_env_file(self):
+    def test_compose_uses_isolated_workspace_and_explicit_env_file(self):
         module = self.module()
         with patch.object(module.subprocess, "run") as run:
             run.return_value = subprocess.CompletedProcess([], 0, stdout="", stderr="")
@@ -188,12 +188,11 @@ finally:
                 runtime.compose("one", "up", "-d")
                 args = run.call_args.args[0]
                 self.assertIn("--env-file", args)
-                self.assertEqual(json.loads(runtime.auth.read_text()), {"tokens": None})
                 override = json.loads(runtime.override.read_text())["services"]["devcontainer"]
                 self.assertEqual(override["image"], "fixture:image")
                 workspace = next(m for m in override["volumes"] if m["target"] == "/workspaces")
                 self.assertTrue(Path(workspace["source"]).is_relative_to(runtime.work))
-                self.assertEqual(runtime.env["DEVBOX_HOST_HOME"], str(runtime.work / "host-home"))
+                self.assertNotIn("DEVBOX_HOST_HOME", runtime.env)
                 self.assertEqual(runtime.env["HERMES_AUTOSTART_DASHBOARD"], "0")
                 self.assertEqual(runtime.env["HERMES_AUTOSTART_SERVICES"], "1")
                 work = runtime.work

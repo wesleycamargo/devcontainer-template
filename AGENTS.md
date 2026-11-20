@@ -7,8 +7,7 @@ templates and images.
 
 - `.devcontainer/` — the repo's development container. Keep its tracked files
   identical to `src/ai-hermes-devbox/.devcontainer/`. Compose pulls the public
-  `ai-hermes-devbox-image`; it needs the Docker host's Codex credential file
-  (`~/.codex/auth.json`, or `DEVBOX_HOST_HOME/.codex/auth.json`).
+  `ai-hermes-devbox-image`; Codex credentials stay in the project's named volume.
 - `src/ai-devbox/.devcontainer/` — the base template, published via CI. The
   build recipe (`Dockerfile`) lives only here; nothing else consumes this
   directory directly.
@@ -57,7 +56,7 @@ templates and images.
   gated by validation rather than adding a second validation workflow.
 - `scripts/validate-hermes-runtime.sh build|all|A|B|C|D|E|G` — Docker-host
   validation: A raw shell/tools/no listeners; B default gateway/Webapp and
-  dashboard opt-in; C isolated parallel projects with shared synthetic auth;
+  dashboard opt-in; C isolated parallel projects with separate Codex credentials;
   D real disposable `devcontainer up` via `scripts/validate-hermes-devcontainer.sh`
   (CLI 0.90.0, actual features, frozen lockfile); E existing-volume migration;
   G Webapp HTTP auth. Keep credentials synthetic. VS Code browser opening is

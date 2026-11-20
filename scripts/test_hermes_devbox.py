@@ -161,10 +161,12 @@ class DashboardStartupTests(unittest.TestCase):
     def test_environment_defaults_precede_fallbacks(self):
         result = self.run_starter(extra_env={
             "HERMES_MODEL_PROVIDER": "custom", "HERMES_DEFAULT_MODEL": "fixture-model",
+            "HERMES_TERMINAL_CWD": "/custom/from-env",
             "HERMES_WEBAPP_ENABLED": "false", "HERMES_WEBAPP_PORT": "9130",
         })
         self.assertEqual(json.loads(result.raw_config), {
             "model": {"provider": "custom", "default": "fixture-model"},
+            "terminal": {"cwd": "/custom/from-env"},
             "webapp": {"enabled": False, "host": "127.0.0.1", "port": 9130},
         })
 
@@ -202,6 +204,22 @@ class DashboardStartupTests(unittest.TestCase):
             with self.subTest(config=config):
                 result = self.run_starter(workspace_names=("example",))
                 self.assertEqual(result.workdirs, [str(result.workspace_root / "example")])
+
+    def test_first_start_persists_unique_devcontainer_workspace_as_terminal_cwd(self):
+        result = self.run_starter(workspace_names=("example",))
+        self.assertEqual(json.loads(result.raw_config), {
+            "terminal": {"cwd": str(result.workspace_root / "example")},
+            "webapp": {"enabled": True, "host": "127.0.0.1", "port": 9120},
+        })
+        self.assertEqual(result.workdirs, [str(result.workspace_root / "example")])
+
+    def test_nonmapping_terminal_config_blocks_defaults_and_service_start(self):
+        raw = json.dumps({"terminal": False})
+        result = self.run_starter(config=raw, expected_code=1)
+        self.assertEqual(result.calls, [])
+        self.assertEqual(result.raw_config, raw)
+        self.assertEqual(result.writes, [])
+        self.assertIn("could not validate Hermes configuration", result.output)
 
     def test_only_exact_one_opts_into_dashboard(self):
         for config in CONFIGS:
@@ -261,19 +279,21 @@ class DashboardStartupTests(unittest.TestCase):
                     self.assertIn("hermes gateway", result.calls)
                     self.assertEqual(len(result.calls), 2 if flag == "1" else 1)
 
-    def test_first_start_sets_local_webapp_defaults(self):
+    def test_first_start_sets_local_webapp_and_workspace_defaults(self):
         for config in CONFIGS:
             with self.subTest(config=config):
                 result = self.run_starter()
                 self.assertEqual(json.loads(result.raw_config), {
+                    "terminal": {"cwd": str(result.workspace_root / "project")},
                     "webapp": {"enabled": True, "host": "127.0.0.1", "port": 9120},
                 })
-                self.assertEqual(result.writes, ["write"])
+                self.assertEqual(result.writes, ["write", "write"])
 
     def test_explicit_webapp_model_and_other_settings_are_not_rewritten(self):
         existing = {
             "webapp": {"enabled": False, "host": "0.0.0.0", "port": 9876, "custom": "keep"},
             "model": {"provider": "anthropic", "default": "chosen-model"},
+            "terminal": {"cwd": "/saved/by-user"},
             "custom": {"preserve": True},
         }
         for config in CONFIGS:
@@ -290,9 +310,10 @@ class DashboardStartupTests(unittest.TestCase):
                 result = self.run_starter(config=existing)
                 self.assertEqual(json.loads(result.raw_config), {
                     **existing,
+                    "terminal": {"cwd": str(result.workspace_root / "project")},
                     "webapp": {**existing["webapp"], "host": "127.0.0.1", "port": 9120},
                 })
-                self.assertEqual(result.writes, ["write"])
+                self.assertEqual(result.writes, ["write", "write"])
 
     def test_invalid_config_fails_without_rewriting_or_launching_services(self):
         for config in CONFIGS:
@@ -303,7 +324,7 @@ class DashboardStartupTests(unittest.TestCase):
                     self.assertEqual(result.raw_config, raw)
                     self.assertEqual(result.writes, [])
                     self.assertEqual(result.calls, [])
-                    self.assertIn("could not configure Webapp", result.output)
+                    self.assertIn("could not validate Hermes configuration", result.output)
 
 
 class NoSshEntrypointTests(unittest.TestCase):

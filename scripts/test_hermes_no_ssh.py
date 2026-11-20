@@ -34,13 +34,13 @@ class NoSshConfigurationTests(unittest.TestCase):
                     "init: true",
                     "claude-data:/home/hermes/.claude", "codex-data:/home/hermes/.codex",
                     "hermes-data:/home/hermes/.hermes",
-                    "source: ${DEVBOX_HOST_HOME:-${HOME:-/home/vscode}}/.codex/auth.json",
-                    "target: /home/hermes/.codex/auth.json", "create_host_path: false",
                     'HERMES_AUTOSTART_SERVICES: "${HERMES_AUTOSTART_SERVICES:-1}"',
                     'HERMES_AUTOSTART_DASHBOARD: "${HERMES_AUTOSTART_DASHBOARD:-0}"',
                     "image: ghcr.io/wesleycamargo/devcontainer-template/ai-hermes-devbox-image:latest",
                 ):
                     self.assertIn(retained, text)
+                self.assertNotIn(".codex/auth.json", text)
+                self.assertNotIn("DEVBOX_HOST_HOME", text)
                 self.assertNotRegex(text, r"(?m)^\s+(command|ports|privileged):")
                 self.assertNotIn("/var/run/docker.sock", text)
 
@@ -77,7 +77,7 @@ class NoSshConfigurationTests(unittest.TestCase):
                 })
                 self.assertEqual(assignments["HERMES_AUTOSTART_SERVICES"], "1")
                 self.assertEqual(assignments["HERMES_AUTOSTART_DASHBOARD"], "0")
-                self.assertIn("DEVBOX_HOST_HOME", text)
+                self.assertNotIn("DEVBOX_HOST_HOME", text)
                 self.assertIn("recreate to apply", text)
 
     def test_tracked_root_mirror_matches_template_including_removed_files(self):
