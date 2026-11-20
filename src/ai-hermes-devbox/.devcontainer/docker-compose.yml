@@ -39,13 +39,6 @@ services:
       # the host file mounted below.
       - claude-data:/home/hermes/.claude
       - codex-data:/home/hermes/.codex
-      # Authenticate once with Codex CLI on the host. Only its credential file
-      # is shared; Codex configuration and history remain project-local.
-      - type: bind
-        source: ${DEVBOX_HOST_HOME:-${HOME:-/home/vscode}}/.codex/auth.json
-        target: /home/hermes/.codex/auth.json
-        bind:
-          create_host_path: false
       # Persist Hermes configuration, sessions, plugins and dependency state.
       # Source code and the prepared runtime remain in the image at /opt/hermes.
       - hermes-data:/home/hermes/.hermes
