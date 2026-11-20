@@ -353,15 +353,14 @@ class DevcontainerSmokeTests(unittest.TestCase):
                     self.assertEqual(calls, [])
                     self.assertEqual(list(self.scratch.iterdir()), [])
 
-    def test_non_gnu_timeout_is_rejected_before_any_resource_is_allocated(self):
+    def test_smoke_does_not_require_gnu_timeout(self):
         timeout = self.bin / "timeout"
         timeout.write_text("#!/bin/sh\nprintf 'BusyBox timeout\\n'\n")
         timeout.chmod(0o755)
         result, calls = self.run_smoke()
-        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("GNU coreutils timeout is required", result.stderr)
-        self.assertEqual(calls, [])
-        self.assertEqual(list(self.scratch.iterdir()), [])
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("PASS disposable Dev Container", result.stdout)
+        self.assert_exact_cleanup(calls)
 
     def test_cleanup_failures_or_unverifiable_resource_absence_fail_the_gate(self):
         for case in ("down-fail", "leftover-container", "leftover-volume", "ps-fail", "volume-fail"):

@@ -29,6 +29,8 @@
   "customizations": {
     "vscode": {
       "settings": {
+        "workbench.browser.openLocalhostLinks": true,
+        "simpleBrowser.useIntegratedBrowser": true,
         "remote.localPortHost": "localhost",
         "terminal.integrated.defaultProfile.linux": "pwsh",
         "terminal.integrated.profiles.linux": {

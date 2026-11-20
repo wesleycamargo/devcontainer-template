@@ -4,14 +4,9 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 IMAGE="${1:-${HERMES_TEST_IMAGE:-hermes-devbox:test}}"
-for tool in docker devcontainer git python3 timeout; do
+for tool in docker devcontainer git python3; do
   command -v "$tool" >/dev/null || { echo "FAIL $tool is required" >&2; exit 1; }
 done
-
-if [[ "$(timeout --version 2>/dev/null)" != *"GNU coreutils"* ]]; then
-  echo "FAIL GNU coreutils timeout is required" >&2
-  exit 1
-fi
 
 # Budgets are seconds; positive integer overrides make hanging-boundary tests fast.
 HERMES_SMOKE_INFO_TIMEOUT="${HERMES_SMOKE_INFO_TIMEOUT-30}"
@@ -27,9 +22,40 @@ ACTIVE_PID=
 run_bounded() {
   local budget=$1 result=0
   shift
-  # GNU timeout owns a fresh process group. Background + wait lets Bash run its
-  # cancellation trap immediately instead of deferring it behind a stuck CLI.
-  timeout --kill-after="$HERMES_SMOKE_KILL_AFTER" "$budget" "$@" &
+  # Python creates a child process group and reaps it on timeout or cancellation.
+  # This avoids assuming a GNU-specific timeout binary on the Docker host.
+  python3 - "$budget" "$@" <<'PY' &
+import os
+import signal
+import subprocess
+import sys
+
+budget = int(sys.argv[1])
+command = sys.argv[2:]
+child = None
+
+def stop(signum, _frame):
+    if child is not None and child.poll() is None:
+        try:
+            os.killpg(child.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        child.wait()
+    raise SystemExit(128 + signum)
+
+signal.signal(signal.SIGTERM, stop)
+signal.signal(signal.SIGINT, stop)
+child = subprocess.Popen(command, start_new_session=True)
+try:
+    raise SystemExit(child.wait(timeout=budget))
+except subprocess.TimeoutExpired:
+    try:
+        os.killpg(child.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    child.wait()
+    raise SystemExit(124)
+PY
   ACTIVE_PID=$!
   wait "$ACTIVE_PID" || result=$?
   ACTIVE_PID=
@@ -38,9 +64,8 @@ run_bounded() {
 
 stop_active() {
   if [ -n "$ACTIVE_PID" ]; then
-    # Stop only our timeout-owned group, even if a child ignores TERM. If timeout
-    # has not established its group yet, kill its still-owned PID instead.
-    kill -KILL -- "-$ACTIVE_PID" 2>/dev/null || kill -KILL -- "$ACTIVE_PID" 2>/dev/null || :
+    # The Python boundary receives TERM, kills its child group and reaps it.
+    kill -TERM -- "$ACTIVE_PID" 2>/dev/null || kill -KILL -- "$ACTIVE_PID" 2>/dev/null || :
     wait "$ACTIVE_PID" 2>/dev/null || :
     ACTIVE_PID=
   fi
