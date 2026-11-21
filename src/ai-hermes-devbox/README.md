@@ -30,6 +30,8 @@ the image as runtime helpers. References to them below are maintainer-only.
   The common-utils and Azure Bicep Dev Container features remain; `gh` no longer
   needs a creation-time feature installation.
 - The official Hermes Node.js runtime, native Claude Code and the Codex CLI.
+  New `codex-data` volumes also install the pinned Floorplan Codex plugin, so
+  fresh Codex chats can use `$floorplan` to map a codebase.
 - Codex's `AGENTS.md` symlinked to the same global agent instructions Claude
   Code reads (`~/.claude/CLAUDE.md`), so both CLIs start from one shared set
   of global guidelines instead of two copies that drift.
@@ -449,6 +451,26 @@ The image, Compose service and CLI wrapper allow file-tool writes to
 `HERMES_WRITE_SAFE_ROOT`. Explicit scope overrides are preserved; credential and
 sealed-runtime protections remain enabled. Recreate the container to apply
 Compose changes; image-only changes also require a rebuilt/pulled image.
+
+## Floorplan for Codex
+
+A fresh project-scoped `codex-data` volume installs Floorplan as a Codex plugin,
+pinned to Floorplan commit `94f81b463b7617e06d873ac71323ce71644c8399`. Open a new Codex chat and ask to draw a
+floorplan, or type `$floorplan`. Floorplan uses the bundled Node.js runtime and
+your in-container Codex sign-in; its map files live in the project's ignored
+`floorplan/` directory.
+
+Existing `codex-data` volumes are never changed automatically. To opt an existing
+project in, run this in its devcontainer terminal:
+
+```bash
+codex plugin marketplace add haydenschmitty/floorplan --ref 94f81b463b7617e06d873ac71323ce71644c8399
+codex plugin add floorplan@floorplan
+```
+
+The plugin is available to Codex, not installed as a Hermes skill: Hermes' skills
+scanner blocks Floorplan's large, script-bearing community package unless a user
+explicitly overrides its warning.
 
 ## Skills bootstrap
 

@@ -38,6 +38,8 @@ SKILL_IDENTIFIER = re.compile(
 # Maintainer defaults: edit here, then mirror this helper to root .devcontainer/.
 DEFAULT_CODEX_MODEL = "gpt-6.1-sol"
 DEFAULT_REASONING_EFFORT = "medium"
+FLOORPLAN_REPOSITORY = "haydenschmitty/floorplan"
+FLOORPLAN_REF = "94f81b463b7617e06d873ac71323ce71644c8399"
 
 CODEX_SEED = (
     f"DEFAULT_MODEL = {DEFAULT_CODEX_MODEL!r}\n"
@@ -285,6 +287,32 @@ def prepare_skills_bootstrap(home):
         bootstrap_skills(home)
 
 
+def prepare_floorplan_plugin(home):
+    codex = Path(home) / ".codex"
+    fresh = codex / ".devbox-floorplan-plugin-new-volume"
+    if not fresh.is_file():
+        return True
+    prefix = ["/usr/sbin/runuser", "-u", "hermes", "--", "env", f"HOME={home}",
+              "/usr/local/bin/codex", "plugin"]
+    commands = (
+        [*prefix, "marketplace", "add", FLOORPLAN_REPOSITORY, "--ref", FLOORPLAN_REF],
+        [*prefix, "add", "floorplan@floorplan"],
+    )
+    for command in commands:
+        try:
+            result = subprocess.run(command, check=False, timeout=120,
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except (OSError, subprocess.TimeoutExpired):
+            print("hermes-entrypoint: Floorplan plugin bootstrap failed; will retry next start")
+            return False
+        if result.returncode:
+            print("hermes-entrypoint: Floorplan plugin bootstrap failed; will retry next start")
+            return False
+    fresh.unlink()
+    print("hermes-entrypoint: installed pinned Floorplan Codex plugin")
+    return True
+
+
 def run_hermes(args):
     if os.geteuid() == 0:
         return os.execvp("/usr/sbin/runuser", ["/usr/sbin/runuser", "-u", "hermes", "--",
@@ -313,6 +341,10 @@ def entrypoint(args):
         print("hermes-entrypoint: invalid skills bootstrap configuration; will retry next start")
     except OSError:
         print("hermes-entrypoint: skills bootstrap state unavailable; will retry next start")
+    try:
+        prepare_floorplan_plugin(HOME)
+    except OSError:
+        print("hermes-entrypoint: Floorplan plugin state unavailable; will retry next start")
     template = RUNTIME / ".env.example"
     if not (data / ".env").is_file() and template.is_file():
         # Publish a prepared inode: never follow a destination symlink as root.

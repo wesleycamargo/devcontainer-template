@@ -81,6 +81,26 @@ class CodexSeedTests(unittest.TestCase):
         self.auth._save_codex_tokens.assert_not_called()
 
 
+class FloorplanPluginBootstrapTests(unittest.TestCase):
+    def test_new_codex_volume_installs_the_pinned_floorplan_plugin(self):
+        with tempfile.TemporaryDirectory(prefix="floorplan-plugin-") as directory:
+            home = Path(directory)
+            codex = home / ".codex"
+            codex.mkdir()
+            fresh = codex / ".devbox-floorplan-plugin-new-volume"
+            fresh.touch()
+            with patch.object(runtime.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as run:
+                self.assertTrue(runtime.prepare_floorplan_plugin(home))
+            self.assertFalse(fresh.exists())
+            prefix = ["/usr/sbin/runuser", "-u", "hermes", "--", "env", f"HOME={home}",
+                      "/usr/local/bin/codex", "plugin"]
+            self.assertEqual([call.args[0] for call in run.call_args_list], [
+                [*prefix, "marketplace", "add", "haydenschmitty/floorplan",
+                 "--ref", "94f81b463b7617e06d873ac71323ce71644c8399"],
+                [*prefix, "add", "floorplan@floorplan"],
+            ])
+
+
 CONFIG_ADAPTER = '''"""Minimal config I/O boundary; policy stays in the real starter."""
 import json
 import os

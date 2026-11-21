@@ -228,6 +228,26 @@ The image, Compose service and CLI wrapper allow file-tool writes to
 sealed-runtime protections remain enabled. Recreate the container to apply
 Compose changes; image-only changes also require a rebuilt/pulled image.
 
+## Floorplan for Codex
+
+On a fresh project-scoped `codex-data` volume, the entrypoint installs the
+Floorplan Codex plugin from `haydenschmitty/floorplan`, pinned to commit
+`94f81b463b7617e06d873ac71323ce71644c8399`. Open a new Codex chat and ask to draw a floorplan, or type
+`$floorplan`. Floorplan writes its map under the project's ignored `floorplan/`
+directory and uses the container's Node.js runtime and in-container Codex login.
+
+Existing `codex-data` volumes are not modified. To add the same pinned plugin to
+one, run in that devcontainer:
+
+```bash
+codex plugin marketplace add haydenschmitty/floorplan --ref 94f81b463b7617e06d873ac71323ce71644c8399
+codex plugin add floorplan@floorplan
+```
+
+Floorplan is intentionally not a Hermes skill. Hermes' community-skill scanner
+blocks its script-bearing package without an explicit user override, so this
+template does not bypass that guard with `--force`.
+
 ## Skills bootstrap
 
 For **new projects with a fresh `hermes-data` volume**, AI Hermes Devbox registers

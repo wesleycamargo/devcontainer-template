@@ -122,6 +122,8 @@ RUN --network=none timeout 60 runuser -u hermes -- hermes --version </dev/null \
 # Only newly initialized Docker volumes receive this one-use enrollment sentinel.
 # Write it after build-time CLI checks, never into an existing consumer volume.
 RUN install -o hermes -g hermes -m 600 /dev/null /home/hermes/.hermes/.devbox-new-volume
+# Floorplan is a Codex plugin; initialize it only in a new Codex data volume.
+RUN install -o hermes -g hermes -m 600 /dev/null /home/hermes/.codex/.devbox-floorplan-plugin-new-volume
 
 # Keep data/bootstrap preparation and Compose init, not the upstream s6 entrypoint.
 ENTRYPOINT ["/usr/local/bin/hermes-entrypoint"]

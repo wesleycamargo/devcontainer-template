@@ -105,6 +105,14 @@ class NoSshConfigurationTests(unittest.TestCase):
 
 
 class NoSshImageTests(unittest.TestCase):
+    def test_image_marks_new_codex_volumes_for_the_pinned_floorplan_plugin(self):
+        sentinel = "install -o hermes -g hermes -m 600 /dev/null /home/hermes/.codex/.devbox-floorplan-plugin-new-volume"
+        for directory in CONFIGS:
+            with self.subTest(directory=directory):
+                text = (directory / "Dockerfile").read_text()
+                self.assertIn(sentinel, text)
+                self.assertGreater(text.index(sentinel), text.index("codex --version"))
+
     def test_image_defaults_to_development_shell_without_custom_ssh_server(self):
         for directory in CONFIGS:
             with self.subTest(directory=directory):
